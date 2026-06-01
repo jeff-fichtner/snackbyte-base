@@ -134,9 +134,14 @@ output HTML contains the rendered content (not an empty root element).
   values: `static` and `server`, recorded in one discoverable configuration
   location.
 - **FR-003**: In **static** mode, the build MUST produce static assets deployable to
-  a CDN with no running server required.
+  a CDN (Google Cloud Storage + Cloud CDN) with no running server required.
 - **FR-004**: In **server** mode, an Express server MUST serve the built frontend
-  and MUST be able to expose backend API routes.
+  and MUST be able to expose backend API routes, deployable as a containerized
+  Google Cloud Run service.
+- **FR-004a**: The template MUST include the artifacts needed to deploy to GCP: a
+  `Dockerfile`, a `.dockerignore`, and a documented deploy path (`gcloud run deploy`
+  and/or a Cloud Build config). The static/server mode determines whether spin-up
+  targets Cloud Run (server) or Cloud Storage + Cloud CDN (static).
 - **FR-005**: Switching between modes MUST NOT require rewriting application source
   code (only the mode configuration and deploy target change).
 - **FR-006**: Static, build-time-known content MUST be prerendered to HTML by
@@ -169,7 +174,7 @@ output HTML contains the rendered content (not an empty root element).
   under 5 minutes, performing only documented steps.
 - **SC-002**: Both deploy modes (static and server) are demonstrably buildable and
   serveable from a single unmodified copy of the template by changing only the mode
-  configuration.
+  configuration — static to Cloud Storage + Cloud CDN, server to Cloud Run.
 - **SC-003**: A static-mode build of known content yields HTML containing the
   rendered content (verifiable by inspecting the build output).
 - **SC-004**: Lint, format, type-check, and test scripts all run successfully on a
@@ -185,8 +190,14 @@ output HTML contains the rendered content (not an empty root element).
   handled at the DNS/hosting layer, not by this template.
 - The shared identity layer (`@snackbyte/ui`) is extracted later from the first real
   app and is out of scope here.
-- Hosting platforms support both static (CDN) and Node-server deployment of the
-  produced builds.
+- The target host is **Google Cloud Platform**: Cloud Run for server-mode apps,
+  Cloud Storage + Cloud CDN for static-mode apps, Artifact Registry for images.
+  GCP was chosen over Azure for Google ecosystem gravity (Gmail/Workspace, tonic's
+  Google API use) and Cloud Run's one-service-per-subdomain, scale-to-zero fit.
+- Hosting friends'/third-party apps under snackbyte subdomains is a **future phase,
+  out of scope for v1.** The near-term path (if pursued) is "deploy more Cloud Run
+  services"; a self-serve platform (push-to-deploy, multi-tenant isolation) is a
+  separate project. See `docs/DECISIONS.md`.
 - The toolchain conventions are adapted from the existing `tonic` app (Express +
   Vite + TypeScript), with Jest replaced by Vitest and React adopted as the UI
   layer.

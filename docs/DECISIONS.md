@@ -87,6 +87,55 @@ validate them against.
 - **Lint/format**: ESLint (typescript-eslint) + Prettier, adapted from tonic's
   configs.
 
+## Hosting: GCP / Cloud Run
+
+**Host: Google Cloud Platform.** "Industrial, not cheap" — reliability/SLA, owning
+the infrastructure, ecosystem gravity, and future scale all mattered. GCP chosen
+over Azure (the only other contender) because:
+
+- **Google gravity.** Gmail + the school's Google Workspace, and `tonic` already
+  authenticates against Google APIs (`google-auth-library`, `googleapis`, Sheets).
+  Staying in GCP means one identity/IAM/service-account model, not straddling two
+  clouds. User also simply prefers GCP.
+- **Cloud Run fits the model.** One self-contained Express app per subdomain maps
+  1:1 to one Cloud Run service. Scale-to-zero means idle one-off apps cost ~nothing.
+  "Container in, HTTPS URL out" is the near-zero-ops tier wanted (no VM/cluster
+  babysitting).
+
+Azure Container Apps is equivalent tech and would have won only with strong
+Microsoft enterprise gravity (Entra ID, M365) — which is absent here.
+
+**Ops appetite: managed PaaS, not Kubernetes.** Hand the platform a container; it
+runs/scales/TLS-terminates. GKE is in the same cloud if ever genuinely needed.
+
+### Deploy mapping baked into the template
+
+| Concern | GCP service |
+|---|---|
+| Server-mode app | Cloud Run service (containerized Express) |
+| Static-mode app | Cloud Storage bucket + Cloud CDN (or Cloud Run for uniformity) |
+| Container images | Artifact Registry |
+| Subdomain → app | Cloud Run domain mapping (load balancer for wildcard later) |
+| Build/deploy | `Dockerfile` + `gcloud run deploy`, optionally Cloud Build CI |
+
+The template therefore ships a `Dockerfile`, `.dockerignore`, and a deploy
+script/`cloudbuild.yaml`. The static/server mode switch decides whether spin-up
+wires toward Cloud Run (server) or Storage+CDN (static).
+
+### Future phase (OUT OF SCOPE for v1): host friends' apps
+
+Ambition to host other people's apps under snackbyte subdomains, like
+`x.azurewebsites.net`-style. Two shapes:
+
+- **You deploy them** (they hand you code) → just "more Cloud Run services." No new
+  infrastructure. This is the assumed near-term path if it happens.
+- **They self-serve** (push-to-deploy, own dashboard) → a real platform product:
+  build pipeline, per-tenant isolation, automated wildcard-subdomain provisioning,
+  resource/billing limits. A separate project; do NOT build until there's demand.
+
+Cloud Run does not box this out — it's container-based and fully programmable, so it
+scales from "my few apps" toward a mini-hosting-platform without re-platforming.
+
 ### Render strategy vs deploy mode — two independent knobs
 
 - **Deploy mode**: `static` (CDN, no server) vs `server` (Express runs).

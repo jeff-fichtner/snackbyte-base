@@ -110,17 +110,60 @@ runs/scales/TLS-terminates. GKE is in the same cloud if ever genuinely needed.
 
 ### Deploy mapping baked into the template
 
+**Default: everything deploys to Cloud Run — static AND server.** A static-mode app
+is just a container that serves built files and exposes no API routes. One deploy
+path for every app.
+
 | Concern | GCP service |
 |---|---|
-| Server-mode app | Cloud Run service (containerized Express) |
-| Static-mode app | Cloud Storage bucket + Cloud CDN (or Cloud Run for uniformity) |
+| Server-mode app | Cloud Run service (containerized Express, with API routes) |
+| Static-mode app | Cloud Run service (containerized Express, serves files, no API routes) — DEFAULT |
+| Static-mode app (opt-in) | Cloud Storage + Cloud CDN — performance-only opt-in (see below) |
 | Container images | Artifact Registry |
 | Subdomain → app | Cloud Run domain mapping (load balancer for wildcard later) |
 | Build/deploy | `Dockerfile` + `gcloud run deploy`, optionally Cloud Build CI |
 
-The template therefore ships a `Dockerfile`, `.dockerignore`, and a deploy
-script/`cloudbuild.yaml`. The static/server mode switch decides whether spin-up
-wires toward Cloud Run (server) or Storage+CDN (static).
+The template ships a `Dockerfile`, `.dockerignore`, and a deploy
+script/`cloudbuild.yaml`. The static/server mode switch is therefore a SMALL fork:
+it decides "does this app have API routes / need a backend," not "which cloud infra."
+Both modes use the same Cloud Run deploy path.
+
+### Why static-on-Cloud-Run is the default (cost is a non-issue either way)
+
+The user is not cost-optimizing, and it turns out cost can't be a deciding factor —
+both options are "basically free" for low-traffic static apps, for two different
+reasons:
+
+- **Dedicated static hosting (Storage + CDN):** Google serves the files with no
+  compute at all — just cheap storage + bandwidth. Free because there's no server.
+- **Static-on-Cloud-Run:** Cloud Run **scales to zero** and bills only *per request,
+  in 100ms slices, during the actual handling of that request.* A static file
+  response handles in a few ms. No traffic → no running container → $0 compute.
+  Billing tracks the request, NOT wall-clock uptime, so a rarely-visited static app
+  rounds to free. (Leave "minimum instances" at 0; setting it >0 would keep a warm
+  instance billing continuously to kill cold starts — not wanted for these apps.)
+
+So cost is a TIE at ~$0. The only real differences are:
+
+| | Static-on-Cloud-Run (default) | Storage + CDN (opt-in) |
+|---|---|---|
+| Idle cost | ~$0 (scale-to-zero) | ~$0 (no compute) |
+| Cost reason | per-request-ms, rarely requested | no server at all |
+| Cold start | few hundred ms on first hit after idle | none (instant) |
+| Edge-distributed | regional | global edge |
+| Deploy path | same as every server app | separate (bucket upload) |
+
+**Decision: default everything to Cloud Run** for one uniform deploy path. Reasons:
+solo maintainer values uniformity over per-app tuning; a static app that later grows
+a backend is already on Cloud Run (free promotion — just add routes); the
+friends-hosting future phase is simpler if "everything is a Cloud Run service." Most
+apps are server-mode anyway, so the static path is the minority case — not worth
+complicating the majority's uniformity to optimize it.
+
+**Storage + CDN is a documented performance-only opt-in**, reached for ONLY when a
+specific static app is high-traffic / global / latency-sensitive (e.g. possibly the
+marketing homepage) and the cold-start + regional-serving tradeoff actually matters.
+Never reached for on cost grounds.
 
 ### Future phase (OUT OF SCOPE for v1): host friends' apps
 

@@ -207,7 +207,7 @@ output HTML contains the rendered content (not an empty root element).
 - Hosting friends'/third-party apps under snackbyte subdomains is a **future phase,
   out of scope for v1.** The near-term path (if pursued) is "deploy more Cloud Run
   services"; a self-serve platform (push-to-deploy, multi-tenant isolation) is a
-  separate project. See `docs/DECISIONS.md`.
+  separate project.
 - The toolchain conventions are adapted from the existing `tonic` app (Express +
   Vite + TypeScript), with Jest replaced by Vitest and React adopted as the UI
   layer.

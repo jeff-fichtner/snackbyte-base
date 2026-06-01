@@ -1,9 +1,9 @@
 # Phase 0 Research: snackbyte-base Template Skeleton
 
-All technical choices for this feature were settled during the planning sessions
-recorded in `docs/DECISIONS.md` and ratified by the constitution. No NEEDS
-CLARIFICATION items remained from Technical Context. This file consolidates each
-decision in the required format so the plan is self-contained.
+All technical choices for this feature were settled during planning and ratified by
+the constitution. No NEEDS CLARIFICATION items remained from Technical Context. This
+file is the durable record of each decision (with rationale and alternatives) in the
+required format, so the plan is self-contained.
 
 ## R1. Single template with a mode switch (not two templates)
 

@@ -47,7 +47,7 @@ deploy path (Cloud Run) for both modes (FR-003/FR-004).
 subdomain apps. Multi-contributor workflows out of scope for v1.
 
 No NEEDS CLARIFICATION items remain — all technical choices are fixed by the
-constitution, the spec, and `docs/DECISIONS.md`.
+constitution, the spec, and `research.md`.
 
 ## Constitution Check
 

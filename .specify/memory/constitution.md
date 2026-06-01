@@ -1,12 +1,20 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: (template, unversioned) → 1.0.0
-Bump rationale: Initial ratification — first concrete constitution replacing the
-  unpopulated Spec Kit template. MAJOR baseline (1.0.0).
+Version change: 1.0.0 → 1.1.0
+Bump rationale: MINOR — adds Principle VIII (Speckit Stays in Speckit Spaces).
+  Keeps the AI-assist spec workflow out of the shipped artifact. No existing
+  principle redefined or removed.
 
-Modified principles: N/A (initial adoption; all placeholders replaced)
+Modified principles: none redefined
 Added principles:
+  - VIII. Speckit Stays in Speckit Spaces
+Modified sections:
+  - Development Workflow & Quality Gates — durable decision record repointed off
+    the (now-removed) docs/DECISIONS.md to the spec/research artifacts.
+Removed sections: none
+
+Prior ratification (1.0.0) added:
   - I.   Single Template, Mode Switch
   - II.  Convention Over Configuration
   - III. Skeleton Only — No Application Logic
@@ -14,10 +22,7 @@ Added principles:
   - V.   Uniform Deploy Path (Cloud Run Default)
   - VI.  Prerender By Default
   - VII. Pinned, Linted, Type-Safe, Tested
-Added sections:
-  - Technology Stack (replaces [SECTION_2_NAME])
-  - Development Workflow & Quality Gates (replaces [SECTION_3_NAME])
-Removed sections: none
+  - Technology Stack, Development Workflow & Quality Gates sections
 
 Templates requiring review for alignment:
   - .specify/templates/plan-template.md   ✅ reviewed — Constitution Check gate generic, compatible
@@ -25,7 +30,7 @@ Templates requiring review for alignment:
   - .specify/templates/tasks-template.md  ✅ reviewed — task categories accommodate testing/lint/deploy gates
   - .specify/templates/checklist-template.md ✅ reviewed — no constitution-specific coupling
 
-Follow-up TODOs: none. RATIFICATION_DATE set to first adoption (2026-05-31).
+Follow-up TODOs: none. RATIFICATION_DATE unchanged (2026-05-31).
 -->
 
 # snackbyte-base Constitution
@@ -125,6 +130,33 @@ dependencies, and local environment files from version control.
 spun-up app behave the same in development and production, and what stop quality from
 being re-litigated per app.
 
+### VIII. Speckit Stays in Speckit Spaces
+
+The spec workflow (`specs/`, `.specify/`, `.claude/`) is AI-assist scaffolding. The
+shipped artifact MUST stand on its own without it.
+
+- If `specs/` and `.specify/` were deleted, every other file in the repository MUST
+  still make sense to a reader.
+- Source code (`src/`, `tests/`) MUST NOT reference specs, FRs, NFRs, Constitution
+  Principles, User Stories, or any other spec-workflow artifact by name or number.
+  Comments describe what the code does and why in terms of the code itself.
+- Shipped documentation (`README.md`, `docs/`, build/CI files, scripts) MUST NOT
+  reference the spec workflow either. The `docs/` tree is the shipped reference; it
+  describes the system, not how the system came to be specified.
+- When a comment or doc would say "(per FR-003)" or "see spec 001," it MUST instead
+  state the underlying rule directly, or be removed if the citation was the only
+  meaning.
+- The constitution (`.specify/memory/constitution.md`) is the source of truth for
+  these principles and SHOULD be referenced from spec-workflow artifacts (specs,
+  plans, tasks). It MUST NOT be cited from `src/`, `tests/`, `README.md`, or `docs/`.
+- Exception: `.claude/CLAUDE.md` MAY reference the spec workflow — it is
+  AI-instruction space, not a shipped artifact.
+
+**Rationale**: A template is copied into many apps. If shipped files cite FRs or
+spec numbers, every spun-up app inherits dangling references to a spec it never had.
+The shipped skeleton must read as a self-contained codebase; the spec scaffolding is
+how it was built, not part of what ships.
+
 ## Technology Stack
 
 The skeleton's stack is fixed (deviation requires a constitution amendment):
@@ -157,8 +189,10 @@ the new, unproven work this template establishes.
 - **Quality gate**: lint, format, type-check, and Vitest MUST pass on a fresh copy
   before the skeleton is considered green. These are the same gates every spun-up app
   inherits.
-- **Durable decision record**: architecture decisions that outlive a single session
-  are captured in `docs/DECISIONS.md`; spec-level detail lives in the feature spec.
+- **Durable decision record**: architecture decisions and their rationale live in the
+  feature's spec artifacts (`spec.md`, `research.md`) within `specs/`, never in the
+  shipped `docs/` tree (per Principle VIII). Cross-feature platform context lives in
+  agent memory.
 
 ## Governance
 
@@ -178,4 +212,4 @@ conflicts, the constitution wins.
   justification. The stack in Technology Stack is fixed — changing it is an amendment,
   not a per-app decision.
 
-**Version**: 1.0.0 | **Ratified**: 2026-05-31 | **Last Amended**: 2026-05-31
+**Version**: 1.1.0 | **Ratified**: 2026-05-31 | **Last Amended**: 2026-05-31

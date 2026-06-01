@@ -1,10 +1,15 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.0.0 → 1.1.0
-Bump rationale: MINOR — adds Principle VIII (Speckit Stays in Speckit Spaces).
-  Keeps the AI-assist spec workflow out of the shipped artifact. No existing
-  principle redefined or removed.
+Version change: 1.1.0 → 1.1.1
+Bump rationale: PATCH — Technology Stack runtime pin updated Node 22 LTS → Node 24
+  LTS (24 entered LTS; a fresh template targets the current LTS). Refinement of the
+  fixed stack, not a new/removed principle. Propagated to spec FR-009, research R4,
+  plan, data-model, tasks, quickstart.
+
+Prior amendment (1.0.0 → 1.1.0): MINOR — added Principle VIII (Speckit Stays in
+  Speckit Spaces). Keeps the AI-assist spec workflow out of the shipped artifact.
+  No existing principle redefined or removed.
 
 Modified principles: none redefined
 Added principles:
@@ -120,7 +125,7 @@ which prerenders cleanly at this scale.
 
 ### VII. Pinned, Linted, Type-Safe, Tested
 
-Every app MUST agree on its runtime and quality gates. The template MUST pin Node 22
+Every app MUST agree on its runtime and quality gates. The template MUST pin Node 24
 LTS, use TypeScript throughout, and ship runnable ESLint + Prettier and Vitest
 configurations. Lint, format, type-check, and test scripts MUST all run successfully
 on a fresh, unmodified copy. The repository MUST exclude build artifacts,
@@ -167,7 +172,7 @@ The skeleton's stack is fixed (deviation requires a constitution amendment):
   component-library problem best-trodden in React; React does not force server mode).
 - **Backend**: Express, present in the skeleton, deployed only in `server` mode.
 - **Tests**: Vitest (reuses `vite.config`, ESM-native).
-- **Runtime**: Node 22 LTS, pinned.
+- **Runtime**: Node 24 LTS, pinned.
 - **Lint/format**: ESLint (typescript-eslint) + Prettier.
 - **Host**: Google Cloud Platform — Cloud Run (default deploy path for both modes),
   Artifact Registry for images.
@@ -212,4 +217,4 @@ conflicts, the constitution wins.
   justification. The stack in Technology Stack is fixed — changing it is an amendment,
   not a per-app decision.
 
-**Version**: 1.1.0 | **Ratified**: 2026-05-31 | **Last Amended**: 2026-05-31
+**Version**: 1.1.1 | **Ratified**: 2026-05-31 | **Last Amended**: 2026-05-31

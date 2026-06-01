@@ -10,7 +10,7 @@ your subdomain app, then clone it.
 
 ```bash
 git clone <your-new-repo-url> && cd <your-new-repo>
-nvm use            # picks up .nvmrc → Node 22 LTS
+nvm use            # picks up .nvmrc → Node 24 LTS
 npm install
 ```
 

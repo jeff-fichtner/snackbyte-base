@@ -20,9 +20,11 @@ maps to a spec requirement / success criterion.
 ## C2. `static` mode build
 
 - **Given** `DEPLOY_MODE=static`, **when** `npm run build` runs, **then** the output
-  is a set of static assets deployable with no running server required, and
-  build-time-known content is present as rendered HTML (not an empty root element).
-- The container built from these assets serves files and exposes **no** API routes.
+  is a set of static assets, and build-time-known content is present as rendered HTML
+  (not an empty root element).
+- By default these assets are served by a container on Cloud Run that exposes **no**
+  API routes. The assets are also capable of serverless CDN serving (the documented
+  performance-only opt-in), but the container is the default.
 
 **Maps to**: FR-003, FR-006, SC-003. **Tested by**: build-output inspection in
 `tests/integration/server.test.ts` (HTML contains rendered markup) and a no-API-route

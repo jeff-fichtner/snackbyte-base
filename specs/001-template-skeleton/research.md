@@ -35,9 +35,9 @@ required format, so the plan is self-contained.
 - **Alternatives considered**: Jest (rejected — extra ts-jest/jsdom config, slower,
   no vite.config reuse), as proven painful in tonic.
 
-## R4. Runtime: Node 22 LTS, pinned
+## R4. Runtime: Node 24 LTS, pinned
 
-- **Decision**: Node 22 LTS, pinned via `.nvmrc` and `package.json` `engines`.
+- **Decision**: Node 24 LTS, pinned via `.nvmrc` and `package.json` `engines`.
 - **Rationale**: Every spun-up app must agree on the runtime (FR-009). tonic ran on
   non-LTS v23; pin to LTS for production stability. Mandated by Principle VII.
 - **Alternatives considered**: Unpinned/latest (rejected — apps drift across Node
@@ -69,6 +69,29 @@ required format, so the plan is self-contained.
 - **Alternatives considered**: CSR-only (rejected — blank-shell first paint, poor
   SEO for static content); SSR-by-default (rejected — forces server mode, over-scoped
   for v1; remains available per-app).
+
+## R6a. Prerender mechanism: custom `renderToString` build step (not an SSG plugin)
+
+- **Decision**: Prerendering is a small build step using `react-dom/server`
+  `renderToString` that renders a **list of entry pages (1..N)** into HTML files in
+  `dist/`, injected into the Vite HTML template. The list is one entry for a typical
+  single-purpose app and a few entries for the occasional multi-page app. Request-time
+  rendering (SSR), when a page's content depends on the request, is `server` mode
+  using the same `react-dom/server` API at request time — not a separate mechanism.
+- **Rationale**: Keeps the skeleton dependency-free for prerender (`react-dom` is
+  already in the stack) and free of routing/build conventions that every spun-up app
+  would inherit — honoring "skeleton only" (Principle III) and the independent-knobs
+  design. The one-app-per-subdomain model means apps are overwhelmingly single-route;
+  the rare multi-page app is handled by looping the same step over a list, and
+  request-dependent pages are SSR in server mode. "A backend serving prerendered
+  files" is already the default static-on-Cloud-Run path (a container serving `dist/`).
+- **Alternatives considered**: SSG plugin (e.g. vite-react-ssg) — rejected: its main
+  value is build-time multi-route crawling, which the one-off-app model structurally
+  avoids; it adds a dependency and convention lock-in to every app to solve a problem
+  one notch larger than the platform has. Hardcoding a single page — rejected: the
+  list form costs nothing and absorbs the few-page case without a future rewrite. If
+  multi-route static ever becomes genuinely common, an app adopts a plugin locally or
+  it is backported to base (Principle IV) — not speculated into base now.
 
 ## R7. Lint/format and conventions baseline
 

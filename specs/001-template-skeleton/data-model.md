@@ -34,7 +34,7 @@ spun-up app inherits.
 - **Fields (constituents)**:
   - Tooling config: `tsconfig*.json`, `vite.config.ts`, Vitest config, ESLint +
     Prettier in `config/`.
-  - Runtime pin: `.nvmrc`, `package.json` `engines.node` = Node 22 LTS.
+  - Runtime pin: `.nvmrc`, `package.json` `engines.node` = Node 24 LTS.
   - Scripts: `dev`, `build`, `lint`, `format`, `typecheck`, `test`, plus an aggregate
     gate and a deploy script.
   - Deploy artifacts: `Dockerfile`, `.dockerignore`, `scripts/deploy.sh`,

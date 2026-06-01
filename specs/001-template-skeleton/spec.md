@@ -19,8 +19,9 @@ independent project.
 Each app spun up from this template must be able to operate in one of two deploy
 modes, chosen once at spin-up time:
 
-- **static** — built at build time and served as static assets from a CDN; no
-  running server required.
+- **static** — built at build time and served as static assets with no backend API
+  routes. Deployed by default as a container on Cloud Run (the same deploy path as
+  server mode); a Cloud Storage + CDN deploy is a documented performance-only opt-in.
 - **server** — served by an Express server, which may also expose backend API
   routes.
 
@@ -72,15 +73,16 @@ the build/deploy behavior follows from that single choice.
 skeleton, or the "single template" goal is lost.
 
 **Independent Test**: In a copy configured as **static**, the build produces
-deployable static assets and no server is required to serve them. In a copy
-configured as **server**, the Express server starts and serves the built app (and
-can host API routes).
+deployable static assets that the container serves with no API routes exposed. In a
+copy configured as **server**, the Express server starts and serves the built app
+(and can host API routes).
 
 **Acceptance Scenarios**:
 
 1. **Given** an app configured in **static** mode, **When** the developer runs the
-   build, **Then** the output is a set of static assets suitable for CDN deployment
-   and requires no running server.
+   build, **Then** the output is a set of static assets served by a container on
+   Cloud Run by default (no API routes); the assets are also CDN-deployable as a
+   documented performance-only opt-in.
 2. **Given** an app configured in **server** mode, **When** the developer runs the
    build and start, **Then** an Express server serves the built frontend and can
    expose API routes.
@@ -156,7 +158,7 @@ output HTML contains the rendered content (not an empty root element).
   type-checking, runnable via documented scripts.
 - **FR-008**: The template MUST include a test setup using Vitest, runnable via a
   documented script.
-- **FR-009**: The template MUST pin a Node.js version (Node 22 LTS) so all apps
+- **FR-009**: The template MUST pin a Node.js version (Node 24 LTS) so all apps
   agree on the runtime.
 - **FR-010**: The template MUST document, in a README, the spin-up steps and the
   static-vs-server mode choice.

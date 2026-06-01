@@ -9,14 +9,14 @@
 Establish `snackbyte-base` as a single reusable GitHub-template skeleton: Vite +
 React + TypeScript, an Express server present in the skeleton, a `static`/`server`
 deploy-mode switch chosen once at spin-up, Vitest tests, ESLint + Prettier, a pinned
-Node 22 LTS runtime, and Cloud Run deploy artifacts for both modes. The skeleton
+Node 24 LTS runtime, and Cloud Run deploy artifacts for both modes. The skeleton
 carries conventions (folder structure, tooling, scripts, the mode switch, deploy
 artifacts) but no application-specific business logic. Conventions are a stripped,
 React-and-Vitest-adapted subset of the proven `tonic` app.
 
 ## Technical Context
 
-**Language/Version**: TypeScript ~5.9 on Node 22 LTS (pinned via `.nvmrc` +
+**Language/Version**: TypeScript ~5.9 on Node 24 LTS (pinned via `.nvmrc` +
 `package.json` `engines`).
 
 **Primary Dependencies**: Vite (build/dev), React + ReactDOM (UI), Express (server
@@ -61,7 +61,7 @@ constitution, the spec, and `research.md`.
 | IV. Two-Tier Propagation | Skeleton concerns only; visual identity deferred to `@snackbyte/ui` (out of scope here). ✅ |
 | V. Uniform Deploy Path (Cloud Run Default) | Ships `Dockerfile`, `.dockerignore`, deploy script; both modes deploy to Cloud Run; CDN documented as opt-in. ✅ |
 | VI. Prerender By Default | Static-mode build prerenders build-time-known content to HTML; CSR available but not default. ✅ |
-| VII. Pinned, Linted, Type-Safe, Tested | Node 22 LTS pinned; TypeScript throughout; ESLint + Prettier + Vitest runnable on fresh copy; `.gitignore` excludes artifacts/deps/env. ✅ |
+| VII. Pinned, Linted, Type-Safe, Tested | Node 24 LTS pinned; TypeScript throughout; ESLint + Prettier + Vitest runnable on fresh copy; `.gitignore` excludes artifacts/deps/env. ✅ |
 
 **Result**: PASS. No violations; Complexity Tracking left empty.
 
@@ -89,13 +89,12 @@ is the frontend; tests sit beside a `tests/` tree).
 
 ```text
 snackbyte-base/
-├── .nvmrc                      # Node 22 LTS pin
+├── .nvmrc                      # Node 24 LTS pin
 ├── package.json                # engines.node, scripts (dev/build/lint/format/typecheck/test), deps
 ├── tsconfig.json               # base TS config (shared)
 ├── tsconfig.web.json           # frontend (DOM lib, JSX)
 ├── tsconfig.build.json         # backend emit for server mode
-├── vite.config.ts              # Vite + React plugin; prerender of build-time content
-├── vitest.config.ts            # (or test config merged into vite.config) Vitest setup
+├── vite.config.ts              # Vite + React plugin; Vitest `test` block; prerender of build-time content
 ├── Dockerfile                  # single container for both modes (serves files; +API in server mode)
 ├── .dockerignore
 ├── .gitignore                  # excludes node_modules, dist, .env*, build output
@@ -113,6 +112,7 @@ snackbyte-base/
 │   ├── routes/
 │   │   └── health.ts           # sample API route (server mode only) — proves the path, not business logic
 │   └── web/                    # React frontend
+│       ├── index.html          # Vite HTML entry (root div + module script); prerender injects into it
 │       ├── main.tsx            # client entry / hydration
 │       ├── App.tsx             # sample prerendered page (proves prerender, not domain content)
 │       └── prerender.tsx       # build-time render entry for static prerendering

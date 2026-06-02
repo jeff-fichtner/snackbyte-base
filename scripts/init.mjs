@@ -18,6 +18,7 @@
 import { readFileSync, writeFileSync, rmSync, existsSync, unlinkSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const path = (p) => resolve(root, p);
@@ -97,6 +98,25 @@ rmSync(path('README.app.md'), { force: true });
 for (const rel of ['SPIN-UP.md']) {
   if (existsSync(path(rel))) rmSync(path(rel), { force: true });
 }
+
+// ---- tidy formatting -------------------------------------------------------
+// Deleting marker blocks can leave stray blank lines; reformat so the quality gate
+// passes cleanly on the resolved app.
+const prettierBin = path(`node_modules/.bin/prettier${process.platform === 'win32' ? '.cmd' : ''}`);
+spawnSync(
+  prettierBin,
+  [
+    '--config',
+    'config/.prettierrc.json',
+    '--ignore-path',
+    'config/.prettierignore',
+    '--write',
+    'src/**/*.{ts,tsx}',
+    'scripts/**/*.mjs',
+    'vite.config.ts',
+  ],
+  { cwd: root, stdio: 'ignore' },
+);
 
 console.log(`Initialized as a ${mode} app named "${appName}".`);
 console.log('Removed template scaffolding. This repo is now your app.');

@@ -88,3 +88,30 @@ config flag. It is reversible and shows up in version control.
 3. In `vite.config.ts`, remove the `/api` proxy and the `PORT` import.
 4. In `scripts/dev.mjs`, remove the `tsx watch src/server.ts` line.
 5. Remove any server/API tests under `tests/app/`.
+
+## Rendering: prerendered (default) vs dynamic
+
+This template **prerenders by default**: build-time-known content is rendered to real
+HTML, so the page ships as markup (fast first paint, good SEO). That's the right choice
+for content/marketing apps and most one-off apps.
+
+If you're building a **dynamic app** — content that depends on the user or live data
+(a DB-backed app, a logged-in tool, a game) — render entirely on the client instead.
+Like the deploy mode, this is a deliberate one-time choice, not a runtime switch.
+
+### prerendered → dynamic (client-side rendering)
+
+1. In `src/web/prerender.ts`, empty the entries: `export const entries: PrerenderEntry[] = [];`
+   (The build then prerenders nothing; the page ships as an empty shell that renders on
+   the client. `src/web/main.tsx` already handles this — it mounts fresh when there's no
+   prerendered markup.)
+2. Optional: in `src/web/index.html`, remove the `<!--app-html-->` comment from the root
+   div (it's just an unused injection point now).
+3. Optional: drop the prerender step from `scripts/build.mjs` (the `prerender.mjs` line)
+   and `tests/machinery`/app prerender tests, if you want a leaner build.
+
+### dynamic → prerendered
+
+Reverse it: restore the entry in `src/web/prerender.ts`
+(`[{ html: 'index.html', element: createElement(App) }]`) and the prerender build step.
+Keep prerendered content limited to what's known at build time.

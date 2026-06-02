@@ -33,7 +33,7 @@ than an empty shell. Runtime-driven views can render on the client instead.
 ## Deploy
 
 ```bash
-./scripts/deploy.sh <service-name> [region]   # builds the image and runs gcloud run deploy
+./scripts/deploy.sh <service-name> <gcp-project> [region]   # builds the image and runs gcloud run deploy
 ```
 
 Deploys a container to Cloud Run. Idle cost is near zero — Cloud Run scales to zero

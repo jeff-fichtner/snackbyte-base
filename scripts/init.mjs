@@ -120,6 +120,13 @@ for (const rel of ['SPIN-UP.md']) {
   if (existsSync(path(rel))) rmSync(path(rel), { force: true });
 }
 
+// Remove the template's own constitution. The Spec Kit tooling (.specify/) stays so
+// the app does spec-driven development, but the populated constitution is about
+// building the template — not this app. Deleting it lets the app run
+// /speckit-constitution to write its own (the command recreates the file from
+// .specify/templates/constitution-template.md when it's missing).
+rmSync(path('.specify/memory/constitution.md'), { force: true });
+
 // ---- tidy formatting -------------------------------------------------------
 // Deleting marker blocks can leave stray blank lines; reformat so the quality gate
 // passes cleanly on the resolved app.

@@ -123,6 +123,10 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     expect(existsSync(join(dir, 'SPIN-UP.md'))).toBe(false);
     expect(existsSync(join(dir, 'README.app.md'))).toBe(false);
     expect(existsSync(join(dir, 'src/routes'))).toBe(mode === 'server');
+    // The template's own constitution is removed (the app writes its own); the Spec
+    // Kit tooling and the constitution template stub stay.
+    expect(existsSync(join(dir, '.specify/memory/constitution.md'))).toBe(false);
+    expect(existsSync(join(dir, '.specify/templates/constitution-template.md'))).toBe(true);
     const readme = readFileSync(join(dir, 'README.md'), 'utf8');
     expect(readme).not.toMatch(/template|skeleton|Use this template/i);
     const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));

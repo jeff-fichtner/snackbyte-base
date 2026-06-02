@@ -3,22 +3,21 @@
 FROM node:24-slim AS build
 WORKDIR /app
 
-# Version info, passed in by the deploy flow, baked into the build (the frontend
-# bundle and prerender read these so the version chip and reported version are real).
-ARG APP_VERSION=0.0.0
-ARG BUILD_GIT_COMMIT=unknown
-ARG BUILD_DATE=unknown
-ENV CI=true
-ENV NODE_ENV=production
-ENV APP_VERSION=${APP_VERSION}
-ENV BUILD_GIT_COMMIT=${BUILD_GIT_COMMIT}
-ENV BUILD_DATE=${BUILD_DATE}
-
+# Install ALL deps (incl. the build toolchain) first. NODE_ENV must NOT be production
+# here, or npm ci would skip devDependencies and the build tools would be missing.
 COPY package*.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+
+# Now bake the production build: CI makes the frontend use the real package.json
+# version; NODE_ENV=production hides the version chip. Set them only for the build
+# step (after deps are installed). Commit/date are passed by the deploy flow.
+ARG BUILD_GIT_COMMIT=unknown
+ARG BUILD_DATE=unknown
+RUN CI=true NODE_ENV=production \
+    BUILD_GIT_COMMIT=${BUILD_GIT_COMMIT} BUILD_DATE=${BUILD_DATE} \
+    npm run build
 
 FROM node:24-slim AS runtime
 WORKDIR /app

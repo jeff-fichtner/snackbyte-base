@@ -15,7 +15,7 @@
  * After it runs there is no "mode" concept left: the app simply is what it is.
  * Switching later is a documented code edit (see the template's docs), not a flag.
  */
-import { readFileSync, writeFileSync, rmSync, existsSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync, existsSync, unlinkSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -120,12 +120,14 @@ for (const rel of ['SPIN-UP.md']) {
   if (existsSync(path(rel))) rmSync(path(rel), { force: true });
 }
 
-// Remove the template's own constitution. The Spec Kit tooling (.specify/) stays so
-// the app does spec-driven development, but the populated constitution is about
-// building the template — not this app. Deleting it lets the app run
-// /speckit-constitution to write its own (the command recreates the file from
-// .specify/templates/constitution-template.md when it's missing).
+// Leave the app's spec-driven-dev state exactly as a fresh `specify init` would: the
+// Spec Kit tooling (.specify/, .claude/) stays, but the template's own constitution
+// and specs are removed — they were about building the template, not this app. The
+// app's first step is to run /speckit-constitution, then /speckit-specify.
 rmSync(path('.specify/memory/constitution.md'), { force: true });
+rmSync(path('specs'), { recursive: true, force: true });
+mkdirSync(path('specs'), { recursive: true });
+writeFileSync(path('specs/.gitkeep'), '');
 
 // ---- tidy formatting -------------------------------------------------------
 // Deleting marker blocks can leave stray blank lines; reformat so the quality gate

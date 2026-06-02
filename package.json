@@ -19,7 +19,10 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:all": "npm run format:check && npm run lint && npm run typecheck && npm test"
+    "check:all": "npm run format:check && npm run lint && npm run typecheck && npm test",
+    "version:patch": "npm version patch -m \"chore: release v%s\"",
+    "version:minor": "npm version minor -m \"chore: release v%s\"",
+    "version:major": "npm version major -m \"chore: release v%s\""
   },
   "dependencies": {
     "express": "^5.2.1",

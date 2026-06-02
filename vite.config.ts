@@ -2,6 +2,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 // SPINUP:server-only:start
 import { PORT } from './src/config';
 // SPINUP:server-only:end
@@ -9,9 +10,24 @@ import { PORT } from './src/config';
 const webRoot = fileURLToPath(new URL('./src/web', import.meta.url));
 const distDir = fileURLToPath(new URL('./dist', import.meta.url));
 
+// Version constants baked into the frontend bundle at build time (so server-render
+// and client-hydration see identical values — no live values, no hydration mismatch).
+// The deploy flow sets CI + BUILD_GIT_COMMIT + BUILD_DATE; locally they fall back to dev.
+const pkgVersion = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf8'),
+).version;
+const isBuildServer = process.env.CI === 'true';
+const versionDefines = {
+  'globalThis.__APP_VERSION__': JSON.stringify(isBuildServer ? pkgVersion : '0.0.0-dev'),
+  'globalThis.__GIT_COMMIT__': JSON.stringify(process.env.BUILD_GIT_COMMIT ?? 'dev'),
+  'globalThis.__BUILD_DATE__': JSON.stringify(process.env.BUILD_DATE ?? 'dev'),
+  'globalThis.__IS_PRODUCTION__': JSON.stringify(process.env.NODE_ENV === 'production'),
+};
+
 export default defineConfig({
   root: webRoot,
   plugins: [react()],
+  define: versionDefines,
   // Use React's automatic JSX runtime everywhere (app build and tests), so test
   // files can write JSX without importing React.
   esbuild: {

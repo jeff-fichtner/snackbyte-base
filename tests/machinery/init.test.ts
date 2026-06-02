@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, rmSync, cpSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, cpSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -74,10 +74,21 @@ describe('init → server app', () => {
     expect(api.headers.get('content-type')).toContain('application/json');
   });
 
-  it('removed all template scaffolding', () => {
+  it('removed all template scaffolding and swapped in the app README', () => {
     expect(existsSync(join(dir, 'scripts/init.mjs'))).toBe(false);
     expect(existsSync(join(dir, 'SPIN-UP.md'))).toBe(false);
+    expect(existsSync(join(dir, 'README.app.md'))).toBe(false);
     expect(existsSync(join(dir, 'src/routes'))).toBe(true); // server keeps routes
+    // No template fingerprints survive into the app's README or package.json.
+    const readme = readFileSync(join(dir, 'README.md'), 'utf8');
+    expect(readme).not.toMatch(/template|skeleton|Use this template/i);
+    const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+    expect(pkg.description ?? '').not.toMatch(/template|skeleton/i);
+    expect(pkg.scripts.init).toBeUndefined();
+    // No template/skeleton/SPINUP fingerprints in shipped config files.
+    for (const f of ['vite.config.ts', 'src/server.ts', 'scripts/dev.mjs']) {
+      expect(readFileSync(join(dir, f), 'utf8')).not.toMatch(/template|skeleton|SPINUP/i);
+    }
   });
 });
 

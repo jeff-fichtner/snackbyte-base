@@ -80,20 +80,26 @@ if (typeof args.name === 'string') {
   writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 }
 
-// ---- remove the init script line + handoff docs ----------------------------
+// ---- remove the init script line + template description --------------------
 const pkgPath = path('package.json');
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
 delete pkg.scripts.init;
+pkg.description = '';
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 
+// ---- swap in the forward-facing app README, drop template docs -------------
+// The app gets its own README (no template/skeleton language); the template README
+// and this handoff guide are removed.
+const appName = typeof args.name === 'string' ? args.name : pkg.name;
+const appReadme = readFileSync(path('README.app.md'), 'utf8').replace(/APP_NAME/g, appName);
+writeFileSync(path('README.md'), appReadme);
+rmSync(path('README.app.md'), { force: true });
 for (const rel of ['SPIN-UP.md']) {
   if (existsSync(path(rel))) rmSync(path(rel), { force: true });
 }
 
-console.log(`Initialized as a ${mode} app.${args.name ? ` Named "${args.name}".` : ''}`);
-console.log(
-  'Removed template scaffolding. You can delete docs/ references to spin-up if any remain.',
-);
+console.log(`Initialized as a ${mode} app named "${appName}".`);
+console.log('Removed template scaffolding. This repo is now your app.');
 
 // ---- self-delete (last) ----------------------------------------------------
 unlinkSync(fileURLToPath(import.meta.url));

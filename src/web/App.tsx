@@ -1,12 +1,9 @@
-/**
- * Placeholder page. Exists only to prove the skeleton renders and prerenders;
- * replace it with the real app. Carries no application behavior.
- */
+/** The app's root component. Replace this with your real UI. */
 export function App() {
   return (
     <main>
-      <h1>snackbyte</h1>
-      <p>This skeleton is wired and ready. Replace this page with your app.</p>
+      <h1>Hello</h1>
+      <p>Your app is wired and ready. Edit src/web/App.tsx to begin.</p>
     </main>
   );
 }

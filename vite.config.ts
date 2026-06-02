@@ -33,9 +33,6 @@ export default defineConfig({
     // environment (e.g. server integration tests) declare `// @vitest-environment node`
     // at the top of the file.
     environment: 'jsdom',
-    // The template runs its own machinery tests. tests/app/ holds starter tests for
-    // the spun-up app (validated via the init test), so they are excluded here and
-    // become the app's suite after spin-up.
     include: ['tests/machinery/**/*.test.ts', 'tests/machinery/**/*.test.tsx'],
     root: fileURLToPath(new URL('.', import.meta.url)),
     globals: true,

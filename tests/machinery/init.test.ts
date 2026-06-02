@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync, cpSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -115,5 +115,26 @@ describe('init → static app', () => {
   it('removed routes and scaffolding', () => {
     expect(existsSync(join(dir, 'src/routes'))).toBe(false);
     expect(existsSync(join(dir, 'scripts/init.mjs'))).toBe(false);
+  });
+
+  it('passes prettier formatting (marker removal left no stray whitespace)', () => {
+    // Static resolution deletes server-only marker blocks; confirm the resolved
+    // source is still cleanly formatted so the inherited quality gate passes.
+    const result = spawnSync(
+      'npx',
+      [
+        'prettier',
+        '--config',
+        'config/.prettierrc.json',
+        '--ignore-path',
+        'config/.prettierignore',
+        '--check',
+        'src/**/*.{ts,tsx}',
+        'scripts/**/*.mjs',
+        'vite.config.ts',
+      ],
+      { cwd: dir, encoding: 'utf8' },
+    );
+    expect(result.status).toBe(0);
   });
 });

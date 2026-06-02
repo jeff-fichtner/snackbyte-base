@@ -6,9 +6,11 @@ if (!container) {
   throw new Error('Root element #root not found');
 }
 
-// If the markup was prerendered (static build), hydrate it; otherwise mount fresh
-// (client-side rendering for runtime-driven apps).
-if (container.hasChildNodes()) {
+// If the markup was prerendered (production static build), hydrate it; otherwise mount
+// fresh (dev, and runtime-driven apps). Check for a real prerendered ELEMENT — not just
+// any node — because the unrendered template leaves an HTML comment placeholder, which
+// would fool a plain hasChildNodes() check into attempting hydration.
+if (container.firstElementChild) {
   hydrateRoot(container, <App />);
 } else {
   createRoot(container).render(<App />);

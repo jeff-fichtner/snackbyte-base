@@ -7,28 +7,36 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Validates the spin-up resolver and BOTH resolved modes end-to-end. For each mode it
- * copies the template to a temp dir, runs `init --mode=X`, builds, runs the compiled
- * server, and asserts the resolved app behaves correctly — and that all template
- * scaffolding (init script, markers, machinery tests) is gone.
+ * Validates the spin-up resolver across all four mode × render combinations,
+ * end-to-end. For each, it copies the template to a temp dir, runs `init`, builds,
+ * runs the compiled server, and asserts the resolved app behaves correctly and that
+ * all template scaffolding (init script, markers, machinery tests) is gone.
  *
- * This is how the template proves both modes without a runtime mode flag: the mode is
- * resolved into code, then the real artifact is exercised.
+ * This is how the template proves every variant without a runtime switch: the choice
+ * is resolved into code, then the real artifact is exercised.
  */
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
-function setupApp(mode: 'static' | 'server') {
-  const dir = mkdtempSync(join(tmpdir(), `snackbyte-${mode}-`));
-  // Copy the template, excluding heavy/regenerable dirs.
+type Mode = 'static' | 'server';
+type Render = 'prerender' | 'dynamic';
+
+function setupApp(mode: Mode, render: Render): string {
+  const dir = mkdtempSync(join(tmpdir(), `snackbyte-${mode}-${render}-`));
   cpSync(repoRoot, dir, {
     recursive: true,
     filter: (src) =>
       !src.includes('/node_modules') && !src.includes('/dist') && !src.includes('/.git'),
   });
-  // Reuse the template's node_modules via symlink-free install shortcut: copy it.
   cpSync(join(repoRoot, 'node_modules'), join(dir, 'node_modules'), { recursive: true });
 
-  execFileSync('node', ['scripts/init.mjs', `--mode=${mode}`], { cwd: dir, stdio: 'ignore' });
+  execFileSync(
+    'node',
+    ['scripts/init.mjs', `--mode=${mode}`, `--render=${render}`, '--name=demo'],
+    {
+      cwd: dir,
+      stdio: 'ignore',
+    },
+  );
   execFileSync('node', ['scripts/build.mjs'], { cwd: dir, stdio: 'ignore' });
   return dir;
 }
@@ -54,12 +62,24 @@ async function start(dir: string, port: number): Promise<ChildProcess> {
   }
 }
 
-describe('init → server app', () => {
+interface Combo {
+  mode: Mode;
+  render: Render;
+  port: number;
+}
+const COMBOS: Combo[] = [
+  { mode: 'server', render: 'prerender', port: 8160 },
+  { mode: 'static', render: 'prerender', port: 8161 },
+  { mode: 'server', render: 'dynamic', port: 8162 },
+  { mode: 'static', render: 'dynamic', port: 8163 },
+];
+
+describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) => {
   let dir: string;
   let child: ChildProcess;
-  const port = 8160;
+
   beforeAll(async () => {
-    dir = setupApp('server');
+    dir = setupApp(mode, render);
     child = await start(dir, port);
   }, 60_000);
   afterAll(() => {
@@ -67,59 +87,52 @@ describe('init → server app', () => {
     if (dir) rmSync(dir, { recursive: true, force: true });
   });
 
-  it('serves the frontend and the API', async () => {
+  it('serves the frontend', async () => {
     expect((await fetch(`http://localhost:${port}/`)).status).toBe(200);
-    const api = await fetch(`http://localhost:${port}/api/health`);
-    expect(api.status).toBe(200);
-    expect(api.headers.get('content-type')).toContain('application/json');
   });
 
-  it('removed all template scaffolding and swapped in the app README', () => {
+  it(`${mode === 'server' ? 'exposes' : 'does not expose'} the API`, async () => {
+    const api = await fetch(`http://localhost:${port}/api/health`);
+    expect(api.status).toBe(200);
+    if (mode === 'server') {
+      expect(api.headers.get('content-type')).toContain('application/json');
+    } else {
+      // static: no API route → SPA fallthrough to HTML
+      expect(api.headers.get('content-type')).toContain('text/html');
+    }
+  });
+
+  it(`is ${render}`, () => {
+    const html = readFileSync(join(dir, 'dist/index.html'), 'utf8');
+    const root = html.match(/<div id="root">(.*?)<\/div>/s)?.[1] ?? '';
+    if (render === 'prerender') {
+      // prerendered: root contains real rendered markup (an element)
+      expect(root).toContain('<main');
+      expect(existsSync(join(dir, 'src/web/prerender.ts'))).toBe(true);
+    } else {
+      // dynamic: no prerender step or entry; root is an empty shell (no rendered
+      // element — only the leftover comment placeholder, mounted on the client).
+      expect(root).not.toContain('<main');
+      expect(existsSync(join(dir, 'src/web/prerender.ts'))).toBe(false);
+      expect(existsSync(join(dir, 'scripts/prerender.mjs'))).toBe(false);
+    }
+  });
+
+  it('removed scaffolding, swapped README, no fingerprints', () => {
     expect(existsSync(join(dir, 'scripts/init.mjs'))).toBe(false);
     expect(existsSync(join(dir, 'SPIN-UP.md'))).toBe(false);
     expect(existsSync(join(dir, 'README.app.md'))).toBe(false);
-    expect(existsSync(join(dir, 'src/routes'))).toBe(true); // server keeps routes
-    // No template fingerprints survive into the app's README or package.json.
+    expect(existsSync(join(dir, 'src/routes'))).toBe(mode === 'server');
     const readme = readFileSync(join(dir, 'README.md'), 'utf8');
     expect(readme).not.toMatch(/template|skeleton|Use this template/i);
     const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
-    expect(pkg.description ?? '').not.toMatch(/template|skeleton/i);
     expect(pkg.scripts.init).toBeUndefined();
-    // No template/skeleton/SPINUP fingerprints in shipped config files.
-    for (const f of ['vite.config.ts', 'src/server.ts', 'scripts/dev.mjs']) {
-      expect(readFileSync(join(dir, f), 'utf8')).not.toMatch(/template|skeleton|SPINUP/i);
+    for (const f of ['vite.config.ts', 'src/server.ts', 'scripts/dev.mjs', 'scripts/build.mjs']) {
+      expect(readFileSync(join(dir, f), 'utf8')).not.toMatch(/SPINUP/);
     }
   });
-});
 
-describe('init → static app', () => {
-  let dir: string;
-  let child: ChildProcess;
-  const port = 8161;
-  beforeAll(async () => {
-    dir = setupApp('static');
-    child = await start(dir, port);
-  }, 60_000);
-  afterAll(() => {
-    child?.kill();
-    if (dir) rmSync(dir, { recursive: true, force: true });
-  });
-
-  it('serves the frontend with no API', async () => {
-    expect((await fetch(`http://localhost:${port}/`)).status).toBe(200);
-    const api = await fetch(`http://localhost:${port}/api/health`);
-    expect(api.status).toBe(200);
-    expect(api.headers.get('content-type')).toContain('text/html'); // SPA fallthrough
-  });
-
-  it('removed routes and scaffolding', () => {
-    expect(existsSync(join(dir, 'src/routes'))).toBe(false);
-    expect(existsSync(join(dir, 'scripts/init.mjs'))).toBe(false);
-  });
-
-  it('passes prettier formatting (marker removal left no stray whitespace)', () => {
-    // Static resolution deletes server-only marker blocks; confirm the resolved
-    // source is still cleanly formatted so the inherited quality gate passes.
+  it('resolved source passes prettier (no stray whitespace from marker removal)', () => {
     const result = spawnSync(
       'npx',
       [

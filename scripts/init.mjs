@@ -30,30 +30,51 @@ const args = Object.fromEntries(
     return [k, v ?? true];
   }),
 );
+const USAGE =
+  'Usage: node scripts/init.mjs --mode=<static|server> --render=<prerender|dynamic> [--name=<app-name>]';
 const mode = args.mode;
+const render = args.render;
 if (mode !== 'static' && mode !== 'server') {
-  console.error('Usage: node scripts/init.mjs --mode=<static|server> [--name=<app-name>]');
+  console.error(USAGE);
+  process.exit(1);
+}
+if (render !== 'prerender' && render !== 'dynamic') {
+  console.error(USAGE);
   process.exit(1);
 }
 
 // ---- marker resolution -----------------------------------------------------
-// Files containing `SPINUP:server-only` blocks. For server we keep the code (strip
-// the marker comments); for static we delete the whole block.
-const MARKER_FILES = ['src/server.ts', 'vite.config.ts', 'scripts/dev.mjs'];
-const START = /[ \t]*(?:\/\/|#)\s*SPINUP:server-only:start.*\n/g;
-const END = /[ \t]*(?:\/\/|#)\s*SPINUP:server-only:end.*\n/g;
-const BLOCK = /[ \t]*(?:\/\/|#)\s*SPINUP:server-only:start[\s\S]*?SPINUP:server-only:end.*\n/g;
-
-for (const rel of MARKER_FILES) {
+// Resolve `SPINUP:<axis>-only` blocks: keep the code (strip just the marker comments)
+// when the app is that variant, or delete the whole block when it isn't.
+function resolveMarkers(rel, axis, keep) {
   const file = path(rel);
+  if (!existsSync(file)) return;
   let text = readFileSync(file, 'utf8');
-  text = mode === 'server' ? text.replace(START, '').replace(END, '') : text.replace(BLOCK, '');
+  const start = new RegExp(`[ \\t]*(?://|#)\\s*SPINUP:${axis}:start.*\\n`, 'g');
+  const end = new RegExp(`[ \\t]*(?://|#)\\s*SPINUP:${axis}:end.*\\n`, 'g');
+  const block = new RegExp(
+    `[ \\t]*(?://|#)\\s*SPINUP:${axis}:start[\\s\\S]*?SPINUP:${axis}:end.*\\n`,
+    'g',
+  );
+  text = keep ? text.replace(start, '').replace(end, '') : text.replace(block, '');
   writeFileSync(file, text);
 }
+
+// server-only axis (across these files); prerender-only axis (in build.mjs).
+for (const rel of ['src/server.ts', 'vite.config.ts', 'scripts/dev.mjs']) {
+  resolveMarkers(rel, 'server-only', mode === 'server');
+}
+resolveMarkers('scripts/build.mjs', 'prerender-only', render === 'prerender');
 
 // ---- static-only deletions -------------------------------------------------
 if (mode === 'static') {
   rmSync(path('src/routes'), { recursive: true, force: true });
+}
+
+// ---- dynamic-only deletions (no prerender step) ----------------------------
+if (render === 'dynamic') {
+  rmSync(path('src/web/prerender.ts'), { force: true });
+  rmSync(path('scripts/prerender.mjs'), { force: true });
 }
 
 // ---- re-tier tests ---------------------------------------------------------
@@ -118,7 +139,7 @@ spawnSync(
   { cwd: root, stdio: 'ignore' },
 );
 
-console.log(`Initialized as a ${mode} app named "${appName}".`);
+console.log(`Initialized as a ${mode} / ${render} app named "${appName}".`);
 console.log('Removed template scaffolding. This repo is now your app.');
 
 // ---- self-delete (last) ----------------------------------------------------

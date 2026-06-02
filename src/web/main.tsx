@@ -6,10 +6,10 @@ if (!container) {
   throw new Error('Root element #root not found');
 }
 
-// If the markup was prerendered (production static build), hydrate it; otherwise mount
-// fresh (dev, and runtime-driven apps). Check for a real prerendered ELEMENT — not just
-// any node — because the unrendered template leaves an HTML comment placeholder, which
-// would fool a plain hasChildNodes() check into attempting hydration.
+// Hydrate prerendered markup when it's present (production prerender build); otherwise
+// mount fresh — which covers dev (the prerender step hasn't run) and dynamic apps
+// (which never prerender). Checking firstElementChild (a real element, not the comment
+// placeholder) means this one entry point works for both prerendered and dynamic apps.
 if (container.firstElementChild) {
   hydrateRoot(container, <App />);
 } else {

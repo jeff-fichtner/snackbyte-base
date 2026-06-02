@@ -11,26 +11,34 @@ nvm use        # Node 24 LTS
 npm install
 ```
 
-## 2. Choose the deploy mode and resolve
+## 2. Decide what this app is, and resolve
 
-Decide what this app is:
+Two choices, both baked into the source at spin-up (no runtime switches):
+
+**Deploy mode:**
 
 - **`server`** — Express serves the frontend AND exposes an API under `/api`. Most
   apps. Keeps `src/routes/` and a `/api/health` liveness endpoint.
-- **`static`** — a prerendered frontend with no API. Smaller; no `src/routes/`, no dev
-  API proxy.
+- **`static`** — served as files with no API. Smaller; no `src/routes/`, no dev proxy.
 
-Then run the resolver:
+**Render strategy:**
+
+- **`prerender`** — content rendered to real HTML at build time (fast first paint,
+  good SEO). The right choice for content/marketing apps and most one-off apps.
+- **`dynamic`** — client-side rendering, for apps whose content depends on the user or
+  live data (a DB-backed app, a logged-in tool, a game). No prerender step.
+
+Then run the resolver (both flags required):
 
 ```bash
-npm run init -- --mode=<static|server> --name=<your-app-name>
+npm run init -- --mode=<static|server> --render=<prerender|dynamic> --name=<your-app-name>
 ```
 
-This bakes the choice into the source, deletes the other mode's code and all template
+This bakes both choices into the source, deletes the unchosen paths and all template
 scaffolding (this file, the init script, the template README, the machinery tests),
 points the test suite at `tests/app/`, and replaces this README with the app's own.
-After it runs there is no "mode" concept and no template fingerprint left — the repo is
-your app.
+After it runs there is no "mode"/"render" concept and no template fingerprint left —
+the repo is your app.
 
 ## 3. Verify
 

@@ -11,18 +11,22 @@ app simply _is_ that mode, with no leftover template machinery.
 ## Spin up a new app
 
 1. Click **"Use this template"** on GitHub to create your repo, then clone it.
-2. Install and resolve the mode:
+2. Install and resolve the app:
 
    ```bash
-   nvm use                                   # Node 24 LTS (from .nvmrc)
+   nvm use            # Node 24 LTS (from .nvmrc)
    npm install
-   npm run init -- --mode=server --name=my-app   # or --mode=static
+   npm run init -- --mode=server --render=prerender --name=my-app
    ```
 
-   `init` bakes the chosen mode into the source, removes the other mode and all
-   template scaffolding (including itself), and leaves a clean single-mode app. See
-   [SPIN-UP.md](./SPIN-UP.md) for the full handoff, including how to switch modes
-   later.
+   `init` requires two choices, both baked into the source at spin-up:
+   - `--mode=static|server` — static (no backend) or server (Express + API).
+   - `--render=prerender|dynamic` — prerender (build-time HTML; content apps) or
+     dynamic (client-side rendering; data/auth-driven apps).
+
+   It removes the unchosen paths and all template scaffolding (including itself),
+   leaving a clean app. See [SPIN-UP.md](./SPIN-UP.md) for the full handoff and how to
+   switch later.
 
 3. Run it:
 

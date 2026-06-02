@@ -5,15 +5,35 @@ the constitution. No NEEDS CLARIFICATION items remained from Technical Context. 
 file is the durable record of each decision (with rationale and alternatives) in the
 required format, so the plan is self-contained.
 
-## R1. Single template with a mode switch (not two templates)
+## R1. Single template, not two templates
 
-- **Decision**: One skeleton; the deploy mode is a single config value (`DEPLOY_MODE`
-  ∈ {`static`, `server`}) recorded in one discoverable location.
+- **Decision**: One skeleton, not a fork per mode.
 - **Rationale**: Two templates double maintenance for a solo maintainer and drift
-  apart. A static app that later needs a backend must promote without a rewrite
-  (FR-005). Mandated by Constitution Principle I.
+  apart. Mandated by Constitution Principle I.
 - **Alternatives considered**: Two separate templates (rejected — drift, double
   upkeep); a monorepo of per-mode packages (rejected — reintroduces the fork).
+- **Note**: The original form of this decision modeled mode as a runtime config value
+  (`DEPLOY_MODE`). That was superseded — see R1a.
+
+## R1a. Deploy mode is a build-time identity (supersedes the DEPLOY_MODE config model)
+
+- **Decision**: Mode is resolved once at spin-up by an `init` script that bakes the
+  choice into the source and removes the other mode — leaving a clean single-mode app
+  with no runtime mode flag. Switching later is a documented source edit.
+- **Rationale**: A runtime `DEPLOY_MODE` left the app's fundamental nature in an
+  environment value (gitignored, per-developer) and forced every app to carry both
+  code paths forever. Mode is really a property of the app, not an environment knob; a
+  spun-up app should read as a clean static or server app with no template fingerprint.
+  Resolving at spin-up also removes the env-loading / import-timing problems that the
+  runtime model introduced. Mandated by the redefined Principle I (constitution v2.0.0).
+- **Alternatives considered**: keep the runtime config switch (rejected — the
+  "switching needs no source edit" convenience wasn't wanted, and it permanently
+  bloated every app with both modes); a committed constant with both branches present
+  (rejected — leaves the unused mode's code visible, so the app doesn't read as a clean
+  single identity).
+- **Forward direction**: the per-mode wiring is sprawled across a few files today;
+  it is slated to consolidate into a versioned runtime package once the interface is
+  proven by real use, shrinking the switch surface to a single call site.
 
 ## R2. UI framework: React
 

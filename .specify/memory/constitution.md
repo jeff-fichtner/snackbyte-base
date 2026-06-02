@@ -1,15 +1,18 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.1.0 → 1.1.1
-Bump rationale: PATCH — Technology Stack runtime pin updated Node 22 LTS → Node 24
-  LTS (24 entered LTS; a fresh template targets the current LTS). Refinement of the
-  fixed stack, not a new/removed principle. Propagated to spec FR-009, research R4,
-  plan, data-model, tasks, quickstart.
+Version change: 1.1.1 → 2.0.0
+Bump rationale: MAJOR — Principle I redefined. Deploy mode moves from a runtime
+  configuration value (DEPLOY_MODE, "switching MUST NOT require source rewrites") to a
+  build-time identity resolved once at spin-up by an init resolver, where switching IS
+  a documented source edit. This removes a former MUST and changes the template's core
+  model, so it is backward-incompatible. Propagated to spec (Context, FR-002, FR-005,
+  US2 AS-3, Key Entities), data-model, tasks, and scripts (mode.ts deleted, init.mjs
+  added, DEPLOY_MODE removed throughout).
 
+Prior amendment (1.1.0 → 1.1.1): PATCH — runtime pin Node 22 → Node 24 LTS.
 Prior amendment (1.0.0 → 1.1.0): MINOR — added Principle VIII (Speckit Stays in
-  Speckit Spaces). Keeps the AI-assist spec workflow out of the shipped artifact.
-  No existing principle redefined or removed.
+  Speckit Spaces).
 
 Modified principles: none redefined
 Added principles:
@@ -48,18 +51,27 @@ ad-hoc convention; spec, plan, and task artifacts MUST conform to it.
 
 ## Core Principles
 
-### I. Single Template, Mode Switch
+### I. Single Template, Mode Resolved at Spin-Up
 
-There is exactly ONE template skeleton, not a family of forks. Each app declares a
-deploy mode at spin-up with exactly two values: `static` or `server`, recorded in a
-single discoverable configuration location. Both modes MUST work from one unmodified
-skeleton. Switching modes MUST NOT require rewriting application source code — only
-the mode configuration and deploy target change.
+There is exactly ONE template skeleton, not a family of forks. The template itself is
+mode-neutral: it carries both `static` and `server` capability, marked, until a
+one-time spin-up step resolves it to exactly one. After resolution the app simply IS
+that mode — there is no runtime mode flag, no mode configuration value, and no trace
+of the other mode. Deploy mode is a build-time identity baked into the source, not a
+setting read at boot.
 
-**Rationale**: Two templates double the maintenance surface for a solo maintainer
-and let the two paths drift. A single template with a small, config-level fork keeps
-every app on the same proven base; a static app that later grows a backend is a
-config change, not a rewrite.
+Switching mode later is a deliberate, documented source edit (reversible, visible in
+version control) — NOT a config toggle. This is intentional: mode is a property of
+the app, not an environment knob.
+
+**Rationale**: Two templates double the maintenance surface for a solo maintainer and
+let the two paths drift. One mode-neutral template, resolved once at spin-up, gives
+every app the same proven base AND a clean single-mode identity that doesn't read as
+"generated from a template." Modeling mode as runtime config was rejected: it left the
+app's fundamental nature in an environment value and made every app carry both code
+paths forever. (The per-mode wiring is sprawled across a few files today; it is slated
+to consolidate into a versioned runtime package once the interface is proven, which
+will shrink the switch surface to a single call site — see the build order.)
 
 ### II. Convention Over Configuration
 
@@ -217,4 +229,4 @@ conflicts, the constitution wins.
   justification. The stack in Technology Stack is fixed — changing it is an amendment,
   not a per-app decision.
 
-**Version**: 1.1.1 | **Ratified**: 2026-05-31 | **Last Amended**: 2026-05-31
+**Version**: 2.0.0 | **Ratified**: 2026-05-31 | **Last Amended**: 2026-06-01

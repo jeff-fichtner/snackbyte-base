@@ -1,0 +1,35 @@
+# Cloud Build config: build the container and deploy it to Cloud Run.
+# Substitutions:
+#   _SERVICE  Cloud Run service name (required)
+#   _REGION   deploy region (default us-central1)
+substitutions:
+  _SERVICE: ''
+  _REGION: 'us-central1'
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/apps/${_SERVICE}:$SHORT_SHA'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/apps/${_SERVICE}:$SHORT_SHA'
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE}'
+      - '--image'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/apps/${_SERVICE}:$SHORT_SHA'
+      - '--region'
+      - '${_REGION}'
+      - '--allow-unauthenticated'
+
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/apps/${_SERVICE}:$SHORT_SHA'

@@ -25,9 +25,10 @@ modes, chosen once at spin-up time:
 - **server** — served by an Express server, which may also expose backend API
   routes.
 
-The same skeleton supports both; the mode is a single configuration choice, not a
-fork into separate templates. The majority of apps are expected to be **server**
-mode; a minority are pure **static**.
+The template is mode-neutral: it carries both capabilities until a one-time spin-up
+step (an `init` resolver) bakes the choice into the source, leaving a clean
+single-mode app. Mode is a build-time identity, not a runtime setting. The majority of
+apps are expected to be **server** mode; a minority are pure **static**.
 
 A separate shared-identity layer (`@snackbyte/ui`, a versioned npm package) will be
 extracted later from the first real app (`snackbyte-site`) and is **out of scope**
@@ -72,10 +73,10 @@ the build/deploy behavior follows from that single choice.
 `snackbyte-base` from a generic Vite starter. Both modes must work from one
 skeleton, or the "single template" goal is lost.
 
-**Independent Test**: In a copy configured as **static**, the build produces
-deployable static assets that the container serves with no API routes exposed. In a
-copy configured as **server**, the Express server starts and serves the built app
-(and can host API routes).
+**Independent Test**: Resolve a copy to **static** (via the spin-up init); the build
+produces deployable static assets that the container serves with no API routes
+exposed. Resolve another copy to **server**; the Express server starts and serves the
+built app (and hosts API routes).
 
 **Acceptance Scenarios**:
 
@@ -86,9 +87,9 @@ copy configured as **server**, the Express server starts and serves the built ap
 2. **Given** an app configured in **server** mode, **When** the developer runs the
    build and start, **Then** an Express server serves the built frontend and can
    expose API routes.
-3. **Given** either mode, **When** the developer switches the configured mode,
-   **Then** the build and start behavior change accordingly without source rewrites
-   to application code.
+3. **Given** a resolved app, **When** the developer follows the documented procedure
+   to switch it to the other mode, **Then** the switch is a small, enumerated set of
+   source edits (reversible, visible in version control) — not a config toggle.
 
 ---
 
@@ -117,14 +118,16 @@ output HTML contains the rendered content (not an empty root element).
 
 ### Edge Cases
 
-- What happens when a **static** app later needs a backend? It must be possible to
-  switch to **server** mode without rewriting application code.
+- What happens when a **static** app later needs a backend? The developer follows the
+  documented switch procedure — a small, enumerated set of source edits that adds the
+  server wiring back. It is a deliberate change, not a config flip.
 - What happens when the template's conventions improve after apps already exist?
   Changes to the template are propagated by manual backport (accepted, infrequent);
   shared styling/UI changes are handled by the future `@snackbyte/ui` package, not
   by backporting the template.
-- How does a developer discover the mode an existing app is in? The mode must be
-  recorded in a discoverable, single location.
+- How does a developer discover the mode an existing app is in? It is evident from the
+  source — a server app has API routes and the server wiring; a static app does not.
+  There is no mode flag to read.
 
 ## Requirements *(mandatory)*
 
@@ -132,9 +135,10 @@ output HTML contains the rendered content (not an empty root element).
 
 - **FR-001**: The template MUST produce a runnable Vite + React + TypeScript
   application on spin-up with no additional tooling decisions required.
-- **FR-002**: The template MUST support a single deploy-mode choice with exactly two
-  values: `static` and `server`, recorded in one discoverable configuration
-  location.
+- **FR-002**: The template MUST be mode-neutral and provide a one-time spin-up
+  resolver (`init`) that bakes a single deploy-mode choice — `static` or `server` —
+  into the source, leaving a clean single-mode app with no runtime mode flag and no
+  trace of the other mode.
 - **FR-003**: In **static** mode, the build MUST produce static assets served by a
   containerized Express app (no API routes) deployed to Cloud Run by default — the
   SAME deploy path as server mode. Static-on-Cloud-Run is effectively free at idle
@@ -150,8 +154,9 @@ output HTML contains the rendered content (not an empty root element).
   and/or a Cloud Build config). Both static and server modes use the Cloud Run
   deploy path by default; the mode difference is whether the app exposes API routes,
   not which infrastructure it targets.
-- **FR-005**: Switching between modes MUST NOT require rewriting application source
-  code (only the mode configuration and deploy target change).
+- **FR-005**: Switching a resolved app to the other mode MUST be a documented,
+  enumerated set of source edits (reversible, visible in version control) — NOT a
+  config toggle. The template MUST document this switch procedure.
 - **FR-006**: Static, build-time-known content MUST be prerendered to HTML by
   default; client-side rendering MUST remain available for runtime-driven apps.
 - **FR-007**: The template MUST include pre-configured linting, formatting, and
@@ -169,8 +174,8 @@ output HTML contains the rendered content (not an empty root element).
 
 ### Key Entities *(include if feature involves data)*
 
-- **Deploy Mode**: The single configuration value (`static` | `server`) that
-  determines build and serve behavior for an app spun up from the template.
+- **Deploy Mode**: A build-time identity (`static` | `server`) resolved once at
+  spin-up and baked into the app's source. Not a runtime configuration value.
 - **App Skeleton**: The reusable file/folder structure, tooling configuration, and
   scripts that every spun-up app inherits.
 
@@ -180,10 +185,10 @@ output HTML contains the rendered content (not an empty root element).
 
 - **SC-001**: A developer can go from "Use this template" to a running dev server in
   under 5 minutes, performing only documented steps.
-- **SC-002**: Both deploy modes (static and server) are demonstrably buildable and
-  serveable from a single unmodified copy of the template by changing only the mode
-  configuration — both via the same Cloud Run deploy path, the mode differing only
-  by whether API routes are exposed.
+- **SC-002**: Both deploy modes (static and server) are demonstrably resolvable from
+  the one template via the spin-up `init`, and each resolved app is buildable and
+  serveable — both via the same Cloud Run deploy path, the mode differing only by
+  whether API routes are exposed.
 - **SC-003**: A static-mode build of known content yields HTML containing the
   rendered content (verifiable by inspecting the build output).
 - **SC-004**: Lint, format, type-check, and test scripts all run successfully on a

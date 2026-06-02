@@ -6,21 +6,17 @@ the template defines. They are drawn from the spec's Key Entities section.
 
 ## Entity: Deploy Mode
 
-The single configuration value that determines build and serve behavior.
+A build-time identity that determines build and serve behavior. Not a runtime value.
 
-- **Field**: `DEPLOY_MODE`
-- **Type**: enum — exactly two values: `static` | `server`
-- **Source of truth**: one discoverable location (an environment variable read in
-  `src/mode.ts`, defaulted/documented in `.env.example` and the README). One source
-  only — no second place to set it (FR-002, Principle I).
-- **Validation rules**:
-  - MUST be exactly one of `static` | `server`; any other value is a hard error at
-    startup/build.
-  - Absent value MUST resolve to a single documented default (`server`, since most
-    apps are server mode) — not an undefined/ambiguous state.
-- **State transitions**: `static` ⇄ `server` by changing only the config value and
-  deploy target. MUST NOT require application source rewrites (FR-005). The transition
-  is config + deploy, never code.
+- **Type**: one of two — `static` | `server`
+- **Where it lives**: in the app's source, baked at spin-up. A `server` app has the
+  API routes and server wiring present; a `static` app does not. There is no runtime
+  mode variable, env var, or config field to read (FR-002, Principle I).
+- **Resolution**: the template is mode-neutral; the `init` resolver bakes exactly one
+  mode into the source at spin-up and removes the other (and all mode scaffolding),
+  leaving a clean single-mode app.
+- **State transitions**: `static` ⇄ `server` is a deliberate, documented set of source
+  edits (reversible, visible in version control) — never a config toggle (FR-005).
 - **Behavioral effect**:
   - `static` → build produces prerendered static assets; the container serves files
     and exposes NO API routes.

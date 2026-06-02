@@ -1,49 +1,49 @@
 # Contract: Deploy Mode + Skeleton Scripts
 
 This template is consumed by developers, not called over a network. Its "interface"
-is therefore (a) the `DEPLOY_MODE` configuration contract and (b) the behavior
-contract of the documented scripts. Each clause below is independently testable and
-maps to a spec requirement / success criterion.
+is therefore (a) the spin-up mode-resolution contract and (b) the behavior contract of
+the documented scripts. Each clause below is independently testable and maps to a spec
+requirement / success criterion.
 
-## C1. DEPLOY_MODE configuration
+## C1. Spin-up mode resolution
 
 | Aspect | Contract |
 |---|---|
-| Name | `DEPLOY_MODE` |
+| Resolver | `node scripts/init.mjs --mode=<static\|server> [--name=…]` |
 | Values | exactly `static` or `server` |
-| Default | `server` (documented) when unset |
-| Source | single discoverable location (env, read in `src/mode.ts`) |
-| Invalid value | hard error at build/startup with a clear message — never silent fallback |
+| Invalid value | hard error with a clear message — never a silent default |
+| Result | one clean single-mode app: the chosen mode baked into source, the other mode and all mode/init scaffolding removed, `init` self-deleted |
+| Mode at rest | no runtime mode flag/env/config; mode is which code is present |
 
-**Maps to**: FR-002, Principle I. **Tested by**: `tests/unit/mode.test.ts`.
+**Maps to**: FR-002, Principle I. **Tested by**: `tests/machinery/init.test.ts`.
 
-## C2. `static` mode build
+## C2. `static` build
 
-- **Given** `DEPLOY_MODE=static`, **when** `npm run build` runs, **then** the output
-  is a set of static assets, and build-time-known content is present as rendered HTML
-  (not an empty root element).
+- **Given** an app resolved to **static**, **when** `npm run build` runs, **then** the
+  output is a set of static assets, and build-time-known content is present as rendered
+  HTML (not an empty root element).
 - By default these assets are served by a container on Cloud Run that exposes **no**
   API routes. The assets are also capable of serverless CDN serving (the documented
   performance-only opt-in), but the container is the default.
 
-**Maps to**: FR-003, FR-006, SC-003. **Tested by**: build-output inspection in
-`tests/integration/server.test.ts` (HTML contains rendered markup) and a no-API-route
-assertion.
+**Maps to**: FR-003, FR-006, SC-003. **Tested by**: `tests/machinery/prerender.test.ts`
+(rendered markup) and `tests/machinery/init.test.ts` (static app serves, no API).
 
-## C3. `server` mode build + start
+## C3. `server` build + start
 
-- **Given** `DEPLOY_MODE=server`, **when** the app is built and started, **then** an
-  Express server serves the built frontend **and** can expose API routes (the sample
-  `health` route responds).
+- **Given** an app resolved to **server**, **when** it is built and started, **then**
+  an Express server serves the built frontend **and** exposes API routes (the liveness
+  `/api/health` route responds).
 
-**Maps to**: FR-004. **Tested by**: `tests/integration/server.test.ts` (frontend
-served + health route 200 in server mode; health route absent in static mode).
+**Maps to**: FR-004. **Tested by**: `tests/machinery/init.test.ts` (server app serves
+frontend + API; static app has no API).
 
-## C4. Mode switch without source rewrite
+## C4. Mode switch is a documented source edit
 
-- **Given** either mode, **when** `DEPLOY_MODE` is changed, **then** build/start
-  behavior changes accordingly with no edits to application source — only the config
-  value and deploy target change.
+- **Given** a resolved app, **when** the developer follows the documented switch
+  procedure, **then** build/start behavior changes to the other mode via a small,
+  enumerated set of source edits — reversible and visible in version control, never a
+  config toggle.
 
 **Maps to**: FR-005, SC-002, Principle I.
 

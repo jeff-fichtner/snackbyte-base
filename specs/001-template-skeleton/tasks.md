@@ -16,6 +16,14 @@ tasks below cover mode resolution and the static-vs-server serve behavior.
 **Organization**: Tasks are grouped by user story (US1 spin-up, US2 mode switch, US3 prerender) so
 each can be implemented and tested independently.
 
+> **SUPERSEDED (mode model)**: Tasks below were completed as written, then the deploy-mode model was
+> redefined during review — from a runtime `DEPLOY_MODE` config value to a **build-time identity**
+> resolved at spin-up by `scripts/init.mjs` (constitution v2.0.0, spec FR-002/FR-005, research R1a).
+> Consequently `src/mode.ts` was deleted, `DEPLOY_MODE` was removed throughout, the mode-config tests
+> were replaced by `tests/machinery/init.test.ts` (validates both resolved modes), and tests were
+> re-tiered into `tests/machinery/` (template's own) vs `tests/app/` (the spun-up app's). The task
+> text below reflects the original implementation; the current behavior is per the updated spec.
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
@@ -34,16 +42,16 @@ skeleton, not building application features.
 
 **Purpose**: Project initialization, runtime pin, and tooling that every spun-up app inherits.
 
-- [ ] T001 Initialize `package.json` at repo root with name, `type: module`, `engines.node` set to Node 24 LTS, and empty `scripts` block to be filled by later tasks
-- [ ] T002 Create `.nvmrc` at repo root pinning Node 24 LTS (matches `engines.node`) — satisfies FR-009
-- [ ] T003 [P] Update `.gitignore` at repo root to exclude `node_modules/`, `dist/`, build output, and `.env*` (keep `.env.example`) — satisfies FR-011
-- [ ] T004 Install runtime + dev dependencies via npm: `vite`, `@vitejs/plugin-react`, `react`, `react-dom`, `express`, `vitest`, `typescript`, `eslint`, `typescript-eslint`, `@eslint/js`, `prettier`, `eslint-config-prettier`, `tsx`, `@types/node`, `@types/express`, `@types/react`, `@types/react-dom`
-- [ ] T005 [P] Create base `tsconfig.json` at repo root (shared compiler options, strict mode) — adapted from tonic conventions
-- [ ] T006 [P] Create `tsconfig.web.json` at repo root (extends base; DOM lib, `jsx: react-jsx`) for the React frontend
-- [ ] T007 [P] Create `tsconfig.build.json` at repo root (extends base; backend emit) for server-mode compilation
-- [ ] T008 [P] Create `config/eslint.config.ts` (typescript-eslint flat config + `eslint-config-prettier`) — satisfies FR-007
-- [ ] T009 [P] Create `config/.prettierrc.json` and `config/.prettierignore` — satisfies FR-007
-- [ ] T010 Add `package.json` scripts: `dev`, `build`, `preview`, `lint`, `format`, `format:check`, `typecheck`, `test`, and an aggregate `check:all` (format:check + lint + typecheck + test) — satisfies FR-007, FR-008, C5
+- [X] T001 Initialize `package.json` at repo root with name, `type: module`, `engines.node` set to Node 24 LTS, and empty `scripts` block to be filled by later tasks
+- [X] T002 Create `.nvmrc` at repo root pinning Node 24 LTS (matches `engines.node`) — satisfies FR-009
+- [X] T003 [P] Update `.gitignore` at repo root to exclude `node_modules/`, `dist/`, build output, and `.env*` (keep `.env.example`) — satisfies FR-011
+- [X] T004 Install runtime + dev dependencies via npm: `vite`, `@vitejs/plugin-react`, `react`, `react-dom`, `express`, `vitest`, `typescript`, `eslint`, `typescript-eslint`, `@eslint/js`, `prettier`, `eslint-config-prettier`, `tsx`, `@types/node`, `@types/express`, `@types/react`, `@types/react-dom`
+- [X] T005 [P] Create base `tsconfig.json` at repo root (shared compiler options, strict mode) — adapted from tonic conventions
+- [X] T006 [P] Create `tsconfig.web.json` at repo root (extends base; DOM lib, `jsx: react-jsx`) for the React frontend
+- [X] T007 [P] Create `tsconfig.build.json` at repo root (extends base; backend emit) for server-mode compilation
+- [X] T008 [P] Create `config/eslint.config.ts` (typescript-eslint flat config + `eslint-config-prettier`) — satisfies FR-007
+- [X] T009 [P] Create `config/.prettierrc.json` and `config/.prettierignore` — satisfies FR-007
+- [X] T010 Add `package.json` scripts: `dev`, `build`, `preview`, `lint`, `format`, `format:check`, `typecheck`, `test`, and an aggregate `check:all` (format:check + lint + typecheck + test) — satisfies FR-007, FR-008, C5
 
 **Checkpoint**: `npm install` succeeds; `npm run lint`/`format:check`/`typecheck` run (even with no source yet).
 
@@ -55,12 +63,12 @@ skeleton, not building application features.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T011 Create `.env.example` at repo root documenting `DEPLOY_MODE` (values `static`|`server`, default `server`) and `PORT` — single discoverable source per data-model.md
-- [ ] T012 Implement `src/mode.ts`: read `DEPLOY_MODE` from env, validate it is exactly `static`|`server`, default to `server` when unset, throw a clear error on any other value — satisfies FR-002, contract C1
-- [ ] T013 Create `vite.config.ts` at repo root: React plugin, project root pointing at `src/web/`, build output to `dist/` — shared by both modes
-- [ ] T014 Add a Vitest `test` block to `vite.config.ts` (single shared config — no separate `vitest.config.ts`): default `environment: 'node'`, with `jsdom` applied to `*.test.tsx` via `environmentMatchGlobs` (component tests need DOM; server/integration tests run in node); glob `tests/**` — satisfies FR-008
-- [ ] T015 Create minimal React entry skeleton: `src/web/index.html` (Vite HTML entry with `<div id="root">` + module script — the template the prerender step injects into), `src/web/App.tsx` (demonstrative content only, no business logic — FR-012), `src/web/main.tsx` (client hydration entry)
-- [ ] T016 Implement `src/server.ts`: Express app that serves the built frontend from `dist/`; mounts API routes ONLY when `mode === 'server'` (reads `src/mode.ts`) — the shared serve path for both modes
+- [X] T011 Create `.env.example` at repo root documenting `DEPLOY_MODE` (values `static`|`server`, default `server`) and `PORT` — single discoverable source per data-model.md
+- [X] T012 Implement `src/mode.ts`: read `DEPLOY_MODE` from env, validate it is exactly `static`|`server`, default to `server` when unset, throw a clear error on any other value — satisfies FR-002, contract C1
+- [X] T013 Create `vite.config.ts` at repo root: React plugin, project root pointing at `src/web/`, build output to `dist/` — shared by both modes
+- [X] T014 Add a Vitest `test` block to `vite.config.ts` (single shared config — no separate `vitest.config.ts`): default `environment: 'node'`, with `jsdom` applied to `*.test.tsx` via `environmentMatchGlobs` (component tests need DOM; server/integration tests run in node); glob `tests/**` — satisfies FR-008
+- [X] T015 Create minimal React entry skeleton: `src/web/index.html` (Vite HTML entry with `<div id="root">` + module script — the template the prerender step injects into), `src/web/App.tsx` (demonstrative content only, no business logic — FR-012), `src/web/main.tsx` (client hydration entry)
+- [X] T016 Implement `src/server.ts`: Express app that serves the built frontend from `dist/`; mounts API routes ONLY when `mode === 'server'` (reads `src/mode.ts`) — the shared serve path for both modes
 
 **Checkpoint**: Mode resolves and validates; Express serves built files; the mode gate exists. User stories can now proceed.
 
@@ -76,14 +84,14 @@ app renders via Vite and the four quality scripts run successfully (SC-001, SC-0
 
 ### Tests for User Story 1
 
-- [ ] T017 [P] [US1] Unit test `tests/unit/mode.test.ts`: asserts default `server`, accepts `static`/`server`, throws on invalid value, and resolves solely from the `DEPLOY_MODE` env var (single discoverable source — no second location) — covers contracts C1, FR-002
-- [ ] T018 [P] [US1] Smoke test `tests/unit/app.test.tsx`: renders `src/web/App.tsx` and asserts demonstrative content is present — proves the React+test pipeline works on a fresh copy (SC-004)
+- [X] T017 [P] [US1] Unit test `tests/unit/mode.test.ts`: asserts default `server`, accepts `static`/`server`, throws on invalid value, and resolves solely from the `DEPLOY_MODE` env var (single discoverable source — no second location) — covers contracts C1, FR-002
+- [X] T018 [P] [US1] Smoke test `tests/unit/app.test.tsx`: renders `src/web/App.tsx` and asserts demonstrative content is present — proves the React+test pipeline works on a fresh copy (SC-004)
 
 ### Implementation for User Story 1
 
-- [ ] T019 [US1] Wire `dev` script to run Vite (and, in server mode, the Express API via `tsx` concurrently) so `npm run dev` renders the app — satisfies FR-001, acceptance scenario US1-1
-- [ ] T020 [US1] Verify the four quality scripts (`lint`, `format:check`, `typecheck`, `test`) pass on the skeleton as-is — satisfies FR-007, FR-008, SC-004, acceptance scenario US1-2
-- [ ] T021 [US1] Write `README.md`: spin-up steps (Use this template → install → choose mode → dev), the static-vs-server mode choice, and where `DEPLOY_MODE` lives — satisfies FR-010, acceptance scenario US1-3, SC-001
+- [X] T019 [US1] Wire `dev` script to run Vite (and, in server mode, the Express API via `tsx` concurrently) so `npm run dev` renders the app — satisfies FR-001, acceptance scenario US1-1
+- [X] T020 [US1] Verify the four quality scripts (`lint`, `format:check`, `typecheck`, `test`) pass on the skeleton as-is — satisfies FR-007, FR-008, SC-004, acceptance scenario US1-2
+- [X] T021 [US1] Write `README.md`: spin-up steps (Use this template → install → choose mode → dev), the static-vs-server mode choice, and where `DEPLOY_MODE` lives — satisfies FR-010, acceptance scenario US1-3, SC-001
 
 **Checkpoint**: Fresh copy → running dev server in <5 min; all quality gates green. MVP is functional.
 
@@ -101,17 +109,17 @@ responds. Switching the mode changes behavior without source edits (SC-002).
 
 ### Tests for User Story 2
 
-- [ ] T022 [P] [US2] Integration test `tests/integration/server.test.ts` (server mode): build a `dist/` fixture (or run the build in test setup), start `src/server.ts` with `DEPLOY_MODE=server`, assert built frontend is served AND the `health` route returns 200 — covers contract C3
-- [ ] T023 [P] [US2] Integration test in `tests/integration/server.test.ts` (static mode): with a built `dist/` and `DEPLOY_MODE=static`, assert files are served AND the `health` route is absent (404) — covers contracts C2, C4
+- [X] T022 [P] [US2] Integration test `tests/integration/server.test.ts` (server mode): build a `dist/` fixture (or run the build in test setup), start `src/server.ts` with `DEPLOY_MODE=server`, assert built frontend is served AND the `health` route returns 200 — covers contract C3
+- [X] T023 [P] [US2] Integration test in `tests/integration/server.test.ts` (static mode): with a built `dist/` and `DEPLOY_MODE=static`, assert files are served AND the `health` route is absent (404) — covers contracts C2, C4
 
 ### Implementation for User Story 2
 
-- [ ] T024 [US2] Create `src/routes/health.ts`: a sample `GET /api/health` route (demonstrative, not business logic — FR-012) mounted only in server mode by `src/server.ts`
-- [ ] T025 [US2] Implement the `build` script branching on `DEPLOY_MODE`: `static` → `vite build` only (no server bundle); `server` → `vite build` + backend emit via `tsconfig.build.json` — satisfies FR-003, FR-004, acceptance scenarios US2-1/US2-2
-- [ ] T026 [US2] Confirm mode switch requires no application source edits — only `DEPLOY_MODE` + deploy target change — satisfies FR-005, SC-002, acceptance scenario US2-3, contract C4
-- [ ] T027 [P] [US2] Create `Dockerfile` (Node 24 base; build + run `src/server.ts`; serves files, +API in server mode) and `.dockerignore` — satisfies FR-004a, contract C6
-- [ ] T028 [P] [US2] Create `scripts/deploy.sh` (wraps `gcloud run deploy`) and `cloudbuild.yaml` for the one Cloud Run path used by both modes — satisfies FR-004a, FR-003, contract C6
-- [ ] T029 [US2] Document in `README.md` the Cloud Run default for both modes AND the Cloud Storage + Cloud CDN performance-only opt-in for static apps — satisfies FR-003a, contract C6
+- [X] T024 [US2] Create `src/routes/health.ts`: a sample `GET /api/health` route (demonstrative, not business logic — FR-012) mounted only in server mode by `src/server.ts`
+- [X] T025 [US2] Implement the `build` script branching on `DEPLOY_MODE`: `static` → `vite build` only (no server bundle); `server` → `vite build` + backend emit via `tsconfig.build.json` — satisfies FR-003, FR-004, acceptance scenarios US2-1/US2-2
+- [X] T026 [US2] Confirm mode switch requires no application source edits — only `DEPLOY_MODE` + deploy target change — satisfies FR-005, SC-002, acceptance scenario US2-3, contract C4
+- [X] T027 [P] [US2] Create `Dockerfile` (Node 24 base; build + run `src/server.ts`; serves files, +API in server mode) and `.dockerignore` — satisfies FR-004a, contract C6
+- [X] T028 [P] [US2] Create `scripts/deploy.sh` (wraps `gcloud run deploy`) and `cloudbuild.yaml` for the one Cloud Run path used by both modes — satisfies FR-004a, FR-003, contract C6
+- [X] T029 [US2] Document in `README.md` the Cloud Run default for both modes AND the Cloud Storage + Cloud CDN performance-only opt-in for static apps — satisfies FR-003a, contract C6
 
 **Checkpoint**: Both modes build and serve from one unmodified copy by changing only `DEPLOY_MODE`.
 
@@ -127,13 +135,13 @@ the rendered markup (not an empty root element) — SC-003, contract C2.
 
 ### Tests for User Story 3
 
-- [ ] T030 [P] [US3] Build-output test `tests/integration/prerender.test.ts`: run the static build, read the emitted HTML, assert it contains the rendered content from `App.tsx` (not an empty `<div id="root">`) — covers contract C2, SC-003
+- [X] T030 [P] [US3] Build-output test `tests/integration/prerender.test.ts`: run the static build, read the emitted HTML, assert it contains the rendered content from `App.tsx` (not an empty `<div id="root">`) — covers contract C2, SC-003
 
 ### Implementation for User Story 3
 
-- [ ] T031 [US3] Create `src/web/prerender.tsx`: a build-time render step using `react-dom/server` `renderToString` that takes a **list of entry pages** (one for a single-purpose app, several for a multi-page app) and renders each to static HTML — no SSG plugin — satisfies FR-006
-- [ ] T032 [US3] Wire the prerender step into the static `build` path: for each entry, inject its `renderToString` output into the Vite HTML template, emitting one HTML file per entry in `dist/`; keep CSR available for opt-in runtime-driven apps. (Request-dependent pages use SSR in server mode via the same API — out of scope for the default path.) — satisfies FR-006, acceptance scenarios US3-1/US3-2
-- [ ] T033 [US3] Document in `README.md` the prerender-by-default behavior and how an app opts into CSR — satisfies FR-006
+- [X] T031 [US3] Create `src/web/prerender.tsx`: a build-time render step using `react-dom/server` `renderToString` that takes a **list of entry pages** (one for a single-purpose app, several for a multi-page app) and renders each to static HTML — no SSG plugin — satisfies FR-006
+- [X] T032 [US3] Wire the prerender step into the static `build` path: for each entry, inject its `renderToString` output into the Vite HTML template, emitting one HTML file per entry in `dist/`; keep CSR available for opt-in runtime-driven apps. (Request-dependent pages use SSR in server mode via the same API — out of scope for the default path.) — satisfies FR-006, acceptance scenarios US3-1/US3-2
+- [X] T033 [US3] Document in `README.md` the prerender-by-default behavior and how an app opts into CSR — satisfies FR-006
 
 **Checkpoint**: Static build emits real HTML for known content; CSR opt-in path documented.
 
@@ -143,11 +151,11 @@ the rendered markup (not an empty root element) — SC-003, contract C2.
 
 **Purpose**: Final validation that the skeleton meets every success criterion and stays a skeleton.
 
-- [ ] T034 Run the full `quickstart.md` walkthrough end-to-end on a fresh clone; fix any step that exceeds 5 minutes or requires undocumented configuration — validates SC-001
-- [ ] T035 Run `npm run check:all` and confirm format/lint/typecheck/test all pass on the clean skeleton — validates SC-004, contract C5
-- [ ] T036 Review the repo for application-specific business logic; confirm only demonstrative content remains (App.tsx sample page, health sample route) — validates FR-012, SC-005, contract C7
-- [ ] T037 [P] Confirm the spec artifacts (spec.md, research.md) stay consistent with the built skeleton; note any drift
-- [ ] T038 Verify no shipped file (`README.md`, `src/`, `tests/`, scripts, `Dockerfile`) references the spec workflow — no "FR-0xx", spec numbers, Principle names, or User Story IDs. Shipped files state rules directly
+- [X] T034 Run the full `quickstart.md` walkthrough end-to-end on a fresh clone; fix any step that exceeds 5 minutes or requires undocumented configuration — validates SC-001
+- [X] T035 Run `npm run check:all` and confirm format/lint/typecheck/test all pass on the clean skeleton — validates SC-004, contract C5
+- [X] T036 Review the repo for application-specific business logic; confirm only demonstrative content remains (App.tsx sample page, health sample route) — validates FR-012, SC-005, contract C7
+- [X] T037 [P] Confirm the spec artifacts (spec.md, research.md) stay consistent with the built skeleton; note any drift
+- [X] T038 Verify no shipped file (`README.md`, `src/`, `tests/`, scripts, `Dockerfile`) references the spec workflow — no "FR-0xx", spec numbers, Principle names, or User Story IDs. Shipped files state rules directly
 
 ---
 
@@ -230,3 +238,25 @@ Task: "Create scripts/deploy.sh + cloudbuild.yaml"
 - Verify each test fails before implementing the code that satisfies it.
 - Commit after each task or logical group (commits carry no attribution per current settings).
 - The `@snackbyte/ui` shared-identity layer is OUT OF SCOPE here (extracted later from snackbyte-site).
+
+## Implementation deviations (recorded honestly)
+
+All 38 tasks are complete. A few implementation choices differed from the task text
+because the installed tool versions or runtime required it:
+
+- **T008/eslint config** is `config/eslint.config.js` (ESM flat config), not `.ts` —
+  avoids needing a TS loader to read the lint config. Added a `globals` dependency so
+  Node/browser globals resolve.
+- **T014/Vitest env**: `environmentMatchGlobs` is deprecated in the installed Vitest
+  3.2. Implemented as a global `jsdom` environment with a per-file
+  `// @vitest-environment node` pragma on the server/prerender integration tests.
+- **JSX runtime**: the build's prerender step runs `.tsx` under `tsx`, which needed
+  `--tsconfig tsconfig.web.json` (automatic JSX runtime) plus `jsx: react-jsx` in the
+  base tsconfig; `src/web/prerender.tsx` uses `createElement` rather than JSX.
+- **Express 5**: the SPA fallback route is `/*splat` (named wildcard), not `'*'` —
+  Express 5 / path-to-regexp v8 rejects the bare star.
+- **Stack versions** resolved to current majors (React 19, Express 5, Vite 8, Vitest
+  3, TypeScript 6) rather than the versions implied at planning time; no behavior gap.
+- **T024 health route** was pulled forward into Phase 2 because `src/server.ts` wires
+  it as a foundational dependency. **T031/T032 prerender** were pulled forward into
+  Phase 4 because the build script depends on them.

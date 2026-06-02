@@ -27,14 +27,16 @@ COMMIT="$(git rev-parse --short HEAD)"
 BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "Deploying '${SERVICE}' v${VERSION} (${COMMIT}) to Cloud Run (project=${PROJECT}, region=${REGION})..."
 
-# Build from source (Cloud Build) and deploy. CI=true makes the build use the real
-# package.json version; the commit/date are baked into both the server and frontend.
+# Build from source (Cloud Build) and deploy. The build env (CI + NODE_ENV +
+# version/commit/date) is what the frontend bundle and prerender bake in — so the
+# version chip's prod-hide decision and the baked version match what runs. The runtime
+# env feeds the server's /api/version.
 gcloud run deploy "${SERVICE}" \
   --source . \
   --project "${PROJECT}" \
   --region "${REGION}" \
   --allow-unauthenticated \
-  --set-build-env-vars "CI=true,BUILD_GIT_COMMIT=${COMMIT},BUILD_DATE=${BUILD_DATE}" \
-  --set-env-vars "NODE_ENV=production,BUILD_GIT_COMMIT=${COMMIT},BUILD_DATE=${BUILD_DATE}"
+  --set-build-env-vars "CI=true,NODE_ENV=production,APP_VERSION=${VERSION},BUILD_GIT_COMMIT=${COMMIT},BUILD_DATE=${BUILD_DATE}" \
+  --set-env-vars "NODE_ENV=production,APP_VERSION=${VERSION},BUILD_GIT_COMMIT=${COMMIT},BUILD_DATE=${BUILD_DATE}"
 
 echo "Done. Deployed v${VERSION} (${COMMIT})."

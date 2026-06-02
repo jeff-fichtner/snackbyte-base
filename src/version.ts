@@ -1,22 +1,11 @@
 /**
  * Version info for the server (the /api/version endpoint and startup log).
  *
- * The version number comes from package.json on a build/deploy server (CI), and is a
- * stable "0.0.0-dev" locally. The commit and build date are injected by the deploy
- * flow via environment variables.
+ * On a build/deploy the version, commit, and date are injected via environment
+ * variables (set by the deploy flow). Locally they fall back to a dev placeholder.
+ * Reading from env (not package.json) avoids depending on package.json being present
+ * next to the compiled server in dist/.
  */
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-
-function readPackageVersion(): string {
-  try {
-    const pkgPath = fileURLToPath(new URL('../package.json', import.meta.url));
-    return JSON.parse(readFileSync(pkgPath, 'utf8')).version ?? '0.0.0';
-  } catch {
-    return '0.0.0';
-  }
-}
-
 const isBuild = process.env.CI === 'true' || process.env.NODE_ENV === 'production';
 
 export interface VersionInfo {
@@ -27,7 +16,7 @@ export interface VersionInfo {
 }
 
 export const version: VersionInfo = {
-  number: isBuild ? readPackageVersion() : '0.0.0-dev',
+  number: isBuild ? (process.env.APP_VERSION ?? '0.0.0') : '0.0.0-dev',
   commit: process.env.BUILD_GIT_COMMIT ?? 'dev',
   buildDate: process.env.BUILD_DATE ?? 'dev',
   environment: process.env.NODE_ENV ?? 'development',

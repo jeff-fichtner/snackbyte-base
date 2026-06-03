@@ -13,12 +13,19 @@
 # (e.g. a Cloud Build trigger) watch for the tag and deploy. Bump minor/major by hand
 # (`npm version minor`) for meaningful releases; CI only auto-bumps the patch.
 #
+# AUTO_BUMP ships 'false' and the spin-up resolver flips it to 'true'. That single flag
+# does two things: (1) it's why a freshly-instantiated app's "Initial commit" — a push to
+# main that fires before init has run — can't prematurely tag the template's version onto
+# the app; and (2) it's why this template repo doesn't auto-tag on every push. The
+# template still runs its tests and merge gate automatically; it just cuts version tags
+# on demand (`npm version patch && git push --follow-tags`) instead of per-push.
+#
 # ── Configure per app ──────────────────────────────────────────────────────────────
 # These are the only knobs. Change them here; the logic below reads them. (Deploy
 # target — region, service, project — lives with deploy, not here: see DEPLOY.md.)
 env:
   NODE_VERSION: '24' # Node major used for the gate and bump (keep aligned with .nvmrc)
-  AUTO_BUMP: 'true' # 'true': auto patch-bump + tag on push to main. 'false': gate only.
+  AUTO_BUMP: 'false' # 'true': auto patch-bump + tag on push to main. 'false': gate only. (init sets 'true')
 # ───────────────────────────────────────────────────────────────────────────────────
 
 name: main

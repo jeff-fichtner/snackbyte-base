@@ -24,8 +24,10 @@ function setupApp(mode: Mode, render: Render): string {
   const dir = mkdtempSync(join(tmpdir(), `snackbyte-${mode}-${render}-`));
   cpSync(repoRoot, dir, {
     recursive: true,
+    // Exclude .git as a path segment, not a substring — otherwise `/.github` (which
+    // contains `/.git`) would be skipped and the workflow file would never be copied.
     filter: (src) =>
-      !src.includes('/node_modules') && !src.includes('/dist') && !src.includes('/.git'),
+      !src.includes('/node_modules') && !src.includes('/dist') && !/\/\.git(\/|$)/.test(src),
   });
   cpSync(join(repoRoot, 'node_modules'), join(dir, 'node_modules'), { recursive: true });
 
@@ -136,6 +138,10 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     expect(pkg.scripts.init).toBeUndefined();
     // app starts its own version history at 0.0.0, not the template's version
     expect(pkg.version).toBe('0.0.0');
+    // the app gets the full auto-release flow (template ships it off)
+    const workflow = readFileSync(join(dir, '.github/workflows/main.yml'), 'utf8');
+    expect(workflow).toContain("AUTO_BUMP: 'true'");
+    expect(workflow).not.toContain("AUTO_BUMP: 'false'");
     for (const f of ['vite.config.ts', 'src/server.ts', 'scripts/dev.mjs', 'scripts/build.mjs']) {
       expect(readFileSync(join(dir, f), 'utf8')).not.toMatch(/SPINUP/);
     }

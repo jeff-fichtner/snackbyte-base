@@ -94,6 +94,17 @@ if (mode === 'server') {
   writeFileSync(cfg, text);
 }
 
+// ---- enable auto-releases for the app --------------------------------------
+// The release workflow ships with AUTO_BUMP 'false' so the template repo doesn't
+// auto-tag on every push, and so an app's pre-init "Initial commit" can't release.
+// A real app wants the full flow, so turn it on now.
+{
+  const wf = path('.github/workflows/main.yml');
+  let text = readFileSync(wf, 'utf8');
+  text = text.replace("AUTO_BUMP: 'false'", "AUTO_BUMP: 'true'");
+  writeFileSync(wf, text);
+}
+
 // ---- rename the package ----------------------------------------------------
 if (typeof args.name === 'string') {
   const pkgPath = path('package.json');

@@ -142,10 +142,13 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     const workflow = readFileSync(join(dir, '.github/workflows/main.yml'), 'utf8');
     expect(workflow).toContain("AUTO_BUMP: 'true'");
     expect(workflow).not.toContain("AUTO_BUMP: 'false'");
-    // CLAUDE.md's SPECKIT block no longer points at the deleted template plan
+    // CLAUDE.md is cleaned for the app: no dangling template-plan reference, no
+    // "this is a template, don't edit" guard (the app is meant to be edited).
     const claude = readFileSync(join(dir, 'CLAUDE.md'), 'utf8');
     expect(claude).not.toMatch(/specs\/001-template-skeleton/);
     expect(claude).toContain('/speckit-constitution');
+    expect(claude).not.toMatch(/TEMPLATE-GUARD/);
+    expect(claude).not.toMatch(/do not edit it to build an app/i);
     for (const f of ['vite.config.ts', 'src/server.ts', 'scripts/dev.mjs', 'scripts/build.mjs']) {
       expect(readFileSync(join(dir, f), 'utf8')).not.toMatch(/SPINUP/);
     }

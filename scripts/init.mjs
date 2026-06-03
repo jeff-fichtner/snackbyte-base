@@ -148,9 +148,10 @@ rmSync(path('specs'), { recursive: true, force: true });
 mkdirSync(path('specs'), { recursive: true });
 writeFileSync(path('specs/.gitkeep'), '');
 
-// Rewrite the SPECKIT block in CLAUDE.md. The template's pointed at its own plan
-// (specs/001-template-skeleton/plan.md), which we just deleted — leaving a dangling
-// reference. Replace it with generic guidance, matching the fresh `specify init` state.
+// Clean up CLAUDE.md for the app: remove the template guard (it's a normal app now,
+// meant to be edited), and rewrite the SPECKIT block — the template pointed it at its
+// own plan (specs/001-template-skeleton/plan.md), which we just deleted, leaving a
+// dangling reference. The result matches a fresh `specify init` state.
 {
   const claudePath = path('CLAUDE.md');
   if (existsSync(claudePath)) {
@@ -161,6 +162,10 @@ writeFileSync(path('specs/.gitkeep'), '');
       '`/speckit-specify` to define the first feature. Plans live under `specs/`.\n' +
       '<!-- SPECKIT END -->\n';
     let text = readFileSync(claudePath, 'utf8');
+    text = text.replace(
+      /<!-- TEMPLATE-GUARD START -->[\s\S]*?<!-- TEMPLATE-GUARD END -->\n?\n?/,
+      '',
+    );
     text = text.replace(/<!-- SPECKIT START -->[\s\S]*?<!-- SPECKIT END -->\n?/, generic);
     writeFileSync(claudePath, text);
   }

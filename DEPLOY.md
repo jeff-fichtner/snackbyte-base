@@ -23,6 +23,16 @@ You can also deploy directly:
 
 This builds the container via Cloud Build and deploys it to Cloud Run.
 
+## One-time CI setup (per repo)
+
+The release workflow (`.github/workflows/main.yml`) pushes a version-bump commit and a
+tag back to `main` on each push. That requires the repo to allow Actions to write:
+
+- **Settings → Actions → General → Workflow permissions → "Read and write permissions"**
+  → Save.
+
+Without this, the quality gate still runs and passes, but the bump/tag step fails with a 403. Do this once when the repo is created.
+
 ## One-time GCP setup (per app)
 
 To get an app onto GCP the first time, you (or an agent) set up, once:

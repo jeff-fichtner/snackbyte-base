@@ -134,6 +134,8 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     expect(readme).not.toMatch(/template|skeleton|Use this template/i);
     const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
     expect(pkg.scripts.init).toBeUndefined();
+    // app starts its own version history at 0.0.0, not the template's version
+    expect(pkg.version).toBe('0.0.0');
     for (const f of ['vite.config.ts', 'src/server.ts', 'scripts/dev.mjs', 'scripts/build.mjs']) {
       expect(readFileSync(join(dir, f), 'utf8')).not.toMatch(/SPINUP/);
     }

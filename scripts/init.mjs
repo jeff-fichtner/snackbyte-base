@@ -102,11 +102,15 @@ if (typeof args.name === 'string') {
   writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 }
 
-// ---- remove the init script line + template description --------------------
+// ---- remove the init script line + template description, reset version -----
+// The app starts its own version history at 0.0.0 (not the template's version).
+// The release action then takes over: the first push to main tags v0.0.1, or the
+// app owner tags a deliberate v1.0.0 and the action continues from v1.0.1.
 const pkgPath = path('package.json');
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
 delete pkg.scripts.init;
 pkg.description = '';
+pkg.version = '0.0.0';
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 
 // ---- swap in the forward-facing app README, drop template docs -------------

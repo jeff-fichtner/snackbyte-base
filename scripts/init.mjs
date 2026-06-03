@@ -244,5 +244,23 @@ spawnSync(
 console.log(`Initialized as a ${mode} / ${render} app named "${appName}".`);
 console.log('Removed template scaffolding. This repo is now your app.');
 
+// ---- print the next step: authorize CI to push tags ------------------------
+// The release workflow tags main on the first push, which needs the repo's Actions
+// permission set to write. Print the exact command, with the repo slug filled in from
+// the git remote when available (falls back to a placeholder otherwise).
+{
+  const remote = spawnSync('git', ['remote', 'get-url', 'origin'], {
+    cwd: root,
+    encoding: 'utf8',
+  }).stdout?.trim();
+  const match = remote?.match(/github\.com[/:]([^/]+\/[^/]+?)(?:\.git)?$/);
+  const slug = match ? match[1] : '<owner>/<repo>';
+  console.log('');
+  console.log('Next — authorize CI to push version tags, before your first push to main:');
+  console.log(
+    `  gh api -X PUT repos/${slug}/actions/permissions/workflow -f default_workflow_permissions=write`,
+  );
+}
+
 // ---- self-delete (last) ----------------------------------------------------
 unlinkSync(fileURLToPath(import.meta.url));

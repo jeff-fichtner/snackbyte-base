@@ -23,7 +23,7 @@ Modified sections:
 Removed sections: none
 
 Prior ratification (1.0.0) added:
-  - I.   Single Template, Mode Switch
+  - I.   Single Template, Mode Resolved at Spin-Up
   - II.  Convention Over Configuration
   - III. Skeleton Only — No Application Logic
   - IV.  Two-Tier Propagation (Template vs Package)

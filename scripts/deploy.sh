@@ -10,7 +10,8 @@
 #
 # Versioning is owned by CI (the GitHub Action on main bumps the version and tags).
 # This script just builds and deploys whatever version is currently in package.json,
-# baking the version, git commit, and build date into the build.
+# passing the version, git commit, and build date as RUNTIME env vars (which feed the
+# server's /api/version). It does NOT forward them into the Docker build stage.
 #
 # Requires: gcloud, git, and an authenticated account.
 set -euo pipefail
@@ -26,8 +27,13 @@ echo "Deploying '${SERVICE}' v${VERSION} (${COMMIT}) to Cloud Run (project=${PRO
 
 # Build from source (Cloud Build) and deploy. The Dockerfile build stage hardcodes
 # CI=true and NODE_ENV=production, so the frontend bundle reads the real version from
-# package.json and the chip is hidden in prod. The runtime env feeds the server's
-# /api/version (number/commit/date).
+# package.json and the chip is hidden in prod. The runtime env (--set-env-vars below)
+# feeds the server's /api/version (number/commit/date).
+#
+# Note: the frontend bundle's commit/date would come from the Dockerfile's build ARGs,
+# but '--source .' does not currently forward BUILD_GIT_COMMIT/BUILD_DATE as
+# --build-arg, so those ARGs fall back to their 'unknown' defaults at build time.
+# Only the server's /api/version (from the runtime env vars) reflects the real values.
 gcloud run deploy "${SERVICE}" \
   --source . \
   --project "${PROJECT}" \

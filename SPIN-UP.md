@@ -13,8 +13,12 @@ shell function and won't be on the PATH).
 
 ```bash
 node --version   # expect v24.x
+cp .env.example .env   # local environment values (PORT, etc.)
 npm install
 ```
+
+Create the `.env` from `.env.example` as part of setup — the defaults run without it,
+but this app expects a `.env` for its local config, so set it up now rather than later.
 
 ## 2. Decide what this app is, and resolve
 
@@ -60,11 +64,12 @@ npm run dev         # bring it up
 
 ## 4. Authorize CI, then push
 
-The release workflow tags `main` on the first push (it runs the checks, bumps the
-version, and pushes a `vX.Y.Z` tag). For the tag step to succeed, the repo must grant
-Actions write access — a deliberate, one-time authorization. **Do it before the first
-push**, or the first release fails with a 403. (The order matters: the natural
-`commit && push` would trip it — grant access _first_.)
+On a push to `main` the release workflow runs the checks, bumps the version, commits it
+with `[skip ci]`, and pushes both that commit and a `vX.Y.Z` tag back to `main`. For the
+commit and tag to succeed, the repo must grant Actions write access — a deliberate,
+one-time authorization. **Do it before the first push**, or the first release fails with
+a 403. (The order matters: the natural `commit && push` would trip it — grant access
+_first_.)
 
 This is a security setting (it lets CI push to `main`), so enable it consciously:
 
@@ -133,7 +138,7 @@ config flag. It is reversible and shows up in version control.
 4. In `scripts/dev.mjs`, remove the `tsx watch src/server.ts` line.
 5. Remove any server/API tests under `tests/app/`.
 
-## Rendering: prerendered vs dynamic
+## Rendering: prerender vs dynamic
 
 The two render strategies, factually:
 
@@ -146,7 +151,7 @@ The two render strategies, factually:
 Like the deploy mode, this is a deliberate one-time choice, not a runtime switch — and
 not one to default into. Decide it (or ask) up front.
 
-### prerendered → dynamic (client-side rendering)
+### prerender → dynamic (client-side rendering)
 
 1. In `src/web/prerender.ts`, empty the entries: `export const entries: PrerenderEntry[] = [];`
    (The build then prerenders nothing; the page ships as an empty shell that renders on
@@ -155,9 +160,9 @@ not one to default into. Decide it (or ask) up front.
 2. Optional: in `src/web/index.html`, remove the `<!--app-html-->` comment from the root
    div (it's just an unused injection point now).
 3. Optional: drop the prerender step from `scripts/build.mjs` (the `prerender.mjs` line)
-   and `tests/machinery`/app prerender tests, if you want a leaner build.
+   and the prerender tests under `tests/app/`, if you want a leaner build.
 
-### dynamic → prerendered
+### dynamic → prerender
 
 Reverse it: restore the entry in `src/web/prerender.ts`
 (`[{ html: 'index.html', element: createElement(App) }]`) and the prerender build step.

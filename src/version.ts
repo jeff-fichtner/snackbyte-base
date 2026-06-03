@@ -1,5 +1,5 @@
 /**
- * Version info for the server (the /api/version endpoint and startup log).
+ * Version info for the server (the /api/version endpoint).
  *
  * On a build/deploy the version, commit, and date are injected via environment
  * variables (set by the deploy flow). Locally they fall back to a dev placeholder.

@@ -32,13 +32,14 @@ npm run check:all    # format check + lint + typecheck + test
 
 ## Rendering
 
-Build-time-known content is prerendered to real HTML, so pages ship as markup rather
-than an empty shell. Runtime-driven views can render on the client instead.
+Runtime-driven views render on the client. Where content is known at build time, it can be
+prerendered to real HTML so those pages ship as markup rather than an empty shell.
 
 ## CI
 
 A GitHub Action (`.github/workflows/main.yml`) gates pull requests and, on each push to
-`main`, runs the checks, bumps the version, and pushes a `vX.Y.Z` tag — the deploy signal.
+`main`, runs the checks, bumps the patch version, commits that bump with `[skip ci]`, and
+pushes a matching `vX.Y.Z` tag — the deploy signal. (It pushes both the commit and the tag.)
 
 **One-time setup, before the first push to `main`:** enable
 **Settings → Actions → General → Workflow permissions → "Read and write permissions"**.

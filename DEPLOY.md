@@ -21,7 +21,10 @@ You can also deploy directly:
 ./scripts/deploy.sh <service-name> <gcp-project> [region]
 ```
 
-This builds the container via Cloud Build and deploys it to Cloud Run.
+This runs `gcloud run deploy --source .`, which hands the repo to Cloud Build to build
+the image from the `Dockerfile` and deploys it to Cloud Run. There's no `cloudbuild.yaml`
+— the `Dockerfile` is the whole build definition, and this is the same build the
+tag-triggered path will use once it's stood up.
 
 ## One-time CI setup (per repo)
 
@@ -50,6 +53,9 @@ To get an app onto GCP the first time, you (or an agent) set up, once:
 - A **Cloud Build trigger** watching this repo's tags → build + deploy on tag push.
 - A **domain mapping** for the app's subdomain.
 
-> This is documented intent, not a finished runbook — the tag-triggered CI/versioning
-> workflow isn't wired up yet. When it is, this file becomes the concrete setup guide.
-> At scale (many apps), this one-time setup is a candidate to codify in Terraform.
+> The CI side is wired up and proven: the release workflow
+> (`.github/workflows/main.yml`) runs the gate, bumps the version, and pushes a `vX.Y.Z`
+> tag on each push to `main`. What's still documented intent is the GCP-side consumer —
+> the Cloud Build trigger that watches those tags and the domain mapping. Once that's
+> stood up, this file becomes the concrete setup guide. At scale (many apps), this
+> one-time GCP setup is a candidate to codify in Terraform.

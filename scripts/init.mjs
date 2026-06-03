@@ -9,8 +9,10 @@
  * It is intentionally specific and non-defensive: it runs once against the pristine
  * template (a known state), then deletes itself, so it never sees a modified repo.
  *
- *   static → serves a frontend with no API. Removes routes, the dev API proxy, and
- *            the dev API process. (An Express server still serves the built files.)
+ *   static → serves a frontend with no API. Deletes src/routes and strips the
+ *            server-only marker blocks (which include the dev API proxy in
+ *            vite.config.ts and the dev API process in scripts/dev.mjs). (An
+ *            Express server still serves the built files.)
  *   server → serves the frontend AND an Express API under /api.
  *
  *   prerender → content rendered to real HTML at build time.
@@ -101,11 +103,36 @@ if (mode === 'server') {
 // ---- enable auto-releases for the app --------------------------------------
 // The release workflow ships with AUTO_BUMP 'false' so the template repo doesn't
 // auto-tag on every push, and so an app's pre-init "Initial commit" can't release.
-// A real app wants the full flow, so turn it on now.
+// A real app wants the full flow, so turn it on now — and rewrite the workflow's
+// header comment, which otherwise keeps template/spin-up/init references (a fingerprint
+// and a dangling reference to this script after it self-deletes).
 {
   const wf = path('.github/workflows/main.yml');
   let text = readFileSync(wf, 'utf8');
-  text = text.replace("AUTO_BUMP: 'false'", "AUTO_BUMP: 'true'");
+  // Replace the entire template-authored header (everything before `env:`) with an
+  // app-appropriate version — no template/spin-up/init references. Anchored on `env:`.
+  const appHeader =
+    [
+      '# Validate, version, and tag on main.',
+      '#',
+      "# - On a PR to main: run the quality gate as a merge gate. A PR can't merge unless",
+      '#   `npm run check:all` passes.',
+      '# - On a push to main: run the gate again, then (if AUTO_BUMP) auto-increment the',
+      "#   patch version, commit it with [skip ci] (so the commit doesn't re-trigger this",
+      '#   workflow), and push a `vX.Y.Z` tag.',
+      '#',
+      '# A `vX.Y.Z` tag means: this commit passed checks and is deployable. Bump minor/major',
+      '# by hand (`npm version minor`) for meaningful releases; CI auto-bumps the patch.',
+      '',
+    ].join('\n') + '\n';
+  const envIdx = text.indexOf('\nenv:');
+  if (envIdx !== -1) {
+    text = appHeader + text.slice(envIdx + 1);
+  }
+  text = text.replace(
+    / {2}AUTO_BUMP: '(?:true|false)'[^\n]*/,
+    "  AUTO_BUMP: 'true' # 'true': auto patch-bump + tag on push to main. 'false': gate only.",
+  );
   writeFileSync(wf, text);
 }
 
@@ -127,6 +154,22 @@ delete pkg.scripts.init;
 pkg.description = '';
 pkg.version = '0.0.0';
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+
+// Sync package-lock.json's name/version to match — otherwise the lockfile keeps the
+// template's name and version (a surviving fingerprint, and a stale version number).
+{
+  const lockPath = path('package-lock.json');
+  if (existsSync(lockPath)) {
+    const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
+    lock.name = pkg.name;
+    lock.version = pkg.version;
+    if (lock.packages && lock.packages['']) {
+      lock.packages[''].name = pkg.name;
+      lock.packages[''].version = pkg.version;
+    }
+    writeFileSync(lockPath, JSON.stringify(lock, null, 2) + '\n');
+  }
+}
 
 // ---- swap in the forward-facing app README, drop template docs -------------
 // The app gets its own README (no template/skeleton language); the template README

@@ -138,10 +138,25 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     expect(pkg.scripts.init).toBeUndefined();
     // app starts its own version history at 0.0.0, not the template's version
     expect(pkg.version).toBe('0.0.0');
-    // the app gets the full auto-release flow (template ships it off)
+    // package renamed to the app, template description cleared
+    expect(pkg.name).toBe('demo');
+    expect(pkg.description).toBe('');
+    // package-lock.json is synced — no surviving template name/version fingerprint
+    const lock = JSON.parse(readFileSync(join(dir, 'package-lock.json'), 'utf8'));
+    expect(lock.name).toBe('demo');
+    expect(lock.version).toBe('0.0.0');
+    expect(lock.packages['']?.name).toBe('demo');
+    expect(JSON.stringify(lock)).not.toMatch(/snackbyte-base/);
+    // tests re-tiered: machinery gone, app tests kept, vite config points at tests/app
+    expect(existsSync(join(dir, 'tests/machinery'))).toBe(false);
+    expect(existsSync(join(dir, 'tests/app'))).toBe(true);
+    expect(readFileSync(join(dir, 'vite.config.ts'), 'utf8')).not.toMatch(/tests\/machinery/);
+    // the app gets the full auto-release flow (template ships it off), and the workflow
+    // carries no template/spin-up/init fingerprint after resolution
     const workflow = readFileSync(join(dir, '.github/workflows/main.yml'), 'utf8');
     expect(workflow).toContain("AUTO_BUMP: 'true'");
     expect(workflow).not.toContain("AUTO_BUMP: 'false'");
+    expect(workflow).not.toMatch(/template|spin-?up|resolver|init sets/i);
     // CLAUDE.md is cleaned for the app: no dangling template-plan reference, no
     // "this is a template, don't edit" guard (the app is meant to be edited).
     const claude = readFileSync(join(dir, 'CLAUDE.md'), 'utf8');

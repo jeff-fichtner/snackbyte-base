@@ -1,0 +1,79 @@
+# Validate, version, and tag on main.
+#
+# - On a PR to main: run the quality gate as a merge gate. A PR can't merge unless
+#   `npm run check:all` passes.
+# - On a push to main: run the gate again (independent certification at tag time),
+#   then auto-increment the patch version, commit it (with [skip ci] so the commit
+#   doesn't re-trigger this workflow), and push a `vX.Y.Z` tag.
+#
+# A `vX.Y.Z` tag therefore means: this commit passed checks and is deployable. Hosts
+# (e.g. a Cloud Build trigger) watch for the tag and deploy. Bump minor/major by hand
+# (`npm version minor`) for meaningful releases; CI only auto-bumps the patch.
+
+name: main
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  # Merge gate: PRs must pass the quality gate before they can merge.
+  validate:
+    name: validate (merge gate)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run check:all
+
+  # Tag gate: on push to main, re-certify, then version + tag.
+  version-and-tag:
+    name: version and tag
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the version-bump commit and the tag
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - run: npm ci
+      - run: npm run check:all
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Auto-increment patch version
+        id: bump
+        run: |
+          npm version patch --no-git-tag-version
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "New version: $VERSION"
+
+      - name: Commit and tag
+        run: |
+          VERSION="${{ steps.bump.outputs.version }}"
+          TAG="v$VERSION"
+          # [skip ci] keeps this commit from re-triggering the workflow (no loop).
+          git add package.json package-lock.json
+          git commit -m "chore: release $TAG [skip ci]"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin HEAD:main
+          git push origin "$TAG"
+          echo "Tagged $TAG"

@@ -8,9 +8,9 @@
 # whatever project gcloud happens to have active, so it can't accidentally deploy
 # into the wrong (e.g. a client's) project.
 #
-# Deploying auto-increments the patch version (and commits it), then bakes the
-# version, git commit, and build date into the build. This is the "version advances
-# where you ship" model; for multiple environments, opt specific ones out later.
+# Versioning is owned by CI (the GitHub Action on main bumps the version and tags).
+# This script just builds and deploys whatever version is currently in package.json,
+# baking the version, git commit, and build date into the build.
 #
 # Requires: gcloud, git, and an authenticated account.
 set -euo pipefail
@@ -19,9 +19,6 @@ SERVICE="${1:?Usage: ./scripts/deploy.sh <service-name> <gcp-project> [region]}"
 PROJECT="${2:?Usage: ./scripts/deploy.sh <service-name> <gcp-project> [region]}"
 REGION="${3:-us-central1}"
 
-# Auto-increment the patch version and commit it (creates a release commit + tag).
-echo "Bumping version..."
-npm version patch -m "chore: release v%s" >/dev/null
 VERSION="$(node -p "require('./package.json').version")"
 COMMIT="$(git rev-parse --short HEAD)"
 BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

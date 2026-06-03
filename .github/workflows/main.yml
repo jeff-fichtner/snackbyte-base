@@ -1,14 +1,25 @@
 # Validate, version, and tag on main.
 #
+# Every app spun up from this template inherits this workflow — the release flow is the
+# same everywhere: GitHub-hosted, npm, a quality gate, and a tag as the deploy signal.
+#
 # - On a PR to main: run the quality gate as a merge gate. A PR can't merge unless
 #   `npm run check:all` passes.
-# - On a push to main: run the gate again (independent certification at tag time),
-#   then auto-increment the patch version, commit it (with [skip ci] so the commit
-#   doesn't re-trigger this workflow), and push a `vX.Y.Z` tag.
+# - On a push to main: run the gate again (independent certification at tag time), then
+#   (if AUTO_BUMP) auto-increment the patch version, commit it with [skip ci] (so the
+#   commit doesn't re-trigger this workflow), and push a `vX.Y.Z` tag.
 #
 # A `vX.Y.Z` tag therefore means: this commit passed checks and is deployable. Hosts
 # (e.g. a Cloud Build trigger) watch for the tag and deploy. Bump minor/major by hand
 # (`npm version minor`) for meaningful releases; CI only auto-bumps the patch.
+#
+# ── Configure per app ──────────────────────────────────────────────────────────────
+# These are the only knobs. Change them here; the logic below reads them. (Deploy
+# target — region, service, project — lives with deploy, not here: see DEPLOY.md.)
+env:
+  NODE_VERSION: '24' # Node major used for the gate and bump (keep aligned with .nvmrc)
+  AUTO_BUMP: 'true' # 'true': auto patch-bump + tag on push to main. 'false': gate only.
+# ───────────────────────────────────────────────────────────────────────────────────
 
 name: main
 
@@ -28,12 +39,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
       - run: npm ci
       - run: npm run check:all
 
-  # Tag gate: on push to main, re-certify, then version + tag.
+  # Tag gate: on push to main, re-certify, then (if enabled) version + tag.
   version-and-tag:
     name: version and tag
     if: github.event_name == 'push'
@@ -47,18 +58,20 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - run: npm ci
       - run: npm run check:all
 
       - name: Configure git
+        if: env.AUTO_BUMP == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Auto-increment patch version
+        if: env.AUTO_BUMP == 'true'
         id: bump
         run: |
           npm version patch --no-git-tag-version
@@ -67,6 +80,7 @@ jobs:
           echo "New version: $VERSION"
 
       - name: Commit and tag
+        if: env.AUTO_BUMP == 'true'
         run: |
           VERSION="${{ steps.bump.outputs.version }}"
           TAG="v$VERSION"

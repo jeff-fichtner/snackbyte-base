@@ -6,8 +6,13 @@ when you run `init`.
 
 ## 1. Install
 
+This project runs on Node 24 (see `.nvmrc`). Make sure it's active — `node --version`
+should print `v24.x`. With nvm in an interactive shell, `nvm use` switches to it; an
+agent or non-interactive shell should just confirm `node --version` instead (`nvm` is a
+shell function and won't be on the PATH).
+
 ```bash
-nvm use        # Node 24 LTS
+node --version   # expect v24.x
 npm install
 ```
 
@@ -53,14 +58,15 @@ npm run check:all   # format + lint + typecheck + tests
 npm run dev         # bring it up
 ```
 
-## 4. Enable CI, then push
+## 4. Authorize CI, then push
 
 The release workflow tags `main` on the first push (it runs the checks, bumps the
-version, and pushes a `vX.Y.Z` tag). For that tag step to succeed, the repo must allow
-Actions to write — a one-time setting that **must be enabled before the first push**, or
-the first release fails with a 403.
+version, and pushes a `vX.Y.Z` tag). For the tag step to succeed, the repo must grant
+Actions write access — a deliberate, one-time authorization. **Do it before the first
+push**, or the first release fails with a 403. (The order matters: the natural
+`commit && push` would trip it — grant access _first_.)
 
-Enable it from the CLI (replace `<owner>/<repo>`):
+This is a security setting (it lets CI push to `main`), so enable it consciously:
 
 ```bash
 gh api -X PUT repos/<owner>/<repo>/actions/permissions/workflow \
@@ -68,10 +74,13 @@ gh api -X PUT repos/<owner>/<repo>/actions/permissions/workflow \
 ```
 
 (Or in the web UI: **Settings → Actions → General → Workflow permissions → "Read and
-write permissions" → Save**.) The CLI command needs a token with admin rights on the
-repo, which the account that just created it has.
+write permissions" → Save**.) The command needs admin rights on the repo, which the
+account that created it has. An agent may need a human to authorize this step.
 
-Once it's enabled, commit the spin-up and push. The first push to `main` produces
+> **If you are an agent doing this spin-up: grant this (or have the human grant it) and
+> confirm it's set before you push to `main`.**
+
+Once it's authorized, commit the spin-up and push. The first push to `main` produces
 `v0.0.1`. See [DEPLOY.md](DEPLOY.md) for the full CI/deploy model.
 
 ## Switching mode later

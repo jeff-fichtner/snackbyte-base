@@ -4,13 +4,18 @@ Vite + React + TypeScript app, deployed to Google Cloud Run.
 
 ## Develop
 
+This app runs on Node 24 (see `.nvmrc`); confirm `node --version` prints `v24.x`
+(`nvm use` switches to it in an interactive shell).
+
 ```bash
-nvm use        # Node 24 LTS (from .nvmrc)
+node --version   # expect v24.x
+cp .env.example .env   # local environment values (PORT, etc.)
 npm install
-npm run dev    # dev server at the URL Vite prints
+npm run dev      # dev server at the URL Vite prints
 ```
 
-Copy `.env.example` to `.env` for local environment values (e.g. `PORT`).
+Create the `.env` from `.env.example` as part of setup — the defaults run without it,
+but this app expects a `.env` for its local config, so set it up now rather than later.
 
 ## Scripts
 

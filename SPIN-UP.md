@@ -57,16 +57,19 @@ npm run dev         # bring it up
 
 The release workflow tags `main` on the first push (it runs the checks, bumps the
 version, and pushes a `vX.Y.Z` tag). For that tag step to succeed, the repo must allow
-Actions to write — a one-time setting that **must be enabled before the first push**:
+Actions to write — a one-time setting that **must be enabled before the first push**, or
+the first release fails with a 403.
 
-- **Settings → Actions → General → Workflow permissions → "Read and write permissions"**
-  → Save.
+Enable it from the CLI (replace `<owner>/<repo>`):
 
-There is no API for this; it's a manual change in the GitHub web UI.
+```bash
+gh api -X PUT repos/<owner>/<repo>/actions/permissions/workflow \
+  -f default_workflow_permissions=write
+```
 
-> **If you are an agent doing this spin-up: stop and ask the person to set this, and wait
-> for them to confirm, before you push to `main`.** You cannot set it yourself, and
-> pushing first makes the first release fail with a 403.
+(Or in the web UI: **Settings → Actions → General → Workflow permissions → "Read and
+write permissions" → Save**.) The CLI command needs a token with admin rights on the
+repo, which the account that just created it has.
 
 Once it's enabled, commit the spin-up and push. The first push to `main` produces
 `v0.0.1`. See [DEPLOY.md](DEPLOY.md) for the full CI/deploy model.

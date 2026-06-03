@@ -28,11 +28,6 @@ export default defineConfig({
   root: webRoot,
   plugins: [react()],
   define: versionDefines,
-  // Use React's automatic JSX runtime everywhere (app build and tests), so test
-  // files can write JSX without importing React.
-  esbuild: {
-    jsx: 'automatic',
-  },
   // SPINUP:server-only:start
   // Forward /api calls from the dev frontend to the Express API (same-origin in
   // production), so app code can call relative /api paths in both dev and prod.

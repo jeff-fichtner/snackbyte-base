@@ -149,6 +149,10 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     expect(claude).toContain('/speckit-constitution');
     expect(claude).not.toMatch(/TEMPLATE-GUARD/);
     expect(claude).not.toMatch(/do not edit it to build an app/i);
+    // the page <title> is set to the app name, not the template placeholder
+    const html = readFileSync(join(dir, 'src/web/index.html'), 'utf8');
+    expect(html).toContain('<title>demo</title>');
+    expect(html).not.toContain('<title>App</title>');
     for (const f of ['vite.config.ts', 'src/server.ts', 'scripts/dev.mjs', 'scripts/build.mjs']) {
       expect(readFileSync(join(dir, f), 'utf8')).not.toMatch(/SPINUP/);
     }

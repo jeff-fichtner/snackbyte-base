@@ -57,7 +57,10 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
-      contents: write # push the version-bump commit and the tag
+      # Lets this job push the version-bump commit and the tag. NOTE: this is capped by
+      # the repo's default workflow permissions — if those are read-only, this has no
+      # effect and the push 403s. The repo must be set to read-write once (see DEPLOY.md).
+      contents: write
     steps:
       - uses: actions/checkout@v6
         with:

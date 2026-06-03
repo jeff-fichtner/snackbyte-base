@@ -28,15 +28,18 @@ This builds the container via Cloud Build and deploys it to Cloud Run.
 The release workflow (`.github/workflows/main.yml`) pushes a version-bump commit and a
 tag back to `main` on each push. That requires the repo to allow Actions to write:
 
-- **Settings → Actions → General → Workflow permissions → "Read and write permissions"**
-  → Save.
+```bash
+gh api -X PUT repos/<owner>/<repo>/actions/permissions/workflow \
+  -f default_workflow_permissions=write
+```
+
+(Or in the web UI: **Settings → Actions → General → Workflow permissions → "Read and
+write permissions" → Save**.)
 
 **Set this _before_ the first push to `main`.** The first push triggers the release
 workflow, which tags on success — if write permission isn't enabled yet, the gate passes
 but the tag step fails with a 403. (If that happens: enable the setting, then re-run the
-failed job or push again.) GitHub provides no API to set this, so it's a manual step in
-the web UI — an agent spinning up the app should create the repo and then pause for a
-human to flip it.
+failed job or push again.) The CLI command needs a token with admin rights on the repo.
 
 ## One-time GCP setup (per app)
 

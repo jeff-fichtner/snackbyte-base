@@ -139,6 +139,14 @@ for (const rel of ['SPIN-UP.md']) {
   if (existsSync(path(rel))) rmSync(path(rel), { force: true });
 }
 
+// Set the page <title> to the app name (the template ships a placeholder "App").
+{
+  const htmlPath = path('src/web/index.html');
+  let html = readFileSync(htmlPath, 'utf8');
+  html = html.replace(/<title>App<\/title>/, `<title>${appName}</title>`);
+  writeFileSync(htmlPath, html);
+}
+
 // Leave the app's spec-driven-dev state exactly as a fresh `specify init` would: the
 // Spec Kit tooling (.specify/, .claude/) stays, but the template's own constitution
 // and specs are removed — they were about building the template, not this app. The

@@ -142,6 +142,10 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     const workflow = readFileSync(join(dir, '.github/workflows/main.yml'), 'utf8');
     expect(workflow).toContain("AUTO_BUMP: 'true'");
     expect(workflow).not.toContain("AUTO_BUMP: 'false'");
+    // CLAUDE.md's SPECKIT block no longer points at the deleted template plan
+    const claude = readFileSync(join(dir, 'CLAUDE.md'), 'utf8');
+    expect(claude).not.toMatch(/specs\/001-template-skeleton/);
+    expect(claude).toContain('/speckit-constitution');
     for (const f of ['vite.config.ts', 'src/server.ts', 'scripts/dev.mjs', 'scripts/build.mjs']) {
       expect(readFileSync(join(dir, f), 'utf8')).not.toMatch(/SPINUP/);
     }

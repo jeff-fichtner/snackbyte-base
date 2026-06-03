@@ -31,7 +31,12 @@ tag back to `main` on each push. That requires the repo to allow Actions to writ
 - **Settings → Actions → General → Workflow permissions → "Read and write permissions"**
   → Save.
 
-Without this, the quality gate still runs and passes, but the bump/tag step fails with a 403. Do this once when the repo is created.
+**Set this _before_ the first push to `main`.** The first push triggers the release
+workflow, which tags on success — if write permission isn't enabled yet, the gate passes
+but the tag step fails with a 403. (If that happens: enable the setting, then re-run the
+failed job or push again.) GitHub provides no API to set this, so it's a manual step in
+the web UI — an agent spinning up the app should create the repo and then pause for a
+human to flip it.
 
 ## One-time GCP setup (per app)
 

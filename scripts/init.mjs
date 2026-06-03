@@ -3,17 +3,21 @@
  * template scaffolding — including itself. Run once, right after creating a repo from
  * this template:
  *
- *   node scripts/init.mjs --mode=<static|server> [--name=<app-name>]
+ *   node scripts/init.mjs --mode=<static|server> --render=<prerender|dynamic> [--name=<app-name>]
  *
+ * Both --mode and --render are required (the resolver exits non-zero without either).
  * It is intentionally specific and non-defensive: it runs once against the pristine
  * template (a known state), then deletes itself, so it never sees a modified repo.
  *
- *   static → serves a prerendered frontend, no API. Removes routes, the dev API
- *            proxy, and the dev API process.
+ *   static → serves a frontend with no API. Removes routes, the dev API proxy, and
+ *            the dev API process. (An Express server still serves the built files.)
  *   server → serves the frontend AND an Express API under /api.
  *
- * After it runs there is no "mode" concept left: the app simply is what it is.
- * Switching later is a documented code edit (see the template's docs), not a flag.
+ *   prerender → content rendered to real HTML at build time.
+ *   dynamic   → client-side rendering; no prerender step.
+ *
+ * After it runs there is no "mode"/"render" concept left: the app simply is what it
+ * is. Switching later is a documented code edit (see the template's docs), not a flag.
  */
 import { readFileSync, writeFileSync, rmSync, existsSync, unlinkSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -143,6 +147,24 @@ rmSync(path('.specify/memory/constitution.md'), { force: true });
 rmSync(path('specs'), { recursive: true, force: true });
 mkdirSync(path('specs'), { recursive: true });
 writeFileSync(path('specs/.gitkeep'), '');
+
+// Rewrite the SPECKIT block in CLAUDE.md. The template's pointed at its own plan
+// (specs/001-template-skeleton/plan.md), which we just deleted — leaving a dangling
+// reference. Replace it with generic guidance, matching the fresh `specify init` state.
+{
+  const claudePath = path('CLAUDE.md');
+  if (existsSync(claudePath)) {
+    const generic =
+      '<!-- SPECKIT START -->\n' +
+      'This project uses spec-driven development (GitHub Spec Kit). Nothing is spec’d\n' +
+      'yet — run `/speckit-constitution` to establish this app’s principles, then\n' +
+      '`/speckit-specify` to define the first feature. Plans live under `specs/`.\n' +
+      '<!-- SPECKIT END -->\n';
+    let text = readFileSync(claudePath, 'utf8');
+    text = text.replace(/<!-- SPECKIT START -->[\s\S]*?<!-- SPECKIT END -->\n?/, generic);
+    writeFileSync(claudePath, text);
+  }
+}
 
 // ---- tidy formatting -------------------------------------------------------
 // Deleting marker blocks can leave stray blank lines; reformat so the quality gate

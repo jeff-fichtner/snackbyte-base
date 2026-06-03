@@ -1,6 +1,6 @@
 # APP_NAME
 
-Vite + React + TypeScript app, served by Express and deployed to Google Cloud Run.
+Vite + React + TypeScript app, deployed to Google Cloud Run.
 
 ## Develop
 
@@ -35,10 +35,10 @@ than an empty shell. Runtime-driven views can render on the client instead.
 A GitHub Action (`.github/workflows/main.yml`) gates pull requests and, on each push to
 `main`, runs the checks, bumps the version, and pushes a `vX.Y.Z` tag — the deploy signal.
 
-**One-time setup when the repo is created:** enable
+**One-time setup, before the first push to `main`:** enable
 **Settings → Actions → General → Workflow permissions → "Read and write permissions"**.
-Without it the checks still pass but the tag step fails (the Action can't push). See
-[DEPLOY.md](DEPLOY.md) for the full CI/deploy model.
+The first push tags on success; without this enabled the checks still pass but the tag
+step fails with a 403. See [DEPLOY.md](DEPLOY.md) for the full CI/deploy model.
 
 ## Deploy
 

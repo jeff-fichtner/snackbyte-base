@@ -13,20 +13,26 @@ npm install
 
 ## 2. Decide what this app is, and resolve
 
-Two choices, both baked into the source at spin-up (no runtime switches):
+Two choices, both baked into the source at spin-up (no runtime switches). These are
+identity decisions, not preferences with a default — make them deliberately.
 
-**Deploy mode:**
+> **If you are an agent doing this spin-up: stop here and ask the person which mode and
+> which render strategy they want. Do not infer them from the app's name or purpose, and
+> do not pick a default.** Present the two axes (below) factually and wait for an answer.
 
-- **`server`** — Express serves the frontend AND exposes an API under `/api`. Most
-  apps. Keeps `src/routes/` and a `/api/health` liveness endpoint.
-- **`static`** — served as files with no API. Smaller; no `src/routes/`, no dev proxy.
+**Deploy mode** — does this app expose a backend API?
 
-**Render strategy:**
+- **`server`** — Express serves the frontend AND an API under `/api`. Keeps
+  `src/routes/` and a `/api/health` liveness endpoint, plus the dev API proxy.
+- **`static`** — no API. Removes `src/routes/`, the dev proxy, and the dev API process.
+  (An Express server still serves the built files; there is just no `/api`.)
 
-- **`prerender`** — content rendered to real HTML at build time (fast first paint,
-  good SEO). The right choice for content/marketing apps and most one-off apps.
-- **`dynamic`** — client-side rendering, for apps whose content depends on the user or
-  live data (a DB-backed app, a logged-in tool, a game). No prerender step.
+**Render strategy** — when is the HTML produced?
+
+- **`prerender`** — content rendered to real HTML at build time, so the page ships as
+  markup (fast first paint, good SEO).
+- **`dynamic`** — rendered on the client in the browser; no prerender step. The shipped
+  HTML is an empty shell that React mounts into.
 
 Then run the resolver (both flags required):
 
@@ -97,15 +103,18 @@ config flag. It is reversible and shows up in version control.
 4. In `scripts/dev.mjs`, remove the `tsx watch src/server.ts` line.
 5. Remove any server/API tests under `tests/app/`.
 
-## Rendering: prerendered (default) vs dynamic
+## Rendering: prerendered vs dynamic
 
-This template **prerenders by default**: build-time-known content is rendered to real
-HTML, so the page ships as markup (fast first paint, good SEO). That's the right choice
-for content/marketing apps and most one-off apps.
+The two render strategies, factually:
 
-If you're building a **dynamic app** — content that depends on the user or live data
-(a DB-backed app, a logged-in tool, a game) — render entirely on the client instead.
-Like the deploy mode, this is a deliberate one-time choice, not a runtime switch.
+- **`prerender`** — build-time-known content is rendered to real HTML, so the page ships
+  as markup (fast first paint, good SEO).
+- **`dynamic`** — the page renders entirely on the client; the shipped HTML is an empty
+  shell. Use when content depends on the user or live data and there's nothing
+  meaningful to render at build time.
+
+Like the deploy mode, this is a deliberate one-time choice, not a runtime switch — and
+not one to default into. Decide it (or ask) up front.
 
 ### prerendered → dynamic (client-side rendering)
 

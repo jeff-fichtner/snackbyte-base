@@ -53,6 +53,24 @@ npm run check:all   # format + lint + typecheck + tests
 npm run dev         # bring it up
 ```
 
+## 4. Enable CI, then push
+
+The release workflow tags `main` on the first push (it runs the checks, bumps the
+version, and pushes a `vX.Y.Z` tag). For that tag step to succeed, the repo must allow
+Actions to write — a one-time setting that **must be enabled before the first push**:
+
+- **Settings → Actions → General → Workflow permissions → "Read and write permissions"**
+  → Save.
+
+There is no API for this; it's a manual change in the GitHub web UI.
+
+> **If you are an agent doing this spin-up: stop and ask the person to set this, and wait
+> for them to confirm, before you push to `main`.** You cannot set it yourself, and
+> pushing first makes the first release fail with a 403.
+
+Once it's enabled, commit the spin-up and push. The first push to `main` produces
+`v0.0.1`. See [DEPLOY.md](DEPLOY.md) for the full CI/deploy model.
+
 ## Switching mode later
 
 Mode is baked into the source, so switching is a small, deliberate code edit — not a

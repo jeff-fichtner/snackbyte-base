@@ -35,6 +35,10 @@ npm run check:all    # format check + lint + typecheck + test
 Runtime-driven views render on the client. Where content is known at build time, it can be
 prerendered to real HTML so those pages ship as markup rather than an empty shell.
 
+Prerendering runs at **build** time, not in dev — so in `npm run dev` the page is the
+empty shell (`<div id="root"></div>`) that React mounts into. Run `npm run build` to see
+the prerendered markup.
+
 ## CI
 
 A GitHub Action (`.github/workflows/main.yml`) gates pull requests and, on each push to
@@ -54,6 +58,14 @@ step fails with a 403. See [DEPLOY.md](DEPLOY.md) for the full CI/deploy model.
 
 Deploys a container to Cloud Run. Idle cost is near zero — Cloud Run scales to zero
 and bills only while handling a request.
+
+## Version
+
+The app reports its version at `/api/version` and (in non-prod) a small on-page chip. The
+real version, commit, and build date are injected from **deploy-time environment
+variables** (set by `scripts/deploy.sh` / the build), so a deployed release reports its
+true `vX.Y.Z`. Built and run locally, there's no deploy env, so it self-reports
+`0.0.0-dev` / `commit: dev` / `environment: development` — that's expected, not a bug.
 
 ## Spec-driven development
 

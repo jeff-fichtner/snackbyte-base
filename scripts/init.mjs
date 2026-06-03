@@ -151,7 +151,9 @@ if (typeof args.name === 'string') {
 const pkgPath = path('package.json');
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
 delete pkg.scripts.init;
-pkg.description = '';
+// Derive a placeholder description from the name rather than blanking it (the app owner
+// can refine it, but a blank description is worse than a sensible stub).
+pkg.description = `${pkg.name} — a snackbyte app.`;
 pkg.version = '0.0.0';
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 

@@ -138,9 +138,11 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     expect(pkg.scripts.init).toBeUndefined();
     // app starts its own version history at 0.0.0, not the template's version
     expect(pkg.version).toBe('0.0.0');
-    // package renamed to the app, template description cleared
+    // package renamed to the app; description is a name-derived placeholder, not the
+    // template's description and not blank
     expect(pkg.name).toBe('demo');
-    expect(pkg.description).toBe('');
+    expect(pkg.description).toContain('demo');
+    expect(pkg.description).not.toMatch(/template|skeleton/i);
     // package-lock.json is synced — no surviving template name/version fingerprint
     const lock = JSON.parse(readFileSync(join(dir, 'package-lock.json'), 'utf8'));
     expect(lock.name).toBe('demo');

@@ -10,7 +10,13 @@ app simply _is_ that mode, with no leftover template machinery.
 
 ## Spin up a new app
 
-1. Click **"Use this template"** on GitHub to create your repo, then clone it.
+1. Create your repo from this template, then clone it. Either click **"Use this
+   template"** on GitHub, or from the CLI:
+
+   ```bash
+   gh repo create <your-app> --template jeff-fichtner/snackbyte-base --private --clone
+   ```
+
 2. **Follow [SPIN-UP.md](./SPIN-UP.md)** — it's the authoritative, step-by-step handoff
    (install, resolve, enable CI, push). Start there.
 

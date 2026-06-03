@@ -55,6 +55,15 @@ points the test suite at `tests/app/`, and replaces this README with the app's o
 After it runs there is no "mode"/"render" concept and no template fingerprint left —
 the repo is your app.
 
+This step is **intentionally not autonomous**: because the resolver refuses to default
+the mode/render choice, an unattended/automated spin-up can't proceed past here without a
+human answering. That's by design — these are identity decisions, not conveniences.
+
+What `init` keeps (intentionally): the Spec Kit tooling under `.specify/` and `.claude/`,
+and an empty `specs/`. The app's spec-dev state is left exactly as a fresh `specify init`
+would leave it — the template's own constitution and specs are removed, the tooling
+stays, ready for you to run `/speckit-constitution` and `/speckit-specify`.
+
 ## 3. Verify
 
 ```bash
@@ -71,7 +80,7 @@ one-time authorization. **Do it before the first push**, or the first release fa
 a 403. (The order matters: the natural `commit && push` would trip it — grant access
 _first_.)
 
-This is a security setting (it lets CI push to `main`), so enable it consciously:
+This is a security setting (it lets CI push to `main`), so it's authorized consciously:
 
 ```bash
 gh api -X PUT repos/<owner>/<repo>/actions/permissions/workflow \
@@ -80,10 +89,14 @@ gh api -X PUT repos/<owner>/<repo>/actions/permissions/workflow \
 
 (Or in the web UI: **Settings → Actions → General → Workflow permissions → "Read and
 write permissions" → Save**.) The command needs admin rights on the repo, which the
-account that created it has. An agent may need a human to authorize this step.
+account that created it has.
 
-> **If you are an agent doing this spin-up: grant this (or have the human grant it) and
-> confirm it's set before you push to `main`.**
+> **If you are an agent doing this spin-up: STOP here and ask the person before granting
+> this.** It's a privilege escalation (it lets CI push to `main`), so it needs a
+> conscious human decision — present the command above and ask them to either run it
+> themselves or explicitly approve you running it. Don't grant it silently, and don't
+> proceed to the push until it's authorized. (Many agent sandboxes will refuse the
+> `gh api` elevation outright; either way, the human is in the loop.)
 
 Once it's authorized, commit the spin-up and push. The first push to `main` produces
 `v0.0.1`. See [DEPLOY.md](DEPLOY.md) for the full CI/deploy model.

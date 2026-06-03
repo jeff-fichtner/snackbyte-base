@@ -30,6 +30,16 @@ npm run check:all    # format check + lint + typecheck + test
 Build-time-known content is prerendered to real HTML, so pages ship as markup rather
 than an empty shell. Runtime-driven views can render on the client instead.
 
+## CI
+
+A GitHub Action (`.github/workflows/main.yml`) gates pull requests and, on each push to
+`main`, runs the checks, bumps the version, and pushes a `vX.Y.Z` tag — the deploy signal.
+
+**One-time setup when the repo is created:** enable
+**Settings → Actions → General → Workflow permissions → "Read and write permissions"**.
+Without it the checks still pass but the tag step fails (the Action can't push). See
+[DEPLOY.md](DEPLOY.md) for the full CI/deploy model.
+
 ## Deploy
 
 ```bash

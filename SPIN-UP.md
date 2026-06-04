@@ -25,7 +25,7 @@ but this app expects a `.env` for its local config, so set it up now rather than
 Two choices, both baked into the source at spin-up (no runtime switches). These are
 identity decisions, not preferences with a default — make them deliberately.
 
-> **If you are an agent doing this spin-up: stop here and ask the person which mode and
+> **If you are an agent doing this spin-up: STOP here and ask the person which mode and
 > which render strategy they want. Do not infer them from the app's name or purpose, and
 > do not pick a default.** Present the two axes (below) factually and wait for an answer.
 
@@ -100,6 +100,13 @@ account that created it has.
 
 Once it's authorized, commit the spin-up and push. The first push to `main` produces
 `v0.0.1`. See [DEPLOY.md](DEPLOY.md) for the full CI/deploy model.
+
+> **If you are an agent doing this spin-up: STOP and ask the person before pushing to
+> `main`.** Pushing to the default branch is the irreversible, outward-facing step that
+> kicks off the first release — get explicit approval before you push. Have the commit
+> staged and ready, show them what you're about to push, and wait for the go-ahead.
+> (Many agent sandboxes will refuse a push to `main` outright; either way, the human
+> approves the push.)
 
 ## Switching mode later
 

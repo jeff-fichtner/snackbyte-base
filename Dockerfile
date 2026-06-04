@@ -12,7 +12,10 @@ COPY . .
 
 # Now bake the production build: CI makes the frontend use the real package.json
 # version; NODE_ENV=production hides the version chip. Set them only for the build
-# step (after deps are installed). Commit/date are passed by the deploy flow.
+# step (after deps are installed). The commit/date ARGs only carry real values if the
+# build is invoked with --build-arg; `gcloud run deploy --source .` (see deploy.sh) does
+# not pass them, so the frontend's commit/date fall back to 'unknown'. (The server's
+# /api/version gets real commit/date from runtime env, set by deploy.sh.)
 ARG BUILD_GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
 RUN CI=true NODE_ENV=production \

@@ -43,7 +43,7 @@ identity decisions, not preferences with a default — make them deliberately.
 - **`dynamic`** — rendered on the client in the browser; no prerender step. The shipped
   HTML is an empty shell that React mounts into.
 
-Then run the resolver (both flags required):
+Then run the resolver (all three flags required):
 
 ```bash
 npm run init -- --mode=<static|server> --render=<prerender|dynamic> --name=<repo-slug>

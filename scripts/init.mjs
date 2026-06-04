@@ -37,7 +37,7 @@ const args = Object.fromEntries(
   }),
 );
 const USAGE =
-  'Usage: node scripts/init.mjs --mode=<static|server> --render=<prerender|dynamic> [--name=<app-name>]';
+  'Usage: node scripts/init.mjs --mode=<static|server> --render=<prerender|dynamic> --name=<repo-slug>';
 const mode = args.mode;
 const render = args.render;
 if (mode !== 'static' && mode !== 'server') {
@@ -45,6 +45,13 @@ if (mode !== 'static' && mode !== 'server') {
   process.exit(1);
 }
 if (render !== 'prerender' && render !== 'dynamic') {
+  console.error(USAGE);
+  process.exit(1);
+}
+// --name is required: without it the app would silently keep the template's name
+// (snackbyte-base) in package.json, the README, the lockfile, and the page title.
+if (typeof args.name !== 'string' || args.name.trim() === '') {
+  console.error('Error: --name is required (the repo slug, e.g. --name=my-app).');
   console.error(USAGE);
   process.exit(1);
 }
@@ -133,6 +140,9 @@ if (mode === 'server') {
     / {2}AUTO_BUMP: '(?:true|false)'[^\n]*/,
     "  AUTO_BUMP: 'true' # 'true': auto patch-bump + tag on push to main. 'false': gate only.",
   );
+  // Remove the now-orphaned box-bottom separator (the opening '# ── Configure ──' line
+  // was in the header we just replaced; its closing '# ───' rule is left dangling).
+  text = text.replace(/^# ─+\n/m, '');
   writeFileSync(wf, text);
 }
 

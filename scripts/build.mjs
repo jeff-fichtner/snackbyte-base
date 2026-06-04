@@ -1,6 +1,6 @@
 /**
  * Build runner. Produces a self-contained dist/ that the container runs:
- *   - frontend assets (vite build) + prerendered HTML
+ *   - frontend assets (vite build), with build-time prerendered HTML if this app prerenders
  *   - (server apps) the compiled server that serves the build and exposes the API
  */
 import './load-env.mjs';

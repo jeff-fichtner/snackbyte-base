@@ -62,10 +62,13 @@ and bills only while handling a request.
 ## Version
 
 The app reports its version at `/api/version` and (in non-prod) a small on-page chip. The
-real version, commit, and build date are injected from **deploy-time environment
-variables** (set by `scripts/deploy.sh` / the build), so a deployed release reports its
-true `vX.Y.Z`. Built and run locally, there's no deploy env, so it self-reports
-`0.0.0-dev` / `commit: dev` / `environment: development` — that's expected, not a bug.
+server endpoint reads `APP_VERSION` / `BUILD_GIT_COMMIT` / `BUILD_DATE` from **runtime
+environment variables** — `scripts/deploy.sh` sets these, so a deployed release reports
+its true `vX.Y.Z` / commit / date at `/api/version`. Built and run locally (no deploy
+env), it self-reports `0.0.0-dev` / `commit: dev` / `environment: development` — that's
+expected, not a bug. (The frontend chip's version comes from `package.json` at build
+time; its commit/date are populated only if the build passes them as Docker build-args —
+see [DEPLOY.md](DEPLOY.md).)
 
 ## Spec-driven development
 
@@ -78,8 +81,8 @@ spec'd yet — start here:
      scaffolding. Shipped code (`src/`, `tests/`, `README`, `docs/`, scripts) must
      stand on its own and never reference specs, FRs, or principle numbers — state the
      rule directly instead.
-   - **Convention over configuration.** Spin-up is fast and complete; don't
-     re-litigate tooling per feature.
+   - **Convention over configuration.** The tooling is set up and complete; don't
+     re-litigate it per feature.
    - **Pinned, linted, type-safe, tested.** Node 24 LTS, TypeScript throughout, and
      `npm run check:all` (format + lint + typecheck + test) green on every change.
    - Then add principles specific to this app.

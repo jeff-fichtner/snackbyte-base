@@ -2,9 +2,8 @@
  * Version info for the frontend (the version chip).
  *
  * Values are build-time constants. In the Vite bundle they come from `define` (see
- * vite.config.ts); during the prerender step (run under tsx, no Vite defines) they
- * come from matching globals set in scripts/prerender.mjs from the same env. Both
- * paths therefore produce identical values, so the prerendered HTML and the client
+ * vite.config.ts). If this app prerenders, the build-time render reads the same values
+ * from matching globals (set from the same env), so the prerendered HTML and the client
  * hydration agree (no hydration mismatch).
  */
 

@@ -193,4 +193,46 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     );
     expect(result.status).toBe(0);
   });
+
+  it('leaves no "snackbyte-base" / template-word fingerprint in resolved metadata + key files', () => {
+    // The files most likely to carry a leftover template name/word after resolution.
+    for (const rel of [
+      'package.json',
+      'package-lock.json',
+      'README.md',
+      'src/web/index.html',
+      '.github/workflows/main.yml',
+    ]) {
+      const text = readFileSync(join(dir, rel), 'utf8');
+      expect(text, `${rel} still references snackbyte-base`).not.toMatch(/snackbyte-base/);
+    }
+    // The resolved README must not carry template/skeleton/spin-up wording.
+    expect(readFileSync(join(dir, 'README.md'), 'utf8')).not.toMatch(/skeleton|spin-?up/i);
+  });
+});
+
+describe('init requires --name', () => {
+  it('exits non-zero and changes nothing when --name is omitted', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'snackbyte-noname-'));
+    cpSync(repoRoot, dir, {
+      recursive: true,
+      filter: (src) =>
+        !src.includes('/node_modules') && !src.includes('/dist') && !/\/\.git(\/|$)/.test(src),
+    });
+    try {
+      const result = spawnSync(
+        'node',
+        ['scripts/init.mjs', '--mode=server', '--render=prerender'],
+        { cwd: dir, encoding: 'utf8' },
+      );
+      expect(result.status).not.toBe(0);
+      // init must NOT have run: its script is still present and the package is untouched.
+      expect(existsSync(join(dir, 'scripts/init.mjs'))).toBe(true);
+      expect(JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).name).toBe(
+        'snackbyte-base',
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

@@ -51,6 +51,11 @@ To get an app onto GCP the first time, you (or an agent) set up, once:
 - A **GCP project** (apps can share one project as separate Cloud Run services).
 - **APIs**: Cloud Run, Cloud Build, Artifact Registry.
 - A **Cloud Build trigger** watching this repo's tags → build + deploy on tag push.
+  - When wiring this, forward the version into the deploy, or `/api/version` will report
+    `0.0.0` / `dev`. The server reads `APP_VERSION`, `BUILD_GIT_COMMIT`, and `BUILD_DATE`
+    from **runtime env** (the manual `scripts/deploy.sh` sets these via `--set-env-vars`);
+    the trigger must do the same. The frontend chip's commit/date come from Docker
+    `--build-arg`s, so pass those too if you want them populated.
 - A **domain mapping** for the app's subdomain.
 
 > The CI side is wired up and proven: the release workflow

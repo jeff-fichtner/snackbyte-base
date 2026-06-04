@@ -46,8 +46,12 @@ identity decisions, not preferences with a default — make them deliberately.
 Then run the resolver (both flags required):
 
 ```bash
-npm run init -- --mode=<static|server> --render=<prerender|dynamic> --name=<your-app-name>
+npm run init -- --mode=<static|server> --render=<prerender|dynamic> --name=<repo-slug>
 ```
+
+`--name` is the repo slug in kebab-case (e.g. `snackbyte-site`). It becomes the
+`package.json` name (which npm requires to be lowercase) and the page `<title>` — you can
+prettify the title later by editing `src/web/index.html`.
 
 This bakes both choices into the source, deletes the unchosen paths and all template
 scaffolding (this file, the init script, the template README, the machinery tests),
@@ -70,6 +74,11 @@ stays, ready for you to run `/speckit-constitution` and `/speckit-specify`.
 npm run check:all   # format + lint + typecheck + tests
 npm run dev         # bring it up
 ```
+
+`npm run build` produces a self-contained `dist/` — the page is `dist/index.html`. In a
+prerender app, that file ships real markup (no `<!--app-html-->` placeholder); confirm
+with `grep -c app-html dist/index.html` → `0`. (Prerendering runs at build, so in `dev`
+the page is still the empty shell.)
 
 ## 4. Authorize CI, then push
 

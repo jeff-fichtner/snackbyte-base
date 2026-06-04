@@ -258,10 +258,13 @@ console.log('Removed template scaffolding. This repo is now your app.');
   const match = remote?.match(/github\.com[/:]([^/]+\/[^/]+?)(?:\.git)?$/);
   const slug = match ? match[1] : '<owner>/<repo>';
   console.log('');
-  console.log('Next — authorize CI to push version tags, before your first push to main:');
+  console.log('Next:');
+  console.log('  1. Verify:  npm run check:all  &&  npm run dev');
+  console.log('  2. Authorize CI to push version tags (before your first push to main):');
   console.log(
-    `  gh api -X PUT repos/${slug}/actions/permissions/workflow -f default_workflow_permissions=write`,
+    `       gh api -X PUT repos/${slug}/actions/permissions/workflow -f default_workflow_permissions=write`,
   );
+  console.log('  3. Commit and push to main (the first push releases v0.0.1).');
 }
 
 // ---- self-delete (last) ----------------------------------------------------

@@ -8,6 +8,11 @@ app, you are in the wrong place: spin a new app out of this template and work th
 into your app defeats its purpose and corrupts it for every future spin-up. The only
 changes that belong here are deliberate improvements to the template itself.
 
+**Just cloned a repo you created from this template?** Then this is your app's repo and
+seeing "snackbyte-base / wrong place" is expected — it's the un-resolved template state.
+Follow `SPIN-UP.md` and run the resolver; it renames everything to your app and removes
+this guard. You're not in the wrong place, you're at step zero.
+
 To spin up a new app, follow `SPIN-UP.md`. After the spin-up resolver runs, this guard
 is removed and the resulting repo is a normal app you can edit freely.
 

@@ -15,17 +15,23 @@ export interface VersionInfo {
   display: boolean;
 }
 
-interface VersionGlobals {
-  __APP_VERSION__?: string;
-  __GIT_COMMIT__?: string;
-  __BUILD_DATE__?: string;
-  __IS_PRODUCTION__?: boolean;
+// These MUST be referenced as the full `globalThis.__X__` token (not via an alias) so
+// that Vite's `define` textual replacement matches and inlines the build-time literals.
+// `define` does exact-source-text substitution: an aliased read like `const g =
+// globalThis; g.__X__` does NOT match `globalThis.__X__` and is silently left alone, so
+// every constant falls through to its dev fallback in the client bundle — including
+// `__IS_PRODUCTION__`, which leaves `display === true` and renders the dev chip on the
+// production site. Keep the literal `globalThis.` prefix on each read below.
+declare global {
+  var __APP_VERSION__: string | undefined;
+  var __GIT_COMMIT__: string | undefined;
+  var __BUILD_DATE__: string | undefined;
+  var __IS_PRODUCTION__: boolean | undefined;
 }
-const g = globalThis as typeof globalThis & VersionGlobals;
 
 export const version: VersionInfo = {
-  number: g.__APP_VERSION__ ?? '0.0.0-dev',
-  commit: g.__GIT_COMMIT__ ?? 'dev',
-  buildDate: g.__BUILD_DATE__ ?? 'dev',
-  display: !(g.__IS_PRODUCTION__ ?? false),
+  number: globalThis.__APP_VERSION__ ?? '0.0.0-dev',
+  commit: globalThis.__GIT_COMMIT__ ?? 'dev',
+  buildDate: globalThis.__BUILD_DATE__ ?? 'dev',
+  display: !(globalThis.__IS_PRODUCTION__ ?? false),
 };

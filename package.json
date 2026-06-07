@@ -1,6 +1,6 @@
 {
   "name": "snackbyte-base",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "description": "Reusable skeleton for snackbyte.io subdomain apps (Vite + React + TypeScript, static/server deploy mode switch).",

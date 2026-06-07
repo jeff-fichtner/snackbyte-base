@@ -64,7 +64,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Push the bump commit + tag with a real-identity token when one is configured,
+          # else the default GITHUB_TOKEN. The recommended deploy model (DEPLOY.md) chains
+          # a deploy job off this one with `needs:`, so it needs NO second event and works
+          # fine with the GITHUB_TOKEN fallback. RELEASE_TOKEN only matters if something
+          # *external* watches for the tag push — GitHub suppresses workflow-trigger events
+          # for GITHUB_TOKEN pushes (a recursion guard), so a separate `on: push: tags`
+          # workflow or a Cloud Build tag-trigger would never fire from a GITHUB_TOKEN tag.
+          # Set RELEASE_TOKEN (fine-grained PAT, Contents: read/write, this repo) only for
+          # that case. Default path: leave it unset.
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           fetch-depth: 0
       - uses: actions/setup-node@v6
         with:

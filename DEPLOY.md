@@ -315,6 +315,188 @@ shared LB. Per new app `<app>`:
 
 ---
 
+## Staging environment (recommended)
+
+> **Recommendation, not yet as-built.** Everything above is proven end to end on the first
+> production app. The staging model below follows directly from the same primitives (a 2nd
+> Cloud Run service on the shared LB, the existing version/tag flow) but hasn't been stood
+> up yet — treat it as the design to follow, and promote a paragraph here to "as-built" once
+> you've run it. It changes no template source; it's branch + per-app deploy wiring.
+
+A staging environment is **a second deploy of the same app, off a second long-lived
+branch, to a second Cloud Run service on the same load balancer** — production on
+`snackbyte.io`, staging on `snackbyte.dev`. Same project, same LB, same pipeline shape;
+only the branch, the service name, the hostname, and the environment label differ.
+
+### The model in one paragraph
+
+Two long-lived branches: `main` → **production**, `dev` → **staging**. Both branches
+auto-tag and auto-deploy on push exactly as `main` does today — same `check:all` gate, same
+chained deploy. The one difference is **where the patch bump lives: `dev` owns it.** Push to
+`dev` runs the gate, bumps the patch version, and pushes a **`vX.Y.Z-dev`** tag → a chained
+deploy job (identical to production's, different inputs) deploys to the
+**`<service>-staging`** Cloud Run service on **`<app>.snackbyte.dev`**. A `vX.Y.Z-dev` tag
+means "passed checks and is live on staging." You promote by merging `dev` into `main`; that
+push runs the prod gate and **deploys the version `dev` already set** — `main` does **not**
+bump again. So `main` → `vX.Y.Z` → `<service>` on `<app>.snackbyte.io` ships the finalized
+form of the number staging already validated.
+
+### Who owns the version bump
+
+**Exactly one branch bumps the patch — the leading edge of the version stream — and which
+one depends on whether staging exists:**
+
+- **No staging (main only):** `main` owns the bump. Push to `main` → gate → patch bump → tag
+  `vX.Y.Z` → deploy. This is today's behavior, unchanged. (`AUTO_BUMP=true` on `main`.)
+- **Staging exists (`dev` + `main`):** **`dev` owns the bump; `main` stops bumping.** The
+  number is minted once on `dev`, validated on staging, then carried to prod by the merge.
+  `main` still auto-tags and auto-deploys on push — it just skips the `npm version` step and
+  ships the version already in `package.json`. (`AUTO_BUMP=true` on `dev`, `false` on `main`.)
+
+This keeps the version **monotonic across one stream** instead of two branches racing to bump
+it. A number is born on `dev`, proven on staging, and released on `main` as the same number —
+never bumped twice, never forked.
+
+### Why two branches (and not env-from-tag)
+
+The branch _is_ the environment selector — it's the one signal both humans and CI read the
+same way. `dev` is always "what's on staging"; `main` is always "what's in prod." A push to
+either deploys exactly one environment, so there's never ambiguity about where a commit
+landed. The cost is keeping two branches in sync — but that sync (merge `dev` → `main`) **is
+the promotion gate**, which is what you want a staging environment to give you.
+
+### Tags: `vX.Y.Z` (prod) vs `vX.Y.Z-dev` (staging)
+
+`dev` bumps the patch and tags the result with a **`-dev` suffix**; `main` ships the **same
+number without the suffix**. One bump, two tags on one number — staging gets `vX.Y.Z-dev`,
+prod gets `vX.Y.Z` when the merge lands. The suffix is purely a label: a glance at a tag says
+which environment it shipped to, and the two never collide in the tag namespace.
+
+The cleanest way to get a flat **`vX.Y.Z-dev`** is to bump in `package.json` and append the
+suffix only on the staging _tag_, leaving the stored version a plain release number:
+
+```bash
+# on dev — bump package.json to the next plain patch, tag it -dev:
+npm version patch --no-git-tag-version    # package.json: 1.4.0 -> 1.4.1
+VERSION="$(node -p "require('./package.json').version")"   # 1.4.1
+git tag -a "v${VERSION}-dev" -m "Staging v${VERSION}-dev"  # tag: v1.4.1-dev
+# package.json now holds 1.4.1 — the exact number main will release as v1.4.1 on merge.
+```
+
+Storing the **plain** number (`1.4.1`, not `1.4.1-dev`) is what lets `main` release it as
+`v1.4.1` with **no bump of its own** — it just tags `v$(version)` and deploys. (If you stored
+a `1.4.1-dev.0` prerelease string in `package.json` instead, `main` would have to strip the
+suffix before tagging — extra logic for no gain. Keep the stored version a clean release
+number; the `-dev` lives only on the staging tag.)
+
+> **Version-line drift, same rule as prod.** If a staging bump fails on "tag already exists,"
+> `package.json` on `dev` has fallen behind its tags — reset it to match the highest existing
+> tag. Because only `dev` bumps, `main` can't drift on its own; it inherits whatever `dev`
+> set, so the streams can't fork.
+
+### What the app reports — `environment: staging`
+
+The server's `/api/version` returns `environment` straight from `NODE_ENV` (see
+`src/version.ts`). Today both prod and staging would build/run with `NODE_ENV=production`, so
+staging would mislabel itself as `production`. Making staging legible has a **sharp edge in
+the current `version.ts` — read this before reaching for the obvious knob:**
+
+> **Don't just set `NODE_ENV=staging`.** `version.ts` derives _two_ things from `NODE_ENV`:
+> `environment` (the label) **and** `isBuild` — `const isBuild = CI === 'true' || NODE_ENV
+=== 'production'`. The server runtime doesn't set `CI`, so it relies on `NODE_ENV ===
+'production'` to make `isBuild` true and read the **real** `APP_VERSION`. Flip `NODE_ENV` to
+> `staging` and `isBuild` goes **false** → `number` silently falls back to `0.0.0-dev`. So the
+> one-liner that fixes the label **breaks the version number**. Pick one of the two correct
+> paths below instead.
+
+- **Path A — separate `APP_ENV`, leave `NODE_ENV=production` (smallest, safest):** keep
+  `NODE_ENV=production` on the `-staging` service (so `isBuild` stays true and `number` is
+  real) and set `--set-env-vars APP_ENV=staging`. **The template already reads the label this
+  way** — `version.ts` resolves `environment` as `APP_ENV ?? NODE_ENV ?? 'development'`, so
+  setting `APP_ENV=staging` is **all you do**, no source change. It decouples "what to report"
+  from "is this a release build." This is the recommended path.
+- **Path B — keep `NODE_ENV=staging`, broaden `isBuild`:** if you'd rather the env var _be_
+  `NODE_ENV=staging`, also change `isBuild` so a non-`production` deploy still counts as a
+  build — e.g. key it on `CI === 'true' || APP_VERSION present` or `NODE_ENV !==
+'development'`. More moving parts than Path A; only worth it if something else keys off
+  `NODE_ENV === 'staging'`.
+
+Either way `/api/version` then reports `environment: "staging"` **with the real number**.
+Note Cloud Run's `--set-env-vars` overrides the `Dockerfile`'s `ENV NODE_ENV=production` at
+runtime, so the deploy-time var wins — that's the mechanism both paths rely on.
+
+**The version chip (frontend) is keyed off the _build_, not runtime.** The chip hides when
+`__IS_PRODUCTION__` is true, and the `Dockerfile` hardcodes `NODE_ENV=production` for the
+build stage (so the chip is hidden on _both_ prod and staging as shipped). If you want the
+chip **visible on staging** (the usual reason to have a chip), the staging build must pass a
+non-production signal into the build stage — e.g. a `--build-arg` the `Dockerfile` maps to
+`__IS_PRODUCTION__=false` for staging — rather than reading `NODE_ENV`. This is the one spot
+where "staging" needs a **build-arg**, not just a runtime var (the chip is baked at build
+time; `version.ts`'s `environment` is read at runtime). Wire it per app if you want the chip
+on staging, or leave it and rely on `/api/version` + the hostname to tell prod from staging.
+
+### GCP wiring (per app — reuses the project & LB)
+
+Staging is just another service on the existing fleet pattern (§"Adding another app"),
+pointed at the `.dev` TLD. **One global external HTTPS LB serves both TLDs** — a single
+managed cert (or cert map) holds hostnames across `snackbyte.io` _and_ `snackbyte.dev`, and
+host-rules route each to its backend. No second LB, no second IP, **~$0 added** beyond the
+prod app.
+
+Per app, in addition to its production wiring:
+
+1. **Cloud Run** — deploy a second service `<service>-staging` (same image build, different
+   service + env). Lock its ingress to `internal-and-cloud-load-balancing` exactly like prod
+   (§4) — staging is internet-reachable through the LB; the ingress lock is still about
+   keeping `run.app` shut. Set the env label via `--set-env-vars APP_ENV=staging` (Path A
+   above), **keeping `NODE_ENV=production`** so the version number stays real.
+2. **Load balancer** — add a serverless NEG → backend for `<service>-staging`, a host-rule
+   for `<app>.snackbyte.dev` on the existing URL map, and add that hostname to the managed
+   cert (or cert map). The cert re-provisions to `ACTIVE` once the new DNS resolves.
+3. **DNS** — one `A` record `<app>.snackbyte.dev → <LB-IP>` (the same LB IP as prod).
+4. **WIF** — the existing owner-scoped pool/provider already allows the repo; the same
+   `<deployer-SA>` (and its `actAs` bindings) deploys both services. No new IAM beyond what
+   prod set up.
+5. **Workflow** — add a `dev`-branch sibling to the chained deploy: same WIF auth + Cloud
+   Build, with `SERVICE=<service>-staging`, the `.dev` host, and `APP_ENV=staging` (plus
+   `NODE_ENV=production`, per Path A) in the run-deploy step. Gate it on
+   `github.ref == 'refs/heads/dev'` (prod gates on `main`).
+
+### Workflow shape (per app — the template ships only the prod-side gate)
+
+The template's `.github/workflows/main.yml` triggers on `main` only. For staging, the
+simplest path is a parallel trigger and a branch-keyed deploy. Sketch (per-app, not shipped):
+
+```yaml
+on:
+  push:
+    branches: [main, dev] # dev → staging, main → production
+# version-and-tag: dev BUMPS the patch + tags vX.Y.Z-dev; main does NOT bump —
+#                  it tags v$(package.json version) and deploys the number dev set.
+# deploy (per app): two branch-keyed jobs (or one job with branch-conditional inputs):
+#   - if: github.ref == 'refs/heads/dev'   → bump+tag -dev, SERVICE=<service>-staging, host=<app>.snackbyte.dev, APP_ENV=staging (NODE_ENV stays production)
+#   - if: github.ref == 'refs/heads/main'  → tag only (no bump), SERVICE=<service>,    host=<app>.snackbyte.io,  (prod; no APP_ENV)
+```
+
+**`AUTO_BUMP` becomes branch-scoped: `dev` carries it, `main` doesn't.** With staging in
+play, only `dev` runs the `npm version` step (and commits `chore: release … [skip ci]` so the
+bump commit doesn't re-trigger). `main` keeps the gate, tag, and deploy but drops the bump
+step. (Without staging, the flag stays on `main` exactly as the template ships it.) `[skip
+ci]` still guards the one branch that commits a bump.
+
+### Promotion & rollback
+
+- **Promote** staging → prod: merge `dev` into `main`. The prod pipeline runs the gate again
+  and tags `vX.Y.Z` — the **same number** `dev` already minted, suffix dropped, **no second
+  bump**. (Re-certifying at the prod tag is the same independent-certification stance prod
+  already takes; it just doesn't re-mint the version.)
+- **Roll back** either environment: redeploy the previous image. Each Cloud Run service keeps
+  its revision history; `gcloud run services update-traffic <service|service-staging>
+--to-revisions=<prev>=100` flips back without a rebuild. The `vX.Y.Z[-dev]` tags map tags →
+  images for finding the revision to pin.
+
+---
+
 ## Known-broken: Cloud Build tag-trigger
 
 **Do not use a Cloud Build GitHub trigger for tag-deploy in this setup.** Symptom: pushing

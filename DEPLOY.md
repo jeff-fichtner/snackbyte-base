@@ -201,7 +201,8 @@ regardless of traffic. Because one LB fronts every app in the project, the 2nd�
 ## Build & deploy command
 
 CI deploys by submitting a Cloud Build, run **AS `<deployer-SA>`** (not the default compute
-SA). The shape that works:
+SA). The default shape — a plain local submit (`.` as the source), which needs **no Cloud
+Build repo connection**:
 
 ```bash
 gcloud builds submit \
@@ -211,6 +212,17 @@ gcloud builds submit \
   --default-buckets-behavior=REGIONAL_USER_OWNED_BUCKET \
   --project=<project> --region=<region> .
 ```
+
+This deploys the same image **given the same source tree** — but note it builds from the
+working tree (uploaded as a tarball), not the tagged commit, so check out the tag first or
+you'll build whatever's on disk. The per-app **Tags** and **Images** columns come from
+`cloudbuild.yaml` and work regardless; only the History **Ref** column is lost. If you want
+the Ref column too, swap the final `.` for the connected-repo resource and add
+`--revision=vX.Y.Z` (see [Connected-repo link](#connected-repo-link-ref-column)).
+
+> The app's CI actually uses the **connected-repo** path (deterministic — it pulls the
+> tagged commit). The plain `.` submit above is the simpler, connection-free alternative;
+> it's documented but not the path CI exercises, so verify it on first use.
 
 Non-obvious flags, each learned the hard way:
 
@@ -251,16 +263,18 @@ Builds from many apps interleave in one project's History. To keep them filterab
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Images**        | The `images:` list in `cloudbuild.yaml` — tag `<service>:vX.Y.Z-<shortsha>`.                                                                                                                             |
 | **Tags / filter** | The `tags:` block — e.g. `app-<service>`, `ref-vX.Y.Z`, `commit-<shortsha>`. Filter via `gcloud builds list --filter='tags=app-<service>'`. (Tag values can't contain `/` or `=`; use `key-value` form.) |
-| **Ref**           | Only populated by submitting from a **connected repo** with `--revision=vX.Y.Z` (a tarball / `run deploy --source` leaves it blank). Optional — see below.                                               |
+| **Ref**           | Blank for the default local submit. Populated only by submitting from a **connected repo** with `--revision=vX.Y.Z` — an opt-in add-on, see below.                                                       |
 
 ---
 
-## Optional: connected-repo link (only for the History "Ref" column)
+## Connected-repo link (Ref column)
 
-A 2nd-gen Cloud Build **repo connection** lets you submit `--revision=vX.Y.Z` from the
-connected repo so History's **Ref** column shows the tag. It is **only** a build _source_ —
-**not** a trigger, and it does **not** depend on webhook delivery. Skip it unless you want
-the Ref column; the deploy works without it (git-source or tarball).
+**Opt-in — skip it unless you want the History Ref column.** A 2nd-gen Cloud Build **repo
+connection** lets you submit `--revision=vX.Y.Z` from the connected repo so History's
+**Ref** column shows the tag. It is **only** a build _source_ — **not** a trigger, and it
+does **not** depend on webhook delivery. The default local submit deploys identically
+without it (and still gets the Tags/Images columns); the connection adds nothing but Ref.
+To use it, swap the final `.` in the build command for the connected-repo resource.
 
 Creating the connection needs a **one-time browser OAuth** the CLI can't do:
 

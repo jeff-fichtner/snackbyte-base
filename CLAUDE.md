@@ -19,7 +19,9 @@ is removed and the resulting repo is a normal app you can edit freely.
 <!-- TEMPLATE-GUARD END -->
 
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan:
-`specs/001-template-skeleton/plan.md`
+For foundational context (technologies, project structure, shell commands), read the
+skeleton plan: `specs/001-template-skeleton/plan.md`
+
+Active feature — derived-tag versioning + branch-as-environment staging:
+`specs/002-derived-tag-staging/plan.md`
 <!-- SPECKIT END -->

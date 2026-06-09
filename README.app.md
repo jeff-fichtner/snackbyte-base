@@ -41,14 +41,17 @@ the prerendered markup.
 
 ## CI
 
-A GitHub Action (`.github/workflows/main.yml`) gates pull requests and, on each push to
-`main`, runs the checks, bumps the patch version, commits that bump with `[skip ci]`, and
-pushes a matching `vX.Y.Z` tag — the deploy signal. (It pushes both the commit and the tag.)
+A GitHub Action (`.github/workflows/ci-cd.yml`) gates pull requests and, on each push, runs
+the checks and **derives a version tag from git history** — `dev` → `vX.Y.Z-dev` (staging),
+`main` → `vX.Y.Z` (production). The PATCH is not stored in `package.json` (which holds only
+`MAJOR.MINOR`); CI creates and pushes the **tag only**, never a commit. The tag is the deploy
+signal.
 
-**One-time setup, before the first push to `main`:** enable
-**Settings → Actions → General → Workflow permissions → "Read and write permissions"**.
-The first push tags on success; without this enabled the checks still pass but the tag
-step fails with a 403. See [DEPLOY.md](DEPLOY.md) for the full CI/deploy model.
+**One-time setup, before the first push:** enable
+**Settings → Actions → General → Workflow permissions → "Read and write permissions"** (so CI
+can push the tag), and set branch protection requiring the `validate (merge gate)` check. The
+first push tags on success; without write permission the checks pass but the tag step 403s.
+See [DEPLOY.md](DEPLOY.md) for the full versioning + CI/deploy model.
 
 ## Deploy
 

@@ -82,14 +82,13 @@ the page is still the empty shell.)
 
 ## 4. Authorize CI, then push
 
-On a push to `main` the release workflow runs the checks, bumps the version, commits it
-with `[skip ci]`, and pushes both that commit and a `vX.Y.Z` tag back to `main`. For the
-commit and tag to succeed, the repo must grant Actions write access — a deliberate,
-one-time authorization. **Do it before the first push**, or the first release fails with
-a 403. (The order matters: the natural `commit && push` would trip it — grant access
-_first_.)
+On a push the release workflow runs the checks and **derives a version tag from git
+history**, pushing the **tag only** (`vX.Y.Z` on `main`, `vX.Y.Z-dev` on `dev`) — it never
+commits anything back. For the tag push to succeed, the repo must grant Actions write
+access — a deliberate, one-time authorization. **Do it before the first push**, or the
+first release fails with a 403.
 
-This is a security setting (it lets CI push to `main`), so it's authorized consciously:
+This is a security setting (it lets CI push tags to the repo), so it's authorized consciously:
 
 ```bash
 gh api -X PUT repos/<owner>/<repo>/actions/permissions/workflow \

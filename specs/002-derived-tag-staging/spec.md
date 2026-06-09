@@ -605,3 +605,21 @@ language.
 - Moving externally-hosted DNS into Cloud DNS (a possible future hardening, noted but not done here).
 - In-place migration of existing apps and any migration tooling/guide — existing apps are re-spun from
   the finished template instead (nothing is in production use).
+
+## Implementation Notes (as-built refinements)
+
+Recorded where the build refined the design (the divergence-log pattern, applied to the template's own
+build-out):
+
+- **Derivation is a standalone tested script.** `scripts/derive-version.sh` (the logic) +
+  `scripts/derive-version.test.sh` / `npm run test:release` (a 12-row local proof against git fixtures),
+  rather than inline workflow YAML. `test:release` runs in CI before the derivation is relied on, and is
+  kept OUT of `check:all` (app-code gate ≠ release-tooling gate). The 12-row matrix passed locally,
+  including the four refinement rows that diverge from the guinea-pig's jamming `git describe`.
+- **`package.json` holds bare `MAJOR.MINOR`** (e.g. `1.1` / app seed `0.1`), verified to work with
+  `npm install`/`ci` and the derivation. The obsolete `version:patch|minor|major` scripts (which ran
+  `npm version`, abandoned under this model) were removed. The resolver seeds an app at `0.1` and de-
+  templates the `ci-cd.yml` header (no `AUTO_BUMP` flip — there is no flag).
+- **The template repo carries `ci-cd.yml` as a normal always-on file** (no in-file template/self-tag
+  guard). How the template repo itself avoids running it is a repo-level operational concern, kept out
+  of all shipped files and docs.

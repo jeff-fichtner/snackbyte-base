@@ -3,6 +3,14 @@
 The exact behavior the `version-and-tag` job MUST implement. This is the verification target for the
 fresh-app spin-up and the snackbyte-site feedback loop.
 
+> **As-built note.** The derivation is implemented as a standalone, tested script
+> (`scripts/derive-version.sh`) that the workflow calls — not inline YAML. This makes it lintable and,
+> crucially, **locally testable**: `scripts/derive-version.test.sh` (run via `npm run test:release`)
+> exercises the script against every row below using throwaway git fixtures. The workflow runs
+> `test:release` on push before relying on the derivation. `test:release` is intentionally kept OUT of
+> `check:all` (which stays the app-code gate; release-tooling is its own bash/git gate). This is a
+> deliberate refinement over the guinea-pig's inline form — tested = shipped, one source of truth.
+
 ## Inputs
 
 - `BRANCH` = the pushed branch (`main` or `dev`; any other → error).

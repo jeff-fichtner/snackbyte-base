@@ -15,6 +15,15 @@ const distDir = resolve(process.cwd(), 'dist');
 export function createApp(): Express {
   const app = express();
 
+  // Staging is publicly reachable (it serves exactly like production) but must not be indexed
+  // by search engines — otherwise the staging host competes with production as duplicate
+  // content. Keyed on APP_ENV, which is set only on the staging deploy, so production emits no
+  // header and stays indexable. Registered before any route/static so it covers every response.
+  app.use((_req, res, next) => {
+    if (process.env.APP_ENV === 'staging') res.set('X-Robots-Tag', 'noindex');
+    next();
+  });
+
   // SPINUP:server-only:start
   registerRoutes(app);
   // SPINUP:server-only:end

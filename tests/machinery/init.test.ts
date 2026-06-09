@@ -136,8 +136,9 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     expect(readme).not.toMatch(/template|skeleton|Use this template/i);
     const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
     expect(pkg.scripts.init).toBeUndefined();
-    // app starts its own version history at 0.0.0, not the template's version
-    expect(pkg.version).toBe('0.0.0');
+    // app starts its own version line at MAJOR.MINOR 0.1 (the patch is derived from tags by CI,
+    // not stored in package.json), not the template's version
+    expect(pkg.version).toBe('0.1');
     // package renamed to the app; description is a name-derived placeholder, not the
     // template's description and not blank
     expect(pkg.name).toBe('demo');
@@ -146,18 +147,18 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     // package-lock.json is synced — no surviving template name/version fingerprint
     const lock = JSON.parse(readFileSync(join(dir, 'package-lock.json'), 'utf8'));
     expect(lock.name).toBe('demo');
-    expect(lock.version).toBe('0.0.0');
+    expect(lock.version).toBe('0.1');
     expect(lock.packages['']?.name).toBe('demo');
     expect(JSON.stringify(lock)).not.toMatch(/snackbyte-base/);
     // tests re-tiered: machinery gone, app tests kept, vite config points at tests/app
     expect(existsSync(join(dir, 'tests/machinery'))).toBe(false);
     expect(existsSync(join(dir, 'tests/app'))).toBe(true);
     expect(readFileSync(join(dir, 'vite.config.ts'), 'utf8')).not.toMatch(/tests\/machinery/);
-    // the app gets the full auto-release flow (template ships it off), and the workflow
-    // carries no template/spin-up/init fingerprint after resolution
-    const workflow = readFileSync(join(dir, '.github/workflows/main.yml'), 'utf8');
-    expect(workflow).toContain("AUTO_BUMP: 'true'");
-    expect(workflow).not.toContain("AUTO_BUMP: 'false'");
+    // the app inherits the derived-tag ci-cd workflow; after resolution it carries no
+    // template/spin-up/init fingerprint and none of the old commit-the-bump machinery
+    const workflow = readFileSync(join(dir, '.github/workflows/ci-cd.yml'), 'utf8');
+    expect(workflow).toContain('name: ci-cd');
+    expect(workflow).not.toMatch(/AUTO_BUMP|\[skip ci\]|chore: release|npm version/);
     expect(workflow).not.toMatch(/template|spin-?up|resolver|init sets/i);
     // CLAUDE.md is cleaned for the app: no dangling template-plan reference, no
     // "this is a template, don't edit" guard (the app is meant to be edited).
@@ -201,7 +202,7 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
       'package-lock.json',
       'README.md',
       'src/web/index.html',
-      '.github/workflows/main.yml',
+      '.github/workflows/ci-cd.yml',
     ]) {
       const text = readFileSync(join(dir, rel), 'utf8');
       expect(text, `${rel} still references snackbyte-base`).not.toMatch(/snackbyte-base/);

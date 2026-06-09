@@ -10,15 +10,18 @@ RUN npm ci
 
 COPY . .
 
-# Now bake the production build: CI makes the frontend use the real package.json
-# version; NODE_ENV=production hides the version chip. Set them only for the build
-# step (after deps are installed). The commit/date ARGs only carry real values if the
-# build is invoked with --build-arg; `gcloud run deploy --source .` (see deploy.sh) does
-# not pass them, so the frontend's commit/date fall back to 'unknown'. (The server's
-# /api/version gets real commit/date from runtime env, set by deploy.sh.)
+# Now bake the production build. NODE_ENV stays 'production' so the build reads the real
+# version (the version gate keys on it). The version itself is NOT taken from package.json
+# (which holds only MAJOR.MINOR) — it arrives as the APP_VERSION build-arg and is baked into
+# the frontend bundle. The version chip is keyed off APP_IS_PRODUCTION (NOT NODE_ENV): the
+# default 'true' hides the chip (production); a staging build passes APP_IS_PRODUCTION=false to
+# show it. Commit/date arrive the same way; without --build-arg they fall back to 'unknown'.
+# Set these only for the build step (after deps are installed).
 ARG BUILD_GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
-RUN CI=true NODE_ENV=production \
+ARG APP_IS_PRODUCTION=true
+ARG APP_VERSION=0.0.0
+RUN CI=true NODE_ENV=production APP_IS_PRODUCTION=${APP_IS_PRODUCTION} APP_VERSION=${APP_VERSION} \
     BUILD_GIT_COMMIT=${BUILD_GIT_COMMIT} BUILD_DATE=${BUILD_DATE} \
     npm run build
 

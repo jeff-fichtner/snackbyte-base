@@ -1,6 +1,6 @@
 {
   "name": "snackbyte-base",
-  "version": "1.1.0",
+  "version": "1.1",
   "private": true,
   "type": "module",
   "description": "Reusable skeleton for snackbyte.io subdomain apps (Vite + React + TypeScript, static/server deploy mode switch).",
@@ -19,10 +19,8 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:all": "npm run format:check && npm run lint && npm run typecheck && npm test",
-    "version:patch": "npm version patch -m \"chore: release v%s\"",
-    "version:minor": "npm version minor -m \"chore: release v%s\"",
-    "version:major": "npm version major -m \"chore: release v%s\""
+    "test:release": "bash scripts/derive-version.test.sh",
+    "check:all": "npm run format:check && npm run lint && npm run typecheck && npm test"
   },
   "dependencies": {
     "express": "^5.2.1",

@@ -107,42 +107,34 @@ if (mode === 'server') {
   writeFileSync(cfg, text);
 }
 
-// ---- enable auto-releases for the app --------------------------------------
-// The release workflow ships with AUTO_BUMP 'false' so the template repo doesn't
-// auto-tag on every push, and so an app's pre-init "Initial commit" can't release.
-// A real app wants the full flow, so turn it on now — and rewrite the workflow's
-// header comment, which otherwise keeps template/spin-up/init references (a fingerprint
-// and a dangling reference to this script after it self-deletes).
+// ---- de-template the release workflow header -------------------------------
+// The CI workflow (.github/workflows/ci-cd.yml) is always-on and identical for every app —
+// it just needs its header de-templated so the resolved repo carries no template/spin-up/init
+// references (a fingerprint, and a dangling reference to this script after it self-deletes).
+// Nothing about the release LOGIC changes on spin-up: the version is derived from git tags and
+// nothing is committed back, with or without a dev branch.
 {
-  const wf = path('.github/workflows/main.yml');
+  const wf = path('.github/workflows/ci-cd.yml');
   let text = readFileSync(wf, 'utf8');
-  // Replace the entire template-authored header (everything before `env:`) with an
-  // app-appropriate version — no template/spin-up/init references. Anchored on `env:`.
+  // Replace the template-authored header (everything before `name:`) with an app-appropriate
+  // version — no template/spin-up/init references. Anchored on `name:`.
   const appHeader =
     [
-      '# Validate, version, and tag on main.',
+      '# Validate, version, and tag — the branch selects the environment.',
       '#',
-      "# - On a PR to main: run the quality gate as a merge gate. A PR can't merge unless",
-      '#   `npm run check:all` passes.',
-      '# - On a push to main: run the gate again, then (if AUTO_BUMP) auto-increment the',
-      "#   patch version, commit it with [skip ci] (so the commit doesn't re-trigger this",
-      '#   workflow), and push a `vX.Y.Z` tag.',
+      '#   - dev  -> staging      (tag vMAJOR.MINOR.PATCH-dev)',
+      '#   - main -> production   (tag vMAJOR.MINOR.PATCH)',
       '#',
-      '# A `vX.Y.Z` tag means: this commit passed checks and is deployable. Bump minor/major',
-      '# by hand (`npm version minor`) for meaningful releases; CI auto-bumps the patch.',
+      '# The version PATCH is derived from git tags, never committed: package.json holds only',
+      '# MAJOR.MINOR, and CI creates + pushes a tag only (no commit, no branch push). A PR is',
+      '# blocked until `npm run check:all` passes, and the gate is re-run on the push before any',
+      '# tag is created. The deploy job is wired per environment (see DEPLOY.md).',
       '',
     ].join('\n') + '\n';
-  const envIdx = text.indexOf('\nenv:');
-  if (envIdx !== -1) {
-    text = appHeader + text.slice(envIdx + 1);
+  const nameIdx = text.indexOf('\nname:');
+  if (nameIdx !== -1) {
+    text = appHeader + text.slice(nameIdx + 1);
   }
-  text = text.replace(
-    / {2}AUTO_BUMP: '(?:true|false)'[^\n]*/,
-    "  AUTO_BUMP: 'true' # 'true': auto patch-bump + tag on push to main. 'false': gate only.",
-  );
-  // Remove the now-orphaned box-bottom separator (the opening '# ── Configure ──' line
-  // was in the header we just replaced; its closing '# ───' rule is left dangling).
-  text = text.replace(/^# ─+\n/m, '');
   writeFileSync(wf, text);
 }
 
@@ -155,16 +147,16 @@ if (typeof args.name === 'string') {
 }
 
 // ---- remove the init script line + template description, reset version -----
-// The app starts its own version history at 0.0.0 (not the template's version).
-// The release action then takes over: the first push to main tags v0.0.1, or the
-// app owner tags a deliberate v1.0.0 and the action continues from v1.0.1.
+// The app starts its own version line at MAJOR.MINOR 0.1 (not the template's version).
+// package.json holds only MAJOR.MINOR; the PATCH is derived from git tags by CI, so the first
+// push to main tags v0.1.0. Bump MAJOR.MINOR by hand for a meaningful release.
 const pkgPath = path('package.json');
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
 delete pkg.scripts.init;
 // Derive a placeholder description from the name rather than blanking it (the app owner
 // can refine it, but a blank description is worse than a sensible stub).
 pkg.description = `${pkg.name} — a snackbyte app.`;
-pkg.version = '0.0.0';
+pkg.version = '0.1';
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 
 // Sync package-lock.json's name/version to match — otherwise the lockfile keeps the
@@ -274,7 +266,7 @@ console.log('Removed template scaffolding. This repo is now your app.');
   console.log(
     `       gh api -X PUT repos/${slug}/actions/permissions/workflow -f default_workflow_permissions=write`,
   );
-  console.log('  3. Commit and push to main (the first push releases v0.0.1).');
+  console.log('  3. Commit and push to main (the first push derives and tags v0.1.0).');
 }
 
 // ---- self-delete (last) ----------------------------------------------------

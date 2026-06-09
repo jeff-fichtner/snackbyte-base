@@ -587,8 +587,8 @@ language.
 - `main` and `dev` are the only environment branches; additional environments are out of scope.
 - DNS for the staging TLD may be registrar-hosted (external); the template cannot automate registrar
   DNS and documents the manual records instead.
-- The template repo itself keeps its own release cadence (it does not auto-deploy); the workflow shipped
-  is what spun-up apps run, validated by spinning a fresh app — not by deploying the template.
+- The shipped `ci-cd.yml` is what spun-up apps run; it is validated by spinning a fresh app from the
+  template, not by running it against the template repo itself.
 - Nothing is in production use, so existing apps are re-spun from the finished template rather than
   migrated. Downstream consumer apps are out of the template's frame; snackbyte-site is the exception —
   the guinea pig / direct extension that produced the proven infra/runtime findings and provides the

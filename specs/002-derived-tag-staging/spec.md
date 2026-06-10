@@ -624,24 +624,34 @@ build-out):
   guard). How the template repo itself avoids running it is a repo-level operational concern, kept out
   of all shipped files and docs.
 
-### Live confirmation (2026-06-10) — the refinement is now PROVEN-LIVE
+### Live confirmation (2026-06-10) — the DERIVATION is proven-live; the TEMPLATE re-spin is pending
 
-The guinea-pig (snackbyte-site, the feedback loop) exercised the full lifecycle against real GitHub +
-Cloud Run. All held with **no derivation-logic changes**:
+A first live run on the guinea-pig (snackbyte-site) confirmed the **versioning derivation** against real
+GitHub + Cloud Run — but note its scope. snackbyte-site **swapped the derivation in place** on its
+existing app (keeping its prior `v0.1.x` tag history); it did **not** re-spin fresh from the template.
+So this run tested **some additions to the template** (the derivation logic, the runtime labels), **not
+the template as a template**. A migration hand-swaps files into an already-resolved app, so it
+**structurally cannot run the resolver** — and this feature's `scripts/init.mjs` changes (rewrite the
+`ci-cd.yml` header off the old `main.yml`/AUTO_BUMP form, seed the app at `0.1` MAJOR.MINOR, sync the
+lockfile) are exactly the part it bypassed. Those init changes, and the coherence of a freshly-produced
+app, were **never exercised live** — only by the local fresh-app spin-up.
+
+What the derivation run genuinely proved live (independent of greenfield-vs-migrated):
 
 - **FF promote** → reused the number on the same commit, suffix dropped, no double-mint.
 - **The refinement (direct-to-`main` after a promotion)** → advanced, **did not jam** — the case the old
-  `git describe` ancestry logic fail-louded on. This was proven-in-logic only; now proven-live.
+  `git describe` ancestry logic fail-louded on. Proven-in-logic before; now proven-live.
 - **Bonus:** concurrent `main`+`dev` on the same commit converged race-safe (one number, no collision) —
   the `--points-at HEAD` reuse handles a race the matrix didn't test.
-- The derivation also correctly **advances from the global max over whatever tags already exist** (not
-  only from an empty repo), confirming the `max + 1` rule is sound once a stream has tags — a property
-  every app exercises after its first few releases.
 
-This supersedes the "proven-in-logic, not yet proven-live" caveats elsewhere in this spec for the
-versioning derivation. The one template fix that landed from the live run was making the per-app
-deploy-job **attach contract** explicit/paste-ready in `DEPLOY.md`. (The feedback also flagged backport
-ergonomics — adopting the model on an app with prior history — but **per this feature's scope, the
-template does not document migration/backport**; existing apps are re-spun, so that was deliberately NOT
-added.) Full report: snackbyte-site `specs/001-staging-environment/` (REPORT + Divergence Log entry
-`[2026-06-10]`).
+**Still pending: a proper re-spin** of snackbyte-site _fresh from the finished template_ (via the
+resolver, no migrated history) — the only thing that validates the **template** (resolver + produced-app
+coherence), not just the additions hand-grafted onto an existing app. Until that runs, the resolver and
+the end-to-end spin-up remain verified only by the local fresh-app spin-up (SC-007/SC-009), not live.
+
+The one template fix that landed from the first run: the paste-ready deploy-job **attach contract** in
+`DEPLOY.md`. (The feedback also flagged backport ergonomics — adopting the model on an app with prior
+history — but **the template does not document migration/backport** per this feature's scope; existing
+apps are re-spun, so that was deliberately NOT added, and the in-place migration itself was an off-plan
+deviation by the guinea pig, not the intended flow.) Full report: snackbyte-site
+`specs/001-staging-environment/`.

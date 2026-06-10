@@ -47,14 +47,6 @@ This is the core of the release model; read it before the deploy mechanics.
   `vMM.0` (and `dev` gets `vMM.0-dev`), regardless of how many commits precede it. The only
   refusal is a **shallow checkout** (which would hide tags and mis-derive) — the workflow uses
   `fetch-depth: 0` and the derivation fails loudly if the clone is shallow.
-- **Adopting this on an app that already has tags** (e.g. switching from an older release model)
-  works without any tag surgery: the derivation reads the existing `vMM.*` tags and **continues
-  the stream** from `max + 1` — it does not reset to `vMM.0`. The new number appears on the **next
-  real push** (a new commit), not by re-running the workflow on the current `HEAD`. Re-running the
-  derivation on an _already-tagged_ commit (e.g. a promoted `HEAD`) **correctly fails loud** ("tag
-  already exists") because that number is already released — that is the guard working, not a bug.
-  _(Verified live: an app at `v0.1.0…v0.1.2-dev` adopting this minted `v0.1.3` on its next push and
-  ran the full promote / hotfix cycle cleanly.)_
 
 ### Promotion `dev` → `main` (the gate)
 

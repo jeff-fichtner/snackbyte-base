@@ -47,6 +47,14 @@ This is the core of the release model; read it before the deploy mechanics.
   `vMM.0` (and `dev` gets `vMM.0-dev`), regardless of how many commits precede it. The only
   refusal is a **shallow checkout** (which would hide tags and mis-derive) — the workflow uses
   `fetch-depth: 0` and the derivation fails loudly if the clone is shallow.
+- **Adopting this on an app that already has tags** (e.g. switching from an older release model)
+  works without any tag surgery: the derivation reads the existing `vMM.*` tags and **continues
+  the stream** from `max + 1` — it does not reset to `vMM.0`. The new number appears on the **next
+  real push** (a new commit), not by re-running the workflow on the current `HEAD`. Re-running the
+  derivation on an _already-tagged_ commit (e.g. a promoted `HEAD`) **correctly fails loud** ("tag
+  already exists") because that number is already released — that is the guard working, not a bug.
+  _(Verified live: an app at `v0.1.0…v0.1.2-dev` adopting this minted `v0.1.3` on its next push and
+  ran the full promote / hotfix cycle cleanly.)_
 
 ### Promotion `dev` → `main` (the gate)
 
@@ -303,8 +311,19 @@ regardless of traffic. Because one LB fronts every app and both TLDs, the 2nd…
 ## The `deploy` job + Cloud Build (per app)
 
 The template ships `cloudbuild.yaml` and the `validate` + `version-and-tag` jobs. The **`deploy`
-job is per-app** — it names your project/SA/WIF and selects the target from the branch. Add it to
-`ci-cd.yml`:
+job is per-app** — it names your project/SA/WIF and selects the target from the branch. Paste the
+block below into `ci-cd.yml` (after `version-and-tag`) and fill the `<…>` placeholders — it is the
+one hand-assembly step, so don't change these four load-bearing lines (the **attach contract**):
+
+1. **`needs: version-and-tag`** — chains deploy onto the tag job in the same run.
+2. **`if: github.event_name == 'push' && needs.version-and-tag.outputs.tag != ''`** — deploy only
+   on push, and only if a tag was actually produced (a failed/blocked gate yields no tag → no
+   deploy, no silent success).
+3. **`ref: ${{ needs.version-and-tag.outputs.tag }}`** — check out the _tagged_ commit, so the
+   build is exactly what was versioned (not whatever `HEAD` drifted to).
+4. **the `--substitutions` set** — `TAG_NAME` / `_SERVICE` / `_APP_ENV` / `_APP_IS_PRODUCTION` are
+   what `cloudbuild.yaml` reads; the `Select environment from branch` step derives them from
+   `github.ref_name` (`dev` → `-staging` + `APP_ENV=staging` + chip on; `main` → prod defaults).
 
 ```yaml
 deploy:

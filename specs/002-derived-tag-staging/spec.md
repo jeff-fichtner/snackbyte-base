@@ -623,3 +623,24 @@ build-out):
 - **The template repo carries `ci-cd.yml` as a normal always-on file** (no in-file template/self-tag
   guard). How the template repo itself avoids running it is a repo-level operational concern, kept out
   of all shipped files and docs.
+
+### Live confirmation (2026-06-10) — the refinement is now PROVEN-LIVE
+
+The guinea-pig (snackbyte-site) re-spun onto this model and exercised the full lifecycle against real
+GitHub + Cloud Run, on a **non-greenfield** app (existing tags `v0.1.0…v0.1.2-dev`). All held with **no
+derivation-logic changes**:
+
+- **Take-over of an existing tag stream** → next push minted `v0.1.3` via global-max (continued the
+  stream, did not reset to greenfield).
+- **FF promote** → reused the number on the same commit, suffix dropped, no double-mint.
+- **The refinement (direct-to-`main` after a promotion)** → advanced (`v0.1.4`), **did not jam** — the
+  case the old `git describe` ancestry logic fail-louded on. This was proven-in-logic only; now
+  proven-live.
+- **Bonus:** concurrent `main`+`dev` on the same commit converged race-safe (`v0.1.5`/`v0.1.5-dev`, no
+  collision) — the `--points-at HEAD` reuse handles a race the matrix didn't test.
+
+This supersedes the "proven-in-logic, not yet proven-live" caveats elsewhere in this spec for the
+versioning derivation. Resulting template fixes from the live run: documented the take-over behavior and
+the paste-ready deploy-job attach contract in `DEPLOY.md` (the `version:*` script removal it also flagged
+was already done). Full report: snackbyte-site `specs/001-staging-environment/` (REPORT + Divergence Log
+entry `[2026-06-10]`).

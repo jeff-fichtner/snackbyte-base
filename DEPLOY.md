@@ -298,6 +298,22 @@ must add them by hand. Two records per domain:
 2. `A @ → <LB-IP>` (apex), `CNAME www → @` (mirrors the apex). **Leave MX records alone**
    (Workspace email).
 
+> **If the GoDaddy domain is in this workspace and the `godaddy` CLI is on your PATH, an agent can
+> add these records directly instead of doing it by hand** (it wraps the GoDaddy DNS API). It is a
+> workspace tool, not part of this template, so it won't exist everywhere — when it's present, prefer
+> it; when it isn't, add the records manually as above. `delete` refuses to run non-interactively, so
+> it's safe to hand to an agent. Read first, then write:
+>
+> ```bash
+> # args are positional: <domain> <type> <name> <value>
+> godaddy dns list <domain>                                 # see current records
+> godaddy dns add  <domain> CNAME _acme-challenge <id>.authorize.certificatemanager.goog
+> godaddy dns set  <domain> A @ <LB-IP> --ttl 600           # replace the apex A
+> ```
+>
+> (`add` appends, `set` replaces a type+name. Creds load from `~/.config/godaddy-cli/.env`. Source +
+> README live at `~/Snackbyte/tools/godaddy-cli`; run `godaddy dns --help` for the current surface.)
+
 Set a low **TTL (600)** on records you'll later flip (a cutover then propagates in ~10 min). A
 managed cert goes `ACTIVE` only after DNS validates (~15–60 min). A static public IP is expected —
 security is at the LB edge (managed TLS, HTTPS-only, baseline DDoS), not from hiding the IP.

@@ -106,8 +106,10 @@ account that created it has.
 > proceed to the push until it's authorized. (Many agent sandboxes will refuse the
 > `gh api` elevation outright; either way, the human is in the loop.)
 
-Once it's authorized, commit the spin-up and push. The first push to `main` produces
-`v0.0.1`. See [DEPLOY.md](DEPLOY.md) for the full CI/deploy model.
+Once it's authorized, commit the spin-up and push. The version PATCH is derived from git
+tags by CI (not stored in `package.json`, which holds only `MAJOR.MINOR`), so the first push
+to `main` produces `v0.1.0`. See [DEPLOY.md](DEPLOY.md) for the full versioning + CI/deploy
+model.
 
 > **If you are an agent doing this spin-up: STOP and ask the person before pushing to
 > `main`.** Pushing to the default branch is the irreversible, outward-facing step that
@@ -115,6 +117,11 @@ Once it's authorized, commit the spin-up and push. The first push to `main` prod
 > staged and ready, show them what you're about to push, and wait for the go-ahead.
 > (Many agent sandboxes will refuse a push to `main` outright; either way, the human
 > approves the push.)
+>
+> **Stopping here is NOT finishing.** Before you pause, the spin-up must be **committed
+> locally** — never leave the repo uncommitted or empty and report the task done. "Stop and
+> ask before pushing" means: commit, then hold at the push. A spun-up app with no commit is
+> an incomplete spin-up, not a completed one.
 
 ## Switching mode later
 

@@ -621,8 +621,12 @@ build-out):
   `npm version`, abandoned under this model) were removed. The resolver seeds an app at `0.1` and de-
   templates the `ci-cd.yml` header (no `AUTO_BUMP` flip — there is no flag).
 - **The template repo carries `ci-cd.yml` as a normal always-on file** (no in-file template/self-tag
-  guard). How the template repo itself avoids running it is a repo-level operational concern, kept out
-  of all shipped files and docs.
+  guard) and **runs it like any other repo**: Actions is enabled, so a push to the template's own
+  `main` triggers `version-and-tag` and the workflow derives + cuts the `v<MM>.<P>` release tag
+  automatically. The template's own releases therefore come from CI, not by hand — a `git tag` from a
+  maintainer is redundant (and races the workflow). Maintainer note: commit and push; let the Action
+  tag. (An earlier design considered keeping CI off the template repo and tagging it manually; that was
+  not adopted — the repo runs its own workflow, which also continuously dogfoods it.)
 
 ### Live confirmation (2026-06-10) — the DERIVATION is proven-live; the TEMPLATE re-spin is pending
 

@@ -612,9 +612,9 @@ Recorded where the build refined the design (the divergence-log pattern, applied
 build-out):
 
 - **Derivation is a standalone tested script.** `scripts/derive-version.sh` (the logic) +
-  `scripts/derive-version.test.sh` / `npm run test:release` (a 12-row local proof against git fixtures),
+  `scripts/derive-version.test.sh` / `npm run test:release` (a 14-row local proof against git fixtures),
   rather than inline workflow YAML. `test:release` runs in CI before the derivation is relied on, and is
-  kept OUT of `check:all` (app-code gate ≠ release-tooling gate). The 12-row matrix passed locally,
+  kept OUT of `check:all` (app-code gate ≠ release-tooling gate). The 14-row matrix passed locally,
   including the four refinement rows that diverge from the guinea-pig's jamming `git describe`.
 - **`package.json` holds bare `MAJOR.MINOR`** (e.g. `1.1` / app seed `0.1`), verified to work with
   `npm install`/`ci` and the derivation. The obsolete `version:patch|minor|major` scripts (which ran

@@ -492,4 +492,6 @@ Per new app `<app>`:
 - **`gcloud` auth expiry** — tokens expire ~hourly; re-auth with `gcloud auth login <account>`.
   Pass the right `--account` for the project (a machine may own several Google identities — the
   wrong one silently targets the wrong project).
-- **`google-github-actions/*`** run on Node 20 (a deprecation warning; bump when convenient).
+- **`google-github-actions/*` (in the per-app deploy job) run on Node 20** — every CI run annotates
+  the deprecation, and GitHub **forces Node 24 on 2026-06-16**. Bump `auth@` / `setup-gcloud@` to a
+  Node 24 major before then (check their releases for the current tag).

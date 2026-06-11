@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local proof of scripts/derive-version.sh against the 12-row acceptance matrix.
+# Local proof of scripts/derive-version.sh against the 14-row acceptance matrix.
 #
 # The derivation can only be exercised for real against git itself, so this builds a throwaway
 # repo (with a local bare "origin" so the script's `git push origin <tag>` succeeds) and runs
@@ -74,6 +74,11 @@ W="$(fresh_repo)"; ( cd "$W"; git checkout -q -b dev
   git tag -a "v${PKG_MM}.0" -m x; git tag -a "v${PKG_MM}.1" -m x; commit
   assert 3 "v${PKG_MM}.2-dev" "$(derive dev)" )
 
+# Row 4 — dev extends with a new commit (already has v0.1.2-dev) -> next -dev (advance)
+W="$(fresh_repo)"; ( cd "$W"; git checkout -q -b dev
+  git tag -a "v${PKG_MM}.2-dev" -m x; commit   # new dev commit, nothing tagged on it
+  assert 4 "v${PKG_MM}.3-dev" "$(derive dev)" )
+
 # Row 5 — FF promote: main HEAD carries v0.1.2-dev -> reuse -> v0.1.2 (suffix dropped)
 W="$(fresh_repo)"; ( cd "$W"; git checkout -q main
   git tag -a "v${PKG_MM}.0" -m x; git tag -a "v${PKG_MM}.1" -m x
@@ -103,6 +108,23 @@ W="$(fresh_repo)"; ( cd "$W"; git checkout -q main
   git tag -a "v${PKG_MM}.6" -m x; git tag -a "v${PKG_MM}.7" -m x; git tag -a "v${PKG_MM}.8" -m x
   git checkout -q -b dev; commit
   assert 9 "v${PKG_MM}.9-dev" "$(derive dev)" )
+
+# Row 10 — truly-diverged branches merged (main and dev each have a unique tagged commit) ->
+#   the --no-ff merge commit carries no tag -> advance to a fresh number for the merged artifact.
+#   Build the divergence from the init commit. The two side commits MUST differ (distinct messages
+#   AND distinct file changes) — two empty commits off the same base with identical metadata can
+#   collapse to one SHA, which would leave the branches un-diverged and the merge a no-op.
+W="$(fresh_repo)"; ( cd "$W"
+  base="$(git rev-parse main)"                    # the init commit (fresh_repo's only commit)
+  git checkout -q -b mainwork "$base"
+  echo mainwork > side.txt; git add side.txt; git commit -q -m mainwork-change
+  git tag -a "v${PKG_MM}.5" -m x                  # main-side unique commit
+  git checkout -q -b devwork "$base"
+  echo devwork > side.txt; git add side.txt; git commit -q -m devwork-change
+  git tag -a "v${PKG_MM}.6-dev" -m x              # dev-side unique commit
+  git checkout -q -B main mainwork
+  git merge -q --no-ff -m merge -X ours devwork   # 2-parent merge commit M, untagged (-X ours: keep main's side.txt)
+  assert 10 "v${PKG_MM}.7" "$(derive main)" )
 
 # Row 11 — shallow clone -> FAIL (simulate by truncating to a shallow checkout)
 W="$(fresh_repo)"; ( cd "$W"

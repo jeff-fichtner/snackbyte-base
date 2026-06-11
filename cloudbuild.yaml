@@ -66,10 +66,18 @@ steps:
       - |
         ENV_VARS="NODE_ENV=production,APP_VERSION=${TAG_NAME},BUILD_GIT_COMMIT=${SHORT_SHA},BUILD_DATE=$$(cat /workspace/build_date.txt)"
         if [ -n "${_APP_ENV}" ]; then ENV_VARS="$${ENV_VARS},APP_ENV=${_APP_ENV}"; fi
+        # --ingress locks the service to the load balancer (rejects direct *.run.app) on EVERY
+        # deploy, so a first deploy doesn't silently come up reachable on run.app. It is
+        # idempotent and always correct for an LB-fronted service. The OTHER half — the one-time
+        # `allUsers run.invoker` grant — is NOT done here (it's a per-service IAM posture, granted
+        # once at stand-up, see DEPLOY.md §"Cloud Run service — ingress AND invoker"). Without it
+        # the LB returns a Google-frontend 403; the deploy will succeed but the host 403s until
+        # the grant is applied.
         gcloud run deploy ${_SERVICE} \
           --image=${_AR_HOST}/${PROJECT_ID}/${_REPO}/${_SERVICE}:${TAG_NAME}-${SHORT_SHA} \
           --project=${PROJECT_ID} \
           --region=${_REGION} \
+          --ingress=internal-and-cloud-load-balancing \
           --set-env-vars="$${ENV_VARS}"
 
 images:

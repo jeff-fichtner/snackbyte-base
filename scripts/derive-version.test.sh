@@ -13,11 +13,14 @@ PASS_F="$(mktemp)"; FAIL_F="$(mktemp)"
 export PASS_F FAIL_F SCRIPT PKG_MM
 
 # Build a fresh repo with a local bare origin. Returns the work tree path on stdout.
+# Force the initial branch to `main` with `-b main`: the fixtures reference `main` directly
+# (e.g. `git rev-parse main`), so without this the suite fails on any host whose
+# init.defaultBranch is `master` (the stock git default — and the GitHub Actions runner's).
 fresh_repo() {
   local root
   root="$(mktemp -d)"
-  git init -q --bare "$root/origin.git"
-  git init -q "$root/work"
+  git init -q -b main --bare "$root/origin.git"
+  git init -q -b main "$root/work"
   (
     cd "$root/work"
     git config user.email t@t.t

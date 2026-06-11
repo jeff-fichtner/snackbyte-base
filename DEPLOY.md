@@ -230,23 +230,31 @@ gcloud iam service-accounts add-iam-policy-binding <deployer-SA> \
 
 ### 4. Cloud Run service — ingress AND invoker (both required)
 
-Two independent controls, and you need **both**:
+Two independent controls, and a service is only reachable-through-the-LB-and-only-the-LB when
+**both** are set. They are applied differently:
 
-- **Ingress:** deploy with `--ingress=internal-and-cloud-load-balancing` so the service rejects
-  direct `*.run.app` traffic and the load balancer is the only front door. **Consequence:** the
-  `run.app` URL returns **404 by design** — always test through the LB / your hostname.
-- **Invoker:** bind `allUsers` to `roles/run.invoker` (or deploy `--allow-unauthenticated`, which
-  is the same binding). **Ingress alone is not enough** — without the invoker binding the LB's
-  forwarded requests get a **Google-frontend `403`** (an HTML 403 from Google's infra, not your
-  app). The 403-through-the-LB-with-an-ACTIVE-cert symptom is the signature of a missing invoker.
+- **Ingress — automated, every deploy.** `cloudbuild.yaml` passes
+  `--ingress=internal-and-cloud-load-balancing` on every `gcloud run deploy`, so the service
+  rejects direct `*.run.app` traffic and the LB is the only front door — including on the very
+  first deploy. **Consequence:** the `run.app` URL returns **404 by design** — always test through
+  the LB / your hostname. (Nothing to do here; it's in the pipeline.)
+- **Invoker — a ONE-TIME manual grant you must not forget on a NEW service.** Bind `allUsers` to
+  `roles/run.invoker`. This is an IAM posture decision granted once at stand-up, **not** done by
+  the deploy pipeline. **Until you run it, a brand-new service's host returns a Google-frontend
+  `403`** through the LB (an HTML 403 from Google's infra, not your app) even though the deploy
+  succeeded and the cert is ACTIVE — that 403 is the signature of the missing invoker.
 
 ```bash
+# Run ONCE per new service, right after its first deploy:
 gcloud run services add-iam-policy-binding <service> \
   --member=allUsers --role=roles/run.invoker --project=<project> --region=<region>
 ```
 
-Ingress is the lockdown; the invoker is the grant. A public site needs both (the ingress lock is
-about _path_, not _authz_).
+> **First-deploy checklist for a new service.** The pipeline locks ingress for you, but the first
+> deploy of a new app (or a new `-staging` service) lands **half-wired** until you grant the
+> invoker. If the host 403s through the LB right after a green deploy: run the grant above. (Ingress
+> is the lockdown; the invoker is the grant — a public site needs both. The ingress lock is about
+> _path_, not _authz_.)
 
 ### 5. Load balancer + TLS (one-time per project, shared by all apps)
 
@@ -365,9 +373,11 @@ deploy:
 
 `cloudbuild.yaml` (shipped) stamps a UTC build date, builds the `Dockerfile` forwarding
 `APP_VERSION` / `APP_IS_PRODUCTION` / `BUILD_GIT_COMMIT` / `BUILD_DATE` as build-args, tags the
-image `<service>:<TAG>-<sha>`, pushes to Artifact Registry, and `gcloud run deploy`s with runtime
-env (`NODE_ENV=production`, `APP_VERSION`, commit/date, and `APP_ENV` **only when non-empty** so
-prod is never given a stray `APP_ENV=`). Its per-target knobs (`_SERVICE`, `_APP_ENV`,
+image `<service>:<TAG>-<sha>`, pushes to Artifact Registry, and `gcloud run deploy`s with
+`--ingress=internal-and-cloud-load-balancing` (locks the service to the LB on every deploy) and
+runtime env (`NODE_ENV=production`, `APP_VERSION`, commit/date, and `APP_ENV` **only when
+non-empty** so prod is never given a stray `APP_ENV=`). It does **not** grant the `allUsers`
+invoker — that's the one-time manual step (§4). Its per-target knobs (`_SERVICE`, `_APP_ENV`,
 `_APP_IS_PRODUCTION`) default to production, so the prod path is byte-identical to a non-staging
 app.
 

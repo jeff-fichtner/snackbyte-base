@@ -105,6 +105,11 @@ The tag is pushed with the default `GITHUB_TOKEN` (`permissions: contents: write
 is fine: the deploy is a chained `needs:` job in the **same** run, so no second event is needed
 and no personal access token is required.
 
+> **App in a subdirectory, not at the repo root?** This workflow assumes the app *is* the repo.
+> When it lives under `<app>/` instead, the workflow must move to the repo-root `.github/` and
+> gain `working-directory`, `cache-dependency-path`, and `paths:` adjustments. See
+> [SUBDIR-LAYOUT.md](SUBDIR-LAYOUT.md) for the full playbook.
+
 ## One-time CI setup (per repo): authorize the tag push and the merge gate
 
 ### Allow Actions to push tags

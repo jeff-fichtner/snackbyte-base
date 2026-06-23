@@ -202,6 +202,10 @@ rmSync(path('.specify/memory/constitution.md'), { force: true });
 rmSync(path('specs'), { recursive: true, force: true });
 mkdirSync(path('specs'), { recursive: true });
 writeFileSync(path('specs/.gitkeep'), '');
+// feature.json tracks the active feature; the template's points at a spec we just
+// deleted. A fresh `specify init` has none, so drop it — the first /speckit-specify
+// recreates it for the app's own first feature.
+rmSync(path('.specify/feature.json'), { force: true });
 
 // Clean up CLAUDE.md for the app: remove the template guard (it's a normal app now,
 // meant to be edited), and rewrite the SPECKIT block — the template pointed it at its

@@ -129,6 +129,7 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     // template's own constitution and specs are gone; specs/ is empty and ready.
     expect(existsSync(join(dir, '.specify/memory/constitution.md'))).toBe(false);
     expect(existsSync(join(dir, '.specify/templates/constitution-template.md'))).toBe(true);
+    expect(existsSync(join(dir, '.specify/feature.json'))).toBe(false);
     expect(existsSync(join(dir, 'specs/001-template-skeleton'))).toBe(false);
     expect(existsSync(join(dir, 'specs/.gitkeep'))).toBe(true);
     expect(existsSync(join(dir, '.claude/skills'))).toBe(true);

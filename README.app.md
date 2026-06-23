@@ -91,3 +91,9 @@ spec'd yet — start here:
    - Then add principles specific to this app.
 2. **`/speckit-specify`** → **`/speckit-plan`** → **`/speckit-tasks`** →
    **`/speckit-implement`** — one feature at a time, one branch per feature.
+   - Optional quality gates: **`/speckit-clarify`** (de-risk an ambiguous spec before
+     planning), **`/speckit-checklist`** (validate requirements after planning), and
+     **`/speckit-analyze`** (cross-artifact consistency before implementing).
+   - **`/speckit-converge`** — when implementation drifts from the plan, it reconciles
+     the built code against spec/plan/tasks and appends the remaining work so
+     `/speckit-implement` can finish it.

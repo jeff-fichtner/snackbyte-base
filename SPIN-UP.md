@@ -20,7 +20,7 @@ npm install
 Create the `.env` from `.env.example` as part of setup — the defaults run without it,
 but this app expects a `.env` for its local config, so set it up now rather than later.
 
-> **Not putting this app at the repo root?** This template assumes it *is* the repo. If
+> **Not putting this app at the repo root?** This template assumes it _is_ the repo. If
 > you're nesting it in a subdirectory of an existing repo (e.g. a `web/` folder beside
 > another service), read [SUBDIR-LAYOUT.md](SUBDIR-LAYOUT.md) first — it's the playbook for
 > the CI/npm adjustments that layout requires. The root-level case (most apps) needs none

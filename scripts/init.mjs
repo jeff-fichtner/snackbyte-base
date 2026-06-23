@@ -21,7 +21,15 @@
  * After it runs there is no "mode"/"render" concept left: the app simply is what it
  * is. Switching later is a documented code edit (see the template's docs), not a flag.
  */
-import { readFileSync, writeFileSync, rmSync, existsSync, unlinkSync, mkdirSync } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+  rmSync,
+  existsSync,
+  unlinkSync,
+  mkdirSync,
+  renameSync,
+} from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -107,14 +115,17 @@ if (mode === 'server') {
   writeFileSync(cfg, text);
 }
 
-// ---- de-template the release workflow header -------------------------------
-// The CI workflow (.github/workflows/ci-cd.yml) is always-on and identical for every app —
-// it just needs its header de-templated so the resolved repo carries no template/spin-up/init
-// references (a fingerprint, and a dangling reference to this script after it self-deletes).
-// Nothing about the release LOGIC changes on spin-up: the version is derived from git tags and
-// nothing is committed back, with or without a dev branch.
+// ---- activate + de-template the release workflow ---------------------------
+// The template ships the workflow inert as `ci-cd.yml.disabled` so the un-resolved template never
+// runs CI or derives a version tag on a push (GitHub only discovers `*.yml`/`*.yaml`). Spin-up is
+// the moment CI goes live for the app: rename it to `ci-cd.yml`. Then de-template its header so the
+// resolved repo carries no template/spin-up/init references (a fingerprint, and a dangling
+// reference to this script after it self-deletes). Nothing about the release LOGIC changes on
+// spin-up: the version is derived from git tags and nothing is committed back.
 {
+  const disabled = path('.github/workflows/ci-cd.yml.disabled');
   const wf = path('.github/workflows/ci-cd.yml');
+  if (existsSync(disabled)) renameSync(disabled, wf);
   let text = readFileSync(wf, 'utf8');
   // Replace the template-authored header (everything before `name:`) with an app-appropriate
   // version — no template/spin-up/init references. Anchored on `name:`.
@@ -172,6 +183,32 @@ writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
       lock.packages[''].version = pkg.version;
     }
     writeFileSync(lockPath, JSON.stringify(lock, null, 2) + '\n');
+  }
+}
+
+// ---- strip the template's inherited git tags -------------------------------
+// The version reset above (0.1) only sets MAJOR.MINOR; the PATCH is derived from existing git tags
+// by CI. A "Create from template" repo carries no tags, but a clone or fork inherits ALL of the
+// template's release tags (v1.0.0 … v1.2.x). Left in place those would make the first push derive
+// vMM.<max+1> off the template's history instead of the promised v0.1.0 — and pollute the app's
+// history with releases that were never its own. Delete every local tag so the app's first push
+// mints a clean v0.1.0. Best-effort: no git, no remote, or no tags is fine (a template-created
+// repo has none); only this clone's local tags are touched, never anything already pushed.
+{
+  const inGit =
+    spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
+      cwd: root,
+      encoding: 'utf8',
+    }).stdout?.trim() === 'true';
+  if (inGit) {
+    const tags =
+      spawnSync('git', ['tag', '-l'], { cwd: root, encoding: 'utf8' })
+        .stdout?.split('\n')
+        .map((t) => t.trim())
+        .filter(Boolean) ?? [];
+    if (tags.length > 0) {
+      spawnSync('git', ['tag', '-d', ...tags], { cwd: root, stdio: 'ignore' });
+    }
   }
 }
 

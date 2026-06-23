@@ -155,12 +155,16 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     expect(existsSync(join(dir, 'tests/machinery'))).toBe(false);
     expect(existsSync(join(dir, 'tests/app'))).toBe(true);
     expect(readFileSync(join(dir, 'vite.config.ts'), 'utf8')).not.toMatch(/tests\/machinery/);
-    // the app inherits the derived-tag ci-cd workflow; after resolution it carries no
-    // template/spin-up/init fingerprint and none of the old commit-the-bump machinery
+    // the app inherits the derived-tag ci-cd workflow; init ACTIVATES it (renames the
+    // template's inert ci-cd.yml.disabled to the live ci-cd.yml GitHub will discover), and
+    // after resolution it carries no template/spin-up/init fingerprint and none of the old
+    // commit-the-bump machinery
+    expect(existsSync(join(dir, '.github/workflows/ci-cd.yml'))).toBe(true);
+    expect(existsSync(join(dir, '.github/workflows/ci-cd.yml.disabled'))).toBe(false);
     const workflow = readFileSync(join(dir, '.github/workflows/ci-cd.yml'), 'utf8');
     expect(workflow).toContain('name: ci-cd');
     expect(workflow).not.toMatch(/AUTO_BUMP|\[skip ci\]|chore: release|npm version/);
-    expect(workflow).not.toMatch(/template|spin-?up|resolver|init sets/i);
+    expect(workflow).not.toMatch(/template|spin-?up|resolver|init sets|disabled/i);
     // CLAUDE.md is cleaned for the app: no dangling template-plan reference, no
     // "this is a template, don't edit" guard (the app is meant to be edited).
     const claude = readFileSync(join(dir, 'CLAUDE.md'), 'utf8');
@@ -233,6 +237,47 @@ describe('init requires --name', () => {
       expect(JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).name).toBe(
         'snackbyte-base',
       );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('CI/CD is inert until spin-up', () => {
+  // The un-resolved template must not run CI or derive a version tag on a push: it ships the
+  // workflow as ci-cd.yml.disabled (GitHub only discovers *.yml/*.yaml). init flips that on.
+  it('ships the workflow disabled in the template source (no live *.yml workflow)', () => {
+    expect(existsSync(join(repoRoot, '.github/workflows/ci-cd.yml.disabled'))).toBe(true);
+    expect(existsSync(join(repoRoot, '.github/workflows/ci-cd.yml'))).toBe(false);
+  });
+
+  it('strips the template’s inherited git tags so the first push mints v0.1.0', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'snackbyte-tags-'));
+    cpSync(repoRoot, dir, {
+      recursive: true,
+      filter: (src) =>
+        !src.includes('/node_modules') && !src.includes('/dist') && !/\/\.git(\/|$)/.test(src),
+    });
+    cpSync(join(repoRoot, 'node_modules'), join(dir, 'node_modules'), { recursive: true });
+    const git = (...a: string[]) => execFileSync('git', a, { cwd: dir, stdio: 'ignore' });
+    try {
+      // A clone/fork inherits the template's release tags; reproduce that, then assert init clears
+      // them (a "Create from template" repo has none, which is the no-op path also exercised here).
+      git('init', '-q');
+      git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '--allow-empty', '-qm', 'seed');
+      git('tag', 'v1.2.0');
+      git('tag', 'v1.2.5');
+      expect(execFileSync('git', ['tag', '-l'], { cwd: dir, encoding: 'utf8' }).trim()).not.toBe(
+        '',
+      );
+
+      execFileSync(
+        'node',
+        ['scripts/init.mjs', '--mode=static', '--render=dynamic', '--name=demo'],
+        { cwd: dir, stdio: 'ignore' },
+      );
+
+      expect(execFileSync('git', ['tag', '-l'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -88,6 +88,11 @@ the page is still the empty shell.)
 
 ## 4. Authorize CI, then push
 
+The release workflow shipped **inert** in the template (`.github/workflows/ci-cd.yml.disabled`,
+which GitHub ignores) so the un-resolved template never ran CI or tagged a non-app. The
+resolver in step 2 activated it (renamed it to `ci-cd.yml`) and cleared the template's
+inherited tags — so CI is live now, and the first push starts a clean version line at `v0.1.0`.
+
 On a push the release workflow runs the checks and **derives a version tag from git
 history**, pushing the **tag only** (`vX.Y.Z` on `main`, `vX.Y.Z-dev` on `dev`) — it never
 commits anything back. For the tag push to succeed, the repo must grant Actions write

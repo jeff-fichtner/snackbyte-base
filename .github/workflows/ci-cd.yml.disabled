@@ -1,3 +1,12 @@
+# DISABLED IN THE TEMPLATE — this file is `ci-cd.yml.disabled`, NOT `.yml`, on purpose.
+# GitHub Actions only discovers `*.yml`/`*.yaml` under `.github/workflows/`, so while it carries
+# the `.disabled` extension GitHub never sees a workflow at all. That is deliberate: an un-resolved
+# template must NOT run CI or derive a version tag on its first push (it isn't an app yet, and the
+# tag would be wrong). The spin-up resolver (scripts/init.mjs) renames this file to `ci-cd.yml`,
+# which is the moment CI becomes live for the app. Do not rename it by hand to "turn CI on" before
+# spin-up — run the resolver. (The template repo itself therefore runs no CI; it is validated by
+# `npm run check:all` + `npm run test:release` run locally.)
+#
 # Validate, version, and tag — the branch selects the environment.
 #
 # Every app spun up from this template inherits this workflow. The release flow is the same

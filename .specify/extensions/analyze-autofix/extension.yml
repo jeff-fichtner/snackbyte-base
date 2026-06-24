@@ -1,0 +1,29 @@
+schema_version: "1.0"
+
+extension:
+  id: analyze-autofix
+  name: "Analyze Auto-Fix"
+  version: "1.0.0"
+  description: "After /speckit-analyze: apply the unambiguous fixes from the analysis report to spec.md / plan.md / tasks.md, then re-present the analysis so remaining (judgment-dependent) findings are clear"
+  author: snackbyte
+  license: MIT
+
+requires:
+  speckit_version: ">=0.2.0"
+
+provides:
+  commands:
+    - name: speckit.analyze.autofix
+      file: commands/speckit.analyze.autofix.md
+      description: "Fix the unambiguous analysis findings and re-present the report"
+
+hooks:
+  after_analyze:
+    command: speckit.analyze.autofix
+    optional: true
+    description: "Apply unambiguous analysis fixes and re-present results"
+
+tags:
+  - "analyze"
+  - "autofix"
+  - "core"

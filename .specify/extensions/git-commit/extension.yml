@@ -1,0 +1,29 @@
+schema_version: "1.0"
+
+extension:
+  id: git-commit
+  name: "Git Commit Spec Artifacts"
+  version: "1.0.0"
+  description: "Commits the current feature's Spec Kit artifacts (specs/<feature>/) before implementation begins, so the planning state is captured in history as a clean checkpoint"
+  author: snackbyte
+  license: MIT
+
+requires:
+  speckit_version: ">=0.2.0"
+
+provides:
+  commands:
+    - name: speckit.git.commit
+      file: commands/speckit.git.commit.md
+      description: "Stage and commit the current feature's spec artifacts"
+
+hooks:
+  before_implement:
+    command: speckit.git.commit
+    optional: true
+    description: "Checkpoint the feature's spec artifacts before implementation"
+
+tags:
+  - "git"
+  - "checkpoint"
+  - "core"

@@ -1,0 +1,29 @@
+schema_version: "1.0"
+
+extension:
+  id: specify-review-loop
+  name: "Specify Review Loop"
+  version: "1.0.0"
+  description: "After /speckit-specify: recursively review the new spec for inconsistencies, ambiguity, and gaps, fixing the unambiguous ones each pass, until nothing fixable remains or an issue needs the user's direct attention"
+  author: snackbyte
+  license: MIT
+
+requires:
+  speckit_version: ">=0.2.0"
+
+provides:
+  commands:
+    - name: speckit.specify.review-loop
+      file: commands/speckit.specify.review-loop.md
+      description: "Recursively review-and-fix the spec until clean or blocked on the user"
+
+hooks:
+  after_specify:
+    command: speckit.specify.review-loop
+    optional: true
+    description: "Recursively review the spec and fix unambiguous issues"
+
+tags:
+  - "specify"
+  - "review"
+  - "core"

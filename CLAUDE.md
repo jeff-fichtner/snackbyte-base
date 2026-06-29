@@ -22,6 +22,9 @@ is removed and the resulting repo is a normal app you can edit freely.
 For foundational context (technologies, project structure, shell commands), read the
 skeleton plan: `specs/001-template-skeleton/plan.md`
 
-Active feature — derived-tag versioning + branch-as-environment staging:
+Active feature — declarative N-environment manifest (generalizes the two-environment
+derived-tag/staging model from 002): `specs/003-env-manifest/plan.md`
+
+Prior feature — derived-tag versioning + branch-as-environment staging:
 `specs/002-derived-tag-staging/plan.md`
 <!-- SPECKIT END -->

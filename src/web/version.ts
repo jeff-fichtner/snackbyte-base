@@ -11,7 +11,7 @@ export interface VersionInfo {
   number: string;
   commit: string;
   buildDate: string;
-  /** Show the chip everywhere except production. */
+  /** Show the chip everywhere except the public face (production). */
   display: boolean;
 }
 
@@ -20,18 +20,22 @@ export interface VersionInfo {
 // `define` does exact-source-text substitution: an aliased read like `const g =
 // globalThis; g.__X__` does NOT match `globalThis.__X__` and is silently left alone, so
 // every constant falls through to its dev fallback in the client bundle — including
-// `__IS_PRODUCTION__`, which leaves `display === true` and renders the dev chip on the
+// `__IS_PUBLIC_FACE__`, which leaves `display === true` and renders the dev chip on the
 // production site. Keep the literal `globalThis.` prefix on each read below.
+//
+// __IS_PUBLIC_FACE__ is the build-time umbrella for "this build is the public face" —
+// hide dev-only affordances. The version chip is its first (today, only) member; other
+// build-time, dev-only frontend affordances would key off the same flag.
 declare global {
   var __APP_VERSION__: string | undefined;
   var __GIT_COMMIT__: string | undefined;
   var __BUILD_DATE__: string | undefined;
-  var __IS_PRODUCTION__: boolean | undefined;
+  var __IS_PUBLIC_FACE__: boolean | undefined;
 }
 
 export const version: VersionInfo = {
   number: globalThis.__APP_VERSION__ ?? '0.0.0-dev',
   commit: globalThis.__GIT_COMMIT__ ?? 'dev',
   buildDate: globalThis.__BUILD_DATE__ ?? 'dev',
-  display: !(globalThis.__IS_PRODUCTION__ ?? false),
+  display: !(globalThis.__IS_PUBLIC_FACE__ ?? false),
 };

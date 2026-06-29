@@ -13,9 +13,10 @@ const distDir = fileURLToPath(new URL('./dist', import.meta.url));
 // client-hydration see identical values — no live values, no hydration mismatch). The version
 // is NOT read from package.json (which holds only MAJOR.MINOR); it arrives as the APP_VERSION
 // build-arg the deploy flow sets, alongside CI + BUILD_GIT_COMMIT + BUILD_DATE. Locally they
-// fall back to dev. Chip visibility is keyed on APP_IS_PRODUCTION, NOT NODE_ENV (the build
-// always runs NODE_ENV=production): default 'true' hides the chip (prod); staging passes
-// 'false'. scripts/prerender.mjs MUST read these identically or prerender and hydration disagree.
+// fall back to dev. Chip visibility is keyed on APP_IS_PUBLIC_FACE, NOT NODE_ENV (the build
+// always runs NODE_ENV=production): default 'true' (this build is the public face) hides the
+// chip (prod); a non-public-face build (e.g. staging) passes 'false' to show it.
+// scripts/prerender.mjs MUST read these identically or prerender and hydration disagree.
 const isBuildServer = process.env.CI === 'true';
 const versionDefines = {
   'globalThis.__APP_VERSION__': JSON.stringify(
@@ -23,8 +24,8 @@ const versionDefines = {
   ),
   'globalThis.__GIT_COMMIT__': JSON.stringify(process.env.BUILD_GIT_COMMIT ?? 'dev'),
   'globalThis.__BUILD_DATE__': JSON.stringify(process.env.BUILD_DATE ?? 'dev'),
-  'globalThis.__IS_PRODUCTION__': JSON.stringify(
-    (process.env.APP_IS_PRODUCTION ?? 'true') !== 'false',
+  'globalThis.__IS_PUBLIC_FACE__': JSON.stringify(
+    (process.env.APP_IS_PUBLIC_FACE ?? 'true') !== 'false',
   ),
 };
 

@@ -342,7 +342,7 @@ one hand-assembly step, so don't change these four load-bearing lines (the **att
    deploy, no silent success).
 3. **`ref: ${{ needs.version-and-tag.outputs.tag }}`** — check out the _tagged_ commit, so the
    build is exactly what was versioned (not whatever `HEAD` drifted to).
-4. **the `--substitutions` set** — `TAG_NAME` / `_SERVICE` / `_APP_ENV` / `_APP_IS_PRODUCTION` are
+4. **the `--substitutions` set** — `TAG_NAME` / `_SERVICE` / `_APP_ENV` / `_APP_IS_PUBLIC_FACE` are
    what `cloudbuild.yaml` reads; the `Select environment from branch` step derives them from
    `github.ref_name` (`dev` → `-staging` + `APP_ENV=staging` + chip on; `main` → prod defaults).
 
@@ -367,11 +367,11 @@ deploy:
         if [ "${GITHUB_REF_NAME}" = "dev" ]; then
           echo "service=<service>-staging" >> "$GITHUB_OUTPUT"
           echo "app_env=staging" >> "$GITHUB_OUTPUT"
-          echo "is_production=false" >> "$GITHUB_OUTPUT"
+          echo "is_public_face=false" >> "$GITHUB_OUTPUT"
         else
           echo "service=<service>" >> "$GITHUB_OUTPUT"
           echo "app_env=" >> "$GITHUB_OUTPUT"
-          echo "is_production=true" >> "$GITHUB_OUTPUT"
+          echo "is_public_face=true" >> "$GITHUB_OUTPUT"
         fi
     - uses: google-github-actions/auth@v2
       with:
@@ -386,20 +386,20 @@ deploy:
         SHORT_SHA="$(git rev-parse --short HEAD)"
         gcloud builds submit \
           --config=cloudbuild.yaml \
-          --substitutions="TAG_NAME=${TAG},SHORT_SHA=${SHORT_SHA},_SERVICE=${{ steps.target.outputs.service }},_APP_ENV=${{ steps.target.outputs.app_env }},_APP_IS_PRODUCTION=${{ steps.target.outputs.is_production }}" \
+          --substitutions="TAG_NAME=${TAG},SHORT_SHA=${SHORT_SHA},_SERVICE=${{ steps.target.outputs.service }},_APP_ENV=${{ steps.target.outputs.app_env }},_APP_IS_PUBLIC_FACE=${{ steps.target.outputs.is_public_face }}" \
           --service-account="projects/${PROJECT_ID}/serviceAccounts/${DEPLOY_SA}" \
           --default-buckets-behavior=REGIONAL_USER_OWNED_BUCKET \
           --project="$PROJECT_ID" --region="$REGION" .
 ```
 
 `cloudbuild.yaml` (shipped) stamps a UTC build date, builds the `Dockerfile` forwarding
-`APP_VERSION` / `APP_IS_PRODUCTION` / `BUILD_GIT_COMMIT` / `BUILD_DATE` as build-args, tags the
+`APP_VERSION` / `APP_IS_PUBLIC_FACE` / `BUILD_GIT_COMMIT` / `BUILD_DATE` as build-args, tags the
 image `<service>:<TAG>-<sha>`, pushes to Artifact Registry, and `gcloud run deploy`s with
 `--ingress=internal-and-cloud-load-balancing` (locks the service to the LB on every deploy) and
 runtime env (`NODE_ENV=production`, `APP_VERSION`, commit/date, and `APP_ENV` **only when
 non-empty** so prod is never given a stray `APP_ENV=`). It does **not** grant the `allUsers`
 invoker — that's the one-time manual step (§4). Its per-target knobs (`_SERVICE`, `_APP_ENV`,
-`_APP_IS_PRODUCTION`) default to production, so the prod path is byte-identical to a non-staging
+`_APP_IS_PUBLIC_FACE`) default to production, so the prod path is byte-identical to a non-staging
 app.
 
 Non-obvious build flags, each learned the hard way:
@@ -461,7 +461,7 @@ Per app, in addition to its production wiring:
 
 1. **Cloud Run** — deploy a second service `<service>-staging`. Lock ingress to
    `internal-and-cloud-load-balancing` **and** bind `allUsers run.invoker` (§4 — both, or the LB
-   403s). The `deploy` job sets `APP_ENV=staging` + `APP_IS_PRODUCTION=false` for it (label +
+   403s). The `deploy` job sets `APP_ENV=staging` + `APP_IS_PUBLIC_FACE=false` for it (label +
    chip); `NODE_ENV` stays `production` so the real version is read.
 2. **Load balancer** — add a serverless NEG → backend for `<service>-staging`, a host-rule for
    `<app>.snackbyte.dev` on the existing URL map. (The flagship is typically the url-map's
@@ -477,8 +477,8 @@ Per app, in addition to its production wiring:
 real version number**. (Labeling via `NODE_ENV` instead would flip the build's version gate off and
 make `/api/version` report `0.0.0-dev` — don't.) Staging also serves an `X-Robots-Tag: noindex`
 header so it isn't search-indexed; production emits no such header. The **version chip** is shown on
-staging and hidden on production — driven by the `APP_IS_PRODUCTION` build-arg (default `true` =
-hidden), not a runtime value.
+staging and hidden on production — driven by the `APP_IS_PUBLIC_FACE` build-arg (default `true` =
+public face = chip hidden), not a runtime value.
 
 ### Promotion & rollback
 

@@ -1,7 +1,7 @@
 # Cloud Build config for the deploy. Invoked by the per-app deploy job (see DEPLOY.md) via:
 #   gcloud builds submit --config=cloudbuild.yaml \
 #     --substitutions=TAG_NAME=vX.Y.Z,SHORT_SHA=<sha>,_SERVICE=<service> \
-#     [--substitutions=_APP_ENV=staging,_APP_IS_PRODUCTION=false]   # staging only
+#     [--substitutions=_APP_ENV=staging,_APP_IS_PUBLIC_FACE=false]   # staging only
 #
 # The version, commit, and date are passed in (the version is the derived git tag, NOT a
 # package.json patch). Build tags + image tags keep this app's builds legible in the shared
@@ -12,11 +12,12 @@ substitutions:
   _REPO: cloud-run-source-deploy
   _AR_HOST: us-central1-docker.pkg.dev
   # Per-target knobs (defaults = production). A staging deploy overrides these:
-  #   _SERVICE=<service>-staging  _APP_ENV=staging  _APP_IS_PRODUCTION=false
-  # _APP_ENV is a RUNTIME var (labels the env + drives noindex); _APP_IS_PRODUCTION is a
-  # BUILD-arg (drives the version chip). The defaults leave the prod build/deploy unchanged.
+  #   _SERVICE=<service>-staging  _APP_ENV=staging  _APP_IS_PUBLIC_FACE=false
+  # _APP_ENV is a RUNTIME var (labels the env + drives noindex); _APP_IS_PUBLIC_FACE is a
+  # BUILD-arg (drives the version chip — 'true' = public face, chip hidden). The defaults
+  # leave the prod build/deploy unchanged.
   _APP_ENV: ''
-  _APP_IS_PRODUCTION: 'true'
+  _APP_IS_PUBLIC_FACE: 'true'
 
 # Build tags → filterable chips in Cloud Build History (which app / ref / commit). Critical when
 # many apps build in the same project. (Underscores aren't allowed in tag values.)
@@ -43,7 +44,7 @@ steps:
         docker build \
           --build-arg=BUILD_GIT_COMMIT=${SHORT_SHA} \
           --build-arg=BUILD_DATE="$$(cat /workspace/build_date.txt)" \
-          --build-arg=APP_IS_PRODUCTION=${_APP_IS_PRODUCTION} \
+          --build-arg=APP_IS_PUBLIC_FACE=${_APP_IS_PUBLIC_FACE} \
           --build-arg=APP_VERSION=${TAG_NAME} \
           -t ${_AR_HOST}/${PROJECT_ID}/${_REPO}/${_SERVICE}:${TAG_NAME}-${SHORT_SHA} \
           -t ${_AR_HOST}/${PROJECT_ID}/${_REPO}/${_SERVICE}:${TAG_NAME} \

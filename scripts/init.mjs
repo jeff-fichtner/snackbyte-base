@@ -131,10 +131,12 @@ if (mode === 'server') {
   // version — no template/spin-up/init references. Anchored on `name:`.
   const appHeader =
     [
-      '# Validate, version, and tag — the branch selects the environment.',
+      '# Validate, version, and tag — the pushed branch selects the environment (via environments.json).',
       '#',
-      '#   - dev  -> staging      (tag vMAJOR.MINOR.PATCH-dev)',
-      '#   - main -> production   (tag vMAJOR.MINOR.PATCH)',
+      '# environments.json lists this app’s environments; the default ships main -> production',
+      '# (tag vMAJOR.MINOR.PATCH) and dev -> staging (tag vMAJOR.MINOR.PATCH-dev). Add an environment',
+      '# by adding a row there — this workflow needs no change (a resolve-env job reads the manifest',
+      '# and short-circuits a push to a non-environment branch).',
       '#',
       '# The version PATCH is derived from git tags, never committed: package.json holds only',
       '# MAJOR.MINOR, and CI creates + pushes a tag only (no commit, no branch push). A PR is',

@@ -7,17 +7,19 @@
 # spin-up — run the resolver. (The template repo itself therefore runs no CI; it is validated by
 # `npm run check:all` + `npm run test:release` run locally.)
 #
-# Validate, version, and tag — the branch selects the environment.
+# Validate, version, and tag — the pushed branch selects the environment (via environments.json).
 #
 # Every app spun up from this template inherits this workflow. The release flow is the same
-# everywhere: GitHub-hosted, npm, a quality gate, and a git tag as the deploy signal.
-#
-#   - dev  -> staging      (tag vMAJOR.MINOR.PATCH-dev)
-#   - main -> production   (tag vMAJOR.MINOR.PATCH)
+# everywhere: GitHub-hosted, npm, a quality gate, and a git tag as the deploy signal. Which
+# branches are environments is NOT hard-coded here — it lives in environments.json (the default
+# ships `main` -> production and `dev` -> staging). The trigger can't read that file (GitHub
+# evaluates `on:` before checkout), so this workflow triggers on any push and a lightweight
+# `resolve-env` job reads the manifest and short-circuits a push to a non-environment branch.
+# Adding an environment is a one-row edit to environments.json — this workflow needs no change.
 #
 # VERSIONING — derived from tags, never committed. package.json holds only MAJOR.MINOR; the
 # PATCH is a global, monotonic build id derived from existing tags (see scripts/derive-version.sh).
-# CI creates a tag and pushes ONLY the tag — no commit, no branch push — so the two branches
+# CI creates a tag and pushes ONLY the tag — no commit, no branch push — so environment branches
 # never diverge: fast-forward, merge, and PR promotion all work, with no resync and no collisions.
 #
 # Two independent gates protect a release: a PR is blocked until `check:all` passes (enforced by
@@ -25,24 +27,58 @@
 # tag is created only if it passes. A failing push-side gate blocks the tag, and the deploy that
 # depends on it is skipped.
 #
-# This template ships `validate` + `version-and-tag`. The `deploy` job is per-app (it names a GCP
-# project, service account, and Workload Identity provider) — copy it in from DEPLOY.md when you
-# wire the app to its environment.
+# This template ships `resolve-env` + `validate` + `version-and-tag`. The `deploy` job is per-app
+# (it names a GCP project, service account, and Workload Identity provider) — copy it in from
+# DEPLOY.md when you wire the app to its environment.
 
 name: ci-cd
 
 on:
   pull_request:
-    branches: [main, dev]
   push:
-    branches: [main, dev]
+    # Trigger on any branch except obvious non-environment noise; resolve-env then confirms the
+    # branch is actually an environment (in environments.json) before any tag/deploy work runs.
+    branches-ignore:
+      - 'feature/**'
+      - 'fix/**'
+      - 'chore/**'
+      - 'dependabot/**'
+      - 'renovate/**'
 
 env:
   NODE_VERSION: '24' # Node major for the gate (keep aligned with .nvmrc)
 
 jobs:
-  # Merge gate: PRs into main/dev must pass the quality gate before they can merge. (The merge
-  # is *enforced* by branch protection requiring this check — repo config, not expressible here.)
+  # Is the pushed branch an environment? The `on:` trigger can't read environments.json (GitHub
+  # evaluates it before checkout), so this lightweight job does the lookup: a shallow checkout, read
+  # the manifest, and output whether GITHUB_REF_NAME is one of its branches. A push to a
+  # non-environment branch short-circuits here (the downstream jobs are gated on `is-env == true`),
+  # so nothing is built, tagged, or deployed — and no expensive `npm ci` runs. Adding an environment
+  # is a one-row edit to environments.json; this job needs no change.
+  resolve-env:
+    name: resolve environment
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      is-env: ${{ steps.lookup.outputs.is-env }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1 # manifest only — no history needed
+      - id: lookup
+        run: |
+          if node -e "process.exit(require('./environments.json').environments.some(e => e.branch === process.env.GITHUB_REF_NAME) ? 0 : 1)"; then
+            echo "is-env=true" >> "$GITHUB_OUTPUT"
+            echo "Branch '${GITHUB_REF_NAME}' is an environment — proceeding."
+          else
+            echo "is-env=false" >> "$GITHUB_OUTPUT"
+            echo "Branch '${GITHUB_REF_NAME}' is not an environment in environments.json — nothing to do."
+          fi
+
+  # Merge gate: PRs must pass the quality gate before they can merge. (The merge is *enforced* by
+  # branch protection requiring this check — repo config, not expressible here.)
   validate:
     name: validate (merge gate)
     if: github.event_name == 'pull_request'
@@ -59,11 +95,13 @@ jobs:
       - run: npm run check:all
       - run: npm run test:release # also gate changes to the release tooling itself
 
-  # Push-side gate + derive the version + create the tag. Runs on push to main OR dev. The gate
-  # is mandatory and authoritative; on failure nothing is tagged and no deploy can follow.
+  # Push-side gate + derive the version + create the tag. Runs only when resolve-env confirms the
+  # pushed branch is an environment. The gate is mandatory and authoritative; on failure nothing is
+  # tagged and no deploy can follow.
   version-and-tag:
     name: version and tag
-    if: github.event_name == 'push'
+    needs: resolve-env
+    if: github.event_name == 'push' && needs.resolve-env.outputs.is-env == 'true'
     runs-on: ubuntu-latest
     # Serialize same-branch runs so two pushes can't derive the same patch concurrently.
     concurrency:

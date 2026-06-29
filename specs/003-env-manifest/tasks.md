@@ -28,9 +28,9 @@ be verified. US1 is therefore primarily a verification/equivalence gate over the
 
 **Purpose**: The manifest itself and the shared reader every other consumer depends on.
 
-- [ ] T001 Create `environments.json` at repo root with the default two entries — `production` (branch `main`, isPublicFace true, noindex false, tagSuffix "") and `staging` (branch `dev`, isPublicFace false, noindex true, tagSuffix "-dev") — per data-model.md. App-agnostic; no app name or deploy coordinates. State its purpose in a top-of-file comment without any spec citation.
-- [ ] T002 Create `src/environments.ts` — the typed manifest reader: load and type `environments.json`, expose `getEnvironments()`, `findByBranch(branch)`, `findByName(name)`, and the exported `LOCAL` constant `{ name: 'local', isPublicFace: false, noindex: true }`. Pure, no side effects; usable by both the server build output and Node tooling.
-- [ ] T003 [P] Decide and document (in a code comment in `src/environments.ts`) the tag-format parts (`prefix = 'v'`, suffix-per-env), so the parser-from-parts rule (contracts/versioning.md) has one source.
+- [X] T001 Create `environments.json` at repo root with the default two entries — `production` (branch `main`, isPublicFace true, noindex false, tagSuffix "") and `staging` (branch `dev`, isPublicFace false, noindex true, tagSuffix "-dev") — per data-model.md. App-agnostic; no app name or deploy coordinates. State its purpose in a top-of-file comment without any spec citation.
+- [X] T002 Create `src/environments.ts` — the typed manifest reader: load and type `environments.json`, expose `getEnvironments()`, `findByBranch(branch)`, `findByName(name)`, and the exported `LOCAL` constant `{ name: 'local', isPublicFace: false, noindex: true }`. Pure, no side effects; usable by both the server build output and Node tooling.
+- [X] T003 [P] Decide and document (in a code comment in `src/environments.ts`) the tag-format parts (`prefix = 'v'`, suffix-per-env), so the parser-from-parts rule (contracts/versioning.md) has one source.
 
 **Checkpoint**: The manifest exists and is readable by Node; nothing consumes it yet.
 
@@ -45,29 +45,29 @@ core of the feature and BLOCKS verification of all user stories.
 
 ### Versioning derivation (suffix-agnostic, manifest-driven)
 
-- [ ] T004 Rewrite the reuse step in `scripts/derive-version.sh` to be SUFFIX-AGNOSTIC: match any `v<MM>.<patch>` with any suffix or none on HEAD (contracts/versioning.md rule step 2). Remove the per-branch sibling regex `if/else`.
-- [ ] T005 In `scripts/derive-version.sh`, resolve the pushing branch's `tagSuffix` and branch-validity from `environments.json` via `node -p` (the existing package.json-reading pattern). An unknown branch → hard error (FR-009). No `if branch == X` code path remains (FR-008).
-- [ ] T006 In `scripts/derive-version.sh`, emit a non-blocking warning when two manifest entries share a `tagSuffix` (FR-005a / invariant I3). Keep the existing collision guard (I-collision) and shallow-checkout refusal (I5) intact.
-- [ ] T007 Verify `scripts/derive-version.sh` keeps the global-max mint, the no-overwrite collision guard, and the tag-only push (no commit) — confirm the parser used for read-back is generated from the format parts (T003), not hand-written separately (FR-012).
+- [X] T004 Rewrite the reuse step in `scripts/derive-version.sh` to be SUFFIX-AGNOSTIC: match any `v<MM>.<patch>` with any suffix or none on HEAD (contracts/versioning.md rule step 2). Remove the per-branch sibling regex `if/else`.
+- [X] T005 In `scripts/derive-version.sh`, resolve the pushing branch's `tagSuffix` and branch-validity from `environments.json` via `node -p` (the existing package.json-reading pattern). An unknown branch → hard error (FR-009). No `if branch == X` code path remains (FR-008).
+- [X] T006 In `scripts/derive-version.sh`, emit a non-blocking warning when two manifest entries share a `tagSuffix` (FR-005a / invariant I3). Keep the existing collision guard (I-collision) and shallow-checkout refusal (I5) intact.
+- [X] T007 Verify `scripts/derive-version.sh` keeps the global-max mint, the no-overwrite collision guard, and the tag-only push (no commit) — confirm the parser used for read-back is generated from the format parts (T003), not hand-written separately (FR-012).
 
 ### Build-time identity (bake from a single name build-arg)
 
-- [ ] T008 Add `ARG APP_ENV_NAME` to `Dockerfile` (single env name build-arg) and thread it into the build `RUN` step alongside the existing build-args; keep `APP_IS_PUBLIC_FACE` (now derivable from the resolved facets).
-- [ ] T009 In `vite.config.ts`, resolve the env facets from `environments.json` by `APP_ENV_NAME` at build time, and bake the identity: add a `__APP_ENV_NAME__` define (and keep `__IS_PUBLIC_FACE__`, now sourced from the resolved facet). Read the name from env, fall back to `local` when unset.
-- [ ] T010 In `scripts/prerender.mjs`, mirror `vite.config.ts` exactly: resolve the same facets by `APP_ENV_NAME` and set the matching globals (`__APP_ENV_NAME__`, `__IS_PUBLIC_FACE__`) before importing the app, so prerender and hydration agree. The inline `local` literal MUST mirror `src/environments.ts`'s `LOCAL`.
-- [ ] T010a In `scripts/build.mjs`, add a build step that resolves `APP_ENV_NAME` against `environments.json` and writes `src/env.generated.ts` (`export const BAKED = { name, isPublicFace, noindex } as const;`) BEFORE the `tsc` server compile, so the server bakes its identity as a build-time constant (env-identity contract "Server-side bake mechanism"). Add `src/env.generated.ts` to `.gitignore`.
-- [ ] T011 In `cloudbuild.yaml`, add `_APP_ENV_NAME` substitution and pass it as the `APP_ENV_NAME` build-arg; pass the resolved `_APP_IS_PUBLIC_FACE` as today. Set runtime env to carry the same name as a pass-through (not a source of truth). Keep prod defaults byte-identical.
+- [X] T008 Add `ARG APP_ENV_NAME` to `Dockerfile` (single env name build-arg) and thread it into the build `RUN` step alongside the existing build-args; keep `APP_IS_PUBLIC_FACE` (now derivable from the resolved facets).
+- [X] T009 In `vite.config.ts`, resolve the env facets from `environments.json` by `APP_ENV_NAME` at build time, and bake the identity: add a `__APP_ENV_NAME__` define (and keep `__IS_PUBLIC_FACE__`, now sourced from the resolved facet). Read the name from env, fall back to `local` when unset.
+- [X] T010 In `scripts/prerender.mjs`, mirror `vite.config.ts` exactly: resolve the same facets by `APP_ENV_NAME` and set the matching globals (`__APP_ENV_NAME__`, `__IS_PUBLIC_FACE__`) before importing the app, so prerender and hydration agree. The inline `local` literal MUST mirror `src/environments.ts`'s `LOCAL`.
+- [X] T010a In `scripts/build.mjs`, add a build step that resolves `APP_ENV_NAME` against `environments.json` and writes `src/env.generated.ts` (`export const BAKED = { name, isPublicFace, noindex } as const;`) BEFORE the `tsc` server compile, so the server bakes its identity as a build-time constant (env-identity contract "Server-side bake mechanism"). Add `src/env.generated.ts` to `.gitignore`.
+- [X] T011 In `cloudbuild.yaml`, add `_APP_ENV_NAME` substitution and pass it as the `APP_ENV_NAME` build-arg; pass the resolved `_APP_IS_PUBLIC_FACE` as today. Set runtime env to carry the same name as a pass-through (not a source of truth). Keep prod defaults byte-identical.
 
 ### Runtime consumers read the baked identity
 
-- [ ] T012 In `src/version.ts`, report `environment` from the BAKED identity (`BAKED.name` from `src/env.generated.ts`), not runtime `APP_ENV`. Fall back to `LOCAL` (from `src/environments.ts`) when the generated module is absent (local dev). `APP_ENV` is at most a pass-through (FR-014, FR-017).
-- [ ] T013 In `src/server.ts`, change the noindex middleware to emit `X-Robots-Tag: noindex` based on the ACTIVE env's `noindex` facet (`BAKED.noindex`, else `LOCAL.noindex`), not `APP_ENV === 'staging'` (FR-015). Keep it OUTSIDE the SPINUP:server-only markers.
+- [X] T012 In `src/version.ts`, report `environment` from the BAKED identity (`BAKED.name` from `src/env.generated.ts`), not runtime `APP_ENV`. Fall back to `LOCAL` (from `src/environments.ts`) when the generated module is absent (local dev). `APP_ENV` is at most a pass-through (FR-014, FR-017).
+- [X] T013 In `src/server.ts`, change the noindex middleware to emit `X-Robots-Tag: noindex` based on the ACTIVE env's `noindex` facet (`BAKED.noindex`, else `LOCAL.noindex`), not `APP_ENV === 'staging'` (FR-015). Keep it OUTSIDE the SPINUP:server-only markers.
 
 ### CI trigger (wildcard + resolve-env)
 
-- [ ] T014 In `.github/workflows/ci-cd.yml.disabled`, change the push trigger to a wildcard with `branches-ignore` for obvious noise (`feature/**`, `dependabot/**`, …) (FR-020). Leave the `pull_request` merge gate unchanged.
-- [ ] T015 In `.github/workflows/ci-cd.yml.disabled`, add a lightweight `resolve-env` first job: shallow checkout, read `environments.json`, look up `GITHUB_REF_NAME`; output whether it is an environment branch. Gate `version-and-tag` (and any deploy) via `needs: resolve-env` + `if:` so a non-environment push short-circuits before `npm ci`/build (FR-021).
-- [ ] T016 Update the `init.mjs` workflow-rewrite header text to describe the manifest model (branch→environment via `environments.json`), WITHOUT touching `environments.json` itself (FR-003) and without any spec citation.
+- [X] T014 In `.github/workflows/ci-cd.yml.disabled`, change the push trigger to a wildcard with `branches-ignore` for obvious noise (`feature/**`, `dependabot/**`, …) (FR-020). Leave the `pull_request` merge gate unchanged.
+- [X] T015 In `.github/workflows/ci-cd.yml.disabled`, add a lightweight `resolve-env` first job: shallow checkout, read `environments.json`, look up `GITHUB_REF_NAME`; output whether it is an environment branch. Gate `version-and-tag` (and any deploy) via `needs: resolve-env` + `if:` so a non-environment push short-circuits before `npm ci`/build (FR-021).
+- [X] T016 Update the `init.mjs` workflow-rewrite header text to describe the manifest model (branch→environment via `environments.json`), WITHOUT touching `environments.json` itself (FR-003) and without any spec citation.
 
 **Checkpoint**: Every consumer reads the manifest; identity is baked; the default manifest reproduces
 today's wiring. User-story verification can now begin.
@@ -83,15 +83,15 @@ staging builds match the equivalence table in contracts/env-identity.md (chip, n
 
 ### Tests for User Story 1
 
-- [ ] T017 [P] [US1] Rewrite `scripts/derive-version.test.sh` to the BEHAVIOR-COMPLETE matrix in contracts/versioning.md: scenarios B1–B13 using stand-in environments (not the literal main/dev enumeration). Include B6 (three envs on one commit share a number) and B11 (unknown branch → hard error). The scenario count MUST NOT scale with environment count (FR-024).
-- [ ] T018 [P] [US1] Update `tests/machinery/chip.test.ts` if needed so the chip assertion is driven by the resolved `isPublicFace` facet path (build-keyed), confirming production hides / staging shows — unchanged behavior, new source.
-- [ ] T019 [P] [US1] Add a Vitest test asserting `src/server.ts` emits `X-Robots-Tag: noindex` for a baked staging identity and NOT for a baked production identity (the facet-driven path).
-- [ ] T020 [P] [US1] Add a Vitest test asserting `/api/version` reports the baked `environment` (production vs staging) from the baked identity.
+- [X] T017 [P] [US1] Rewrite `scripts/derive-version.test.sh` to the BEHAVIOR-COMPLETE matrix in contracts/versioning.md: scenarios B1–B13 using stand-in environments (not the literal main/dev enumeration). Include B6 (three envs on one commit share a number) and B11 (unknown branch → hard error). The scenario count MUST NOT scale with environment count (FR-024).
+- [X] T018 [P] [US1] Update `tests/machinery/chip.test.ts` if needed so the chip assertion is driven by the resolved `isPublicFace` facet path (build-keyed), confirming production hides / staging shows — unchanged behavior, new source.
+- [X] T019 [P] [US1] Add a Vitest test asserting `src/server.ts` emits `X-Robots-Tag: noindex` for a baked staging identity and NOT for a baked production identity (the facet-driven path).
+- [X] T020 [P] [US1] Add a Vitest test asserting `/api/version` reports the baked `environment` (production vs staging) from the baked identity.
 
 ### Implementation / verification for User Story 1
 
-- [ ] T021 [US1] Run `npm run check:all` and `npm run test:release`; fix any regression so both are green with the default manifest (SC-008).
-- [ ] T022 [US1] Build the production-default and staging-style images; verify the contracts/env-identity.md equivalence table (production byte-identical; staging chip+noindex+label). Record the check in quickstart V1 terms.
+- [X] T021 [US1] Run `npm run check:all` and `npm run test:release`; fix any regression so both are green with the default manifest (SC-008).
+- [X] T022 [US1] Build the production-default and staging-style images; verify the contracts/env-identity.md equivalence table (production byte-identical; staging chip+noindex+label). Record the check in quickstart V1 terms.
 
 **Checkpoint**: The default path is proven unchanged. MVP complete — the feature is safe to ship even if no app ever adds an environment.
 

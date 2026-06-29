@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
-# Local proof of scripts/derive-version.sh against the 14-row acceptance matrix.
+# Local proof of scripts/derive-version.sh against a BEHAVIOR-COMPLETE matrix.
+#
+# The matrix is sized by distinct BEHAVIORS of the rule, not by how many environments an app
+# declares. Scenarios use stand-in environments to exercise a behavior; they do NOT enumerate
+# per-environment or per-pair cases. Adding an environment to an app needs NO new scenario here —
+# a new environment runs the identical code path an existing stand-in already covers.
+#
+# Stand-in environments (written into each fixture's environments.json):
+#   P  public face,  suffix ""    on branch main   (a production-like env)
+#   A  non-public,   suffix "-a"  on branch aaa
+#   C  non-public,   suffix "-c"  on branch ccc
 #
 # The derivation can only be exercised for real against git itself, so this builds a throwaway
-# repo (with a local bare "origin" so the script's `git push origin <tag>` succeeds) and runs
-# each scenario, asserting the derived tag. Run: bash scripts/derive-version.test.sh
+# repo (with a local bare "origin" so the script's `git push origin <tag>` succeeds) and runs each
+# scenario, asserting the derived tag. Run: bash scripts/derive-version.test.sh
 set -uo pipefail
 
 SCRIPT="$(cd "$(dirname "$0")" && pwd)/derive-version.sh"
@@ -12,10 +22,21 @@ PKG_MM="${PKG_MM:-0.1}" # the MAJOR.MINOR the fixtures pretend package.json hold
 PASS_F="$(mktemp)"; FAIL_F="$(mktemp)"
 export PASS_F FAIL_F SCRIPT PKG_MM
 
-# Build a fresh repo with a local bare origin. Returns the work tree path on stdout.
-# Force the initial branch to `main` with `-b main`: the fixtures reference `main` directly
-# (e.g. `git rev-parse main`), so without this the suite fails on any host whose
-# init.defaultBranch is `master` (the stock git default — and the GitHub Actions runner's).
+# The default stand-in manifest, written into each fresh repo. Scenarios that need a different
+# manifest (e.g. duplicate suffix) call write_manifest with their own JSON.
+DEFAULT_MANIFEST='{ "environments": [
+  { "name":"P","branch":"main","isPublicFace":true,"noindex":false,"tagSuffix":"" },
+  { "name":"A","branch":"aaa","isPublicFace":false,"noindex":true,"tagSuffix":"-a" },
+  { "name":"C","branch":"ccc","isPublicFace":false,"noindex":true,"tagSuffix":"-c" }
+] }'
+export DEFAULT_MANIFEST
+
+# write_manifest <json> -> overwrite environments.json in the cwd and commit it
+write_manifest() { printf '%s\n' "$1" > environments.json; git add environments.json; git commit -q -m manifest; }
+
+# Build a fresh repo with a local bare origin + the default stand-in manifest. Returns the work
+# tree path on stdout. Force the initial branch to `main` with `-b main` so the fixtures' `main`
+# references work on hosts whose init.defaultBranch is `master` (the GitHub Actions runner's).
 fresh_repo() {
   local root
   root="$(mktemp -d)"
@@ -28,7 +49,8 @@ fresh_repo() {
     git config commit.gpgsign false
     git remote add origin "$root/origin.git"
     printf '{"name":"t","version":"%s.0","private":true}\n' "$PKG_MM" > package.json
-    git add package.json
+    printf '%s\n' "$DEFAULT_MANIFEST" > environments.json
+    git add package.json environments.json
     git commit -q -m "init"
     git push -q origin HEAD:main
   )
@@ -52,102 +74,116 @@ derive() {
 
 # assert <row> <expected> <actual> — counters live in files so subshell results propagate.
 assert() {
-  if [ "$2" = "$3" ]; then echo x >> "$PASS_F"; printf '  ok   %-4s expected %-14s\n' "$1" "$2"
-  else echo x >> "$FAIL_F"; printf '  FAIL %-4s expected %-14s got %s\n' "$1" "$2" "$3"; fi
+  if [ "$2" = "$3" ]; then echo x >> "$PASS_F"; printf '  ok   %-4s expected %-16s\n' "$1" "$2"
+  else echo x >> "$FAIL_F"; printf '  FAIL %-4s expected %-16s got %s\n' "$1" "$2" "$3"; fi
 }
-export -f fresh_repo commit derive assert
+export -f write_manifest fresh_repo commit derive assert
 
-echo "Deriving against package.json MAJOR.MINOR = ${PKG_MM}"
+echo "Deriving against package.json MAJOR.MINOR = ${PKG_MM} (stand-ins P/'' A/-a C/-c)"
 
-# Row 1 — first push ever, no tags, main -> v0.1.0
+# B1 — mint, first ever: push P -> v0.1.0
 W="$(fresh_repo)"; ( cd "$W"; git checkout -q main
-  assert 1 "v${PKG_MM}.0" "$(derive main)" )
+  assert B1 "v${PKG_MM}.0" "$(derive main)" )
 
-# Row 1d — first push ever, no tags, dev -> v0.1.0-dev
-W="$(fresh_repo)"; ( cd "$W"; git checkout -q -b dev
-  assert 1d "v${PKG_MM}.0-dev" "$(derive dev)" )
+# B1' — mint, first ever, non-public: push A -> v0.1.0-a
+W="$(fresh_repo)"; ( cd "$W"; git checkout -q -b aaa
+  assert B1p "v${PKG_MM}.0-a" "$(derive aaa)" )
 
-# Row 2 — v0.1.0 exists, push main again -> v0.1.1 (global-max advance)
+# B2 — mint, global-max advance: v0.1.0 exists, push P on a fresh commit -> v0.1.1
 W="$(fresh_repo)"; ( cd "$W"; git checkout -q main
   git tag -a "v${PKG_MM}.0" -m x; commit
-  assert 2 "v${PKG_MM}.1" "$(derive main)" )
+  assert B2 "v${PKG_MM}.1" "$(derive main)" )
 
-# Row 3 — dev push, v0.1.0 & v0.1.1 exist -> v0.1.2-dev
-W="$(fresh_repo)"; ( cd "$W"; git checkout -q -b dev
-  git tag -a "v${PKG_MM}.0" -m x; git tag -a "v${PKG_MM}.1" -m x; commit
-  assert 3 "v${PKG_MM}.2-dev" "$(derive dev)" )
+# B3 — mint, advance over MIXED suffixes: v0.1.0 and v0.1.1-a exist, push A on a fresh commit
+#   -> v0.1.2-a  (the max is suffix-agnostic)
+W="$(fresh_repo)"; ( cd "$W"; git checkout -q -b aaa
+  git tag -a "v${PKG_MM}.0" -m x; git tag -a "v${PKG_MM}.1-a" -m x; commit
+  assert B3 "v${PKG_MM}.2-a" "$(derive aaa)" )
 
-# Row 4 — dev extends with a new commit (already has v0.1.2-dev) -> next -dev (advance)
-W="$(fresh_repo)"; ( cd "$W"; git checkout -q -b dev
-  git tag -a "v${PKG_MM}.2-dev" -m x; commit   # new dev commit, nothing tagged on it
-  assert 4 "v${PKG_MM}.3-dev" "$(derive dev)" )
-
-# Row 5 — FF promote: main HEAD carries v0.1.2-dev -> reuse -> v0.1.2 (suffix dropped)
+# B4 — reuse, number already on HEAD (promotion): a commit carries v0.1.2-a, push P on it
+#   -> v0.1.2  (suffix dropped, number reused)
 W="$(fresh_repo)"; ( cd "$W"; git checkout -q main
   git tag -a "v${PKG_MM}.0" -m x; git tag -a "v${PKG_MM}.1" -m x
-  commit; git tag -a "v${PKG_MM}.2-dev" -m x   # the promoted dev commit, now main's HEAD
-  assert 5 "v${PKG_MM}.2" "$(derive main)" )
+  commit; git tag -a "v${PKG_MM}.2-a" -m x   # the promoted commit, now main's HEAD
+  assert B4 "v${PKG_MM}.2" "$(derive main)" )
 
-# Row 6 — re-run #5: v0.1.2 now also on HEAD -> FAIL-loud
-W="$(fresh_repo)"; ( cd "$W"; git checkout -q main
-  commit; git tag -a "v${PKG_MM}.2-dev" -m x; git tag -a "v${PKG_MM}.2" -m x
-  assert 6 "FAIL" "$(derive main)" )
+# B5 — reuse, opposite direction (resync): a commit carries v0.1.5 (public), push A on it
+#   -> v0.1.5-a
+W="$(fresh_repo)"; ( cd "$W"; git checkout -q -b aaa
+  commit; git tag -a "v${PKG_MM}.5" -m x   # a public tag sitting on A's HEAD
+  assert B5 "v${PKG_MM}.5-a" "$(derive aaa)" )
 
-# Row 7 — resume direct-to-main after promote: new commit, no -dev on HEAD -> advance (no jam)
+# B6 — reuse, THREE envs on ONE commit share ONE number. A commit carries v0.1.4; push A then C
+#   on that SAME commit -> v0.1.4-a then v0.1.4-c (no second number minted). Proves N-on-a-commit
+#   for any N — there is no B6-for-four-environments.
+W="$(fresh_repo)"; ( cd "$W"; git checkout -q -b aaa
+  commit; git tag -a "v${PKG_MM}.4" -m x   # number already on this commit
+  t_a="$(derive aaa)"
+  git branch -q ccc            # C points at the SAME commit
+  git checkout -q ccc
+  t_c="$(derive ccc)"
+  assert B6a "v${PKG_MM}.4-a" "$t_a"
+  assert B6c "v${PKG_MM}.4-c" "$t_c" )
+
+# B7 — collision guard: the target tag already exists on HEAD; re-derive -> FAIL-loud
 W="$(fresh_repo)"; ( cd "$W"; git checkout -q main
-  commit; git tag -a "v${PKG_MM}.2-dev" -m x; git tag -a "v${PKG_MM}.2" -m x
+  commit; git tag -a "v${PKG_MM}.2-a" -m x; git tag -a "v${PKG_MM}.2" -m x
+  assert B7 "FAIL" "$(derive main)" )
+
+# B8 — resume after promotion (no jam): a commit carries both v0.1.2-a and v0.1.2; push P on a
+#   NEW commit (nothing tagged on it) -> v0.1.3 (advance, no jam)
+W="$(fresh_repo)"; ( cd "$W"; git checkout -q main
+  commit; git tag -a "v${PKG_MM}.2-a" -m x; git tag -a "v${PKG_MM}.2" -m x
   commit   # new direct commit, nothing tagged on it
-  assert 7 "v${PKG_MM}.3" "$(derive main)" )
+  assert B8 "v${PKG_MM}.3" "$(derive main)" )
 
-# Row 8 — resync: dev HEAD carries a PROD tag v0.2.0 -> reuse -> v0.2.0-dev
-#   (use a second minor so it's unambiguous)
-W="$(fresh_repo)"; ( cd "$W"; git checkout -q -b dev
-  commit; git tag -a "v${PKG_MM}.5" -m x   # a prod tag sitting on dev's HEAD (resync)
-  assert 8 "v${PKG_MM}.5-dev" "$(derive dev)" )
-
-# Row 9 — 3 main hotfixes consume numbers, then a dev commit -> dev jumps past them
+# B9 — hotfix gap: several public numbers consumed (v0.1.5..8), push A on a fresh commit
+#   -> v0.1.9-a (skips past the consumed numbers)
 W="$(fresh_repo)"; ( cd "$W"; git checkout -q main
-  git tag -a "v${PKG_MM}.5-dev" -m x; git tag -a "v${PKG_MM}.5" -m x
+  git tag -a "v${PKG_MM}.5-a" -m x; git tag -a "v${PKG_MM}.5" -m x
   git tag -a "v${PKG_MM}.6" -m x; git tag -a "v${PKG_MM}.7" -m x; git tag -a "v${PKG_MM}.8" -m x
-  git checkout -q -b dev; commit
-  assert 9 "v${PKG_MM}.9-dev" "$(derive dev)" )
+  git checkout -q -b aaa; commit
+  assert B9 "v${PKG_MM}.9-a" "$(derive aaa)" )
 
-# Row 10 — truly-diverged branches merged (main and dev each have a unique tagged commit) ->
-#   the --no-ff merge commit carries no tag -> advance to a fresh number for the merged artifact.
-#   Build the divergence from the init commit. The two side commits MUST differ (distinct messages
-#   AND distinct file changes) — two empty commits off the same base with identical metadata can
-#   collapse to one SHA, which would leave the branches un-diverged and the merge a no-op.
+# B10 — diverged merge gets a fresh number. Two diverged tagged commits merged by a 2-parent
+#   untagged merge commit; push P on the merge -> advance to a fresh number. The two side commits
+#   MUST differ (distinct messages AND file changes) or they collapse to one SHA.
 W="$(fresh_repo)"; ( cd "$W"
-  base="$(git rev-parse main)"                    # the init commit (fresh_repo's only commit)
+  base="$(git rev-parse main)"
   git checkout -q -b mainwork "$base"
   echo mainwork > side.txt; git add side.txt; git commit -q -m mainwork-change
   git tag -a "v${PKG_MM}.5" -m x                  # main-side unique commit
   git checkout -q -b devwork "$base"
   echo devwork > side.txt; git add side.txt; git commit -q -m devwork-change
-  git tag -a "v${PKG_MM}.6-dev" -m x              # dev-side unique commit
+  git tag -a "v${PKG_MM}.6-a" -m x                # other-side unique commit
   git checkout -q -B main mainwork
-  git merge -q --no-ff -m merge -X ours devwork   # 2-parent merge commit M, untagged (-X ours: keep main's side.txt)
-  assert 10 "v${PKG_MM}.7" "$(derive main)" )
+  git merge -q --no-ff -m merge -X ours devwork   # 2-parent merge commit, untagged
+  assert B10 "v${PKG_MM}.7" "$(derive main)" )
 
-# Row 11 — shallow clone -> FAIL (simulate by truncating to a shallow checkout)
+# B11 — unknown branch (not in the manifest) -> FAIL-loud, no tag
+W="$(fresh_repo)"; ( cd "$W"; git checkout -q -b feature-x
+  assert B11 "FAIL" "$(derive feature-x)" )
+
+# B12 — shallow refusal: a shallow clone hides tags -> FAIL-loud
 W="$(fresh_repo)"; ( cd "$W"
   commit; commit
-  url="$(git remote get-url origin)"
   sh="$(mktemp -d)/shallow"
-  git clone -q --depth 1 "file://$(cd "$W" && pwd)/.git" "$sh" 2>/dev/null || git clone -q --depth 1 "$W/.git" "$sh"
+  git clone -q --depth 1 "$W/.git" "$sh" 2>/dev/null
   ( cd "$sh"; git checkout -q -B main
     printf '{"name":"t","version":"%s.0","private":true}\n' "$PKG_MM" > package.json
+    printf '%s\n' "$DEFAULT_MANIFEST" > environments.json
     if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
-      assert 11 "FAIL" "$( "$SCRIPT" main >/dev/null 2>&1 && echo unexpected-ok || echo FAIL )"
+      assert B12 "FAIL" "$( "$SCRIPT" main >/dev/null 2>&1 && echo unexpected-ok || echo FAIL )"
     else
-      echo "  skip 11  (clone was not shallow on this git; guard still unit-correct)"
+      echo "  skip B12  (clone was not shallow on this git; guard still unit-correct)"
     fi ) )
 
-# Row 12 — app never creates dev; consecutive main pushes -> v0.1.0, v0.1.1
+# B13 — single-environment app: manifest has only P; consecutive P pushes self-increment
 W="$(fresh_repo)"; ( cd "$W"; git checkout -q main
+  write_manifest '{ "environments": [ { "name":"P","branch":"main","isPublicFace":true,"noindex":false,"tagSuffix":"" } ] }'
   t1="$(derive main)"; commit; t2="$(derive main)"
-  assert 12a "v${PKG_MM}.0" "$t1"
-  assert 12b "v${PKG_MM}.1" "$t2" )
+  assert B13a "v${PKG_MM}.0" "$t1"
+  assert B13b "v${PKG_MM}.1" "$t2" )
 
 echo ""
 P="$(wc -l < "$PASS_F" | tr -d ' ')"; F="$(wc -l < "$FAIL_F" | tr -d ' ')"

@@ -251,7 +251,9 @@ describe('CI/CD is inert until spin-up', () => {
     expect(existsSync(join(repoRoot, '.github/workflows/ci-cd.yml'))).toBe(false);
   });
 
-  it('strips the template’s inherited git tags so the first push mints v0.1.0', () => {
+  // Copies the whole repo incl. node_modules (~150MB), which can exceed the 5s default under
+  // load — give it room so the cpSync isn't a flaky timeout.
+  it('strips the template’s inherited git tags so the first push mints v0.1.0', { timeout: 30000 }, () => {
     const dir = mkdtempSync(join(tmpdir(), 'snackbyte-tags-'));
     cpSync(repoRoot, dir, {
       recursive: true,

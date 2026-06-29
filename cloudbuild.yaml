@@ -12,10 +12,13 @@ substitutions:
   _REPO: cloud-run-source-deploy
   _AR_HOST: us-central1-docker.pkg.dev
   # Per-target knobs (defaults = production). A staging deploy overrides these:
-  #   _SERVICE=<service>-staging  _APP_ENV=staging  _APP_IS_PUBLIC_FACE=false
-  # _APP_ENV is a RUNTIME var (labels the env + drives noindex); _APP_IS_PUBLIC_FACE is a
-  # BUILD-arg (drives the version chip — 'true' = public face, chip hidden). The defaults
-  # leave the prod build/deploy unchanged.
+  #   _SERVICE=<service>-staging  _APP_ENV_NAME=staging  _APP_IS_PUBLIC_FACE=false
+  # _APP_ENV_NAME is the environment NAME; the build resolves its facets from environments.json and
+  # bakes the identity into the frontend bundle AND the compiled server (so /api/version reports it).
+  # _APP_IS_PUBLIC_FACE overrides the version chip directly ('true' = public face, chip hidden).
+  # _APP_ENV is a RUNTIME pass-through of the same name (not a source of truth). The defaults leave
+  # the prod build/deploy unchanged.
+  _APP_ENV_NAME: ''
   _APP_ENV: ''
   _APP_IS_PUBLIC_FACE: 'true'
 
@@ -44,6 +47,7 @@ steps:
         docker build \
           --build-arg=BUILD_GIT_COMMIT=${SHORT_SHA} \
           --build-arg=BUILD_DATE="$$(cat /workspace/build_date.txt)" \
+          --build-arg=APP_ENV_NAME=${_APP_ENV_NAME} \
           --build-arg=APP_IS_PUBLIC_FACE=${_APP_IS_PUBLIC_FACE} \
           --build-arg=APP_VERSION=${TAG_NAME} \
           -t ${_AR_HOST}/${PROJECT_ID}/${_REPO}/${_SERVICE}:${TAG_NAME}-${SHORT_SHA} \

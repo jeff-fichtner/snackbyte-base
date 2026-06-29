@@ -2,6 +2,7 @@ import express, { type Express } from 'express';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { PORT } from './config.js';
+import { BAKED } from './env.generated.js';
 // SPINUP:server-only:start
 import { registerRoutes } from './routes/index.js';
 // SPINUP:server-only:end
@@ -15,12 +16,13 @@ const distDir = resolve(process.cwd(), 'dist');
 export function createApp(): Express {
   const app = express();
 
-  // Staging is publicly reachable (it serves exactly like production) but must not be indexed
-  // by search engines — otherwise the staging host competes with production as duplicate
-  // content. Keyed on APP_ENV, which is set only on the staging deploy, so production emits no
-  // header and stays indexable. Registered before any route/static so it covers every response.
+  // A non-public environment (e.g. staging) is publicly reachable — it serves exactly like
+  // production — but must not be indexed by search engines, or it competes with production as
+  // duplicate content. Keyed on the BAKED environment's `noindex` facet (decided at build from
+  // environments.json), so an environment that opts into noindex emits the header and a public
+  // environment does not. Registered before any route/static so it covers every response.
   app.use((_req, res, next) => {
-    if (process.env.APP_ENV === 'staging') res.set('X-Robots-Tag', 'noindex');
+    if (BAKED.noindex) res.set('X-Robots-Tag', 'noindex');
     next();
   });
 

@@ -13,17 +13,20 @@ COPY . .
 # Now bake the production build. NODE_ENV stays 'production' so the build reads the real
 # version (the version gate keys on it). The version itself is NOT taken from package.json
 # (which holds only MAJOR.MINOR) — it arrives as the APP_VERSION build-arg and is baked into
-# the frontend bundle. The version chip is keyed off APP_IS_PUBLIC_FACE (NOT NODE_ENV): the
-# default 'true' (this build is the public face) hides the chip (production); a non-public-face
-# build (e.g. staging) passes APP_IS_PUBLIC_FACE=false to show it. Commit/date arrive the same
-# way; without --build-arg they fall back to 'unknown'.
-# Set these only for the build step (after deps are installed).
+# the frontend bundle. The environment identity arrives as APP_ENV_NAME (a single build-arg):
+# the build resolves its facets from environments.json and bakes them into the frontend bundle
+# AND the compiled server (so both report the same environment). The version chip is keyed off
+# the resolved isPublicFace (NOT NODE_ENV): a public-face build hides the chip; a non-public-face
+# build (e.g. staging) shows it. An explicit APP_IS_PUBLIC_FACE still overrides the chip directly.
+# With no APP_ENV_NAME the build resolves the 'local' identity. Commit/date arrive the same way;
+# without --build-arg they fall back to 'unknown'. Set these only for the build step.
 ARG BUILD_GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
+ARG APP_ENV_NAME=
 ARG APP_IS_PUBLIC_FACE=true
 ARG APP_VERSION=0.0.0
-RUN CI=true NODE_ENV=production APP_IS_PUBLIC_FACE=${APP_IS_PUBLIC_FACE} APP_VERSION=${APP_VERSION} \
-    BUILD_GIT_COMMIT=${BUILD_GIT_COMMIT} BUILD_DATE=${BUILD_DATE} \
+RUN CI=true NODE_ENV=production APP_ENV_NAME=${APP_ENV_NAME} APP_IS_PUBLIC_FACE=${APP_IS_PUBLIC_FACE} \
+    APP_VERSION=${APP_VERSION} BUILD_GIT_COMMIT=${BUILD_GIT_COMMIT} BUILD_DATE=${BUILD_DATE} \
     npm run build
 
 FROM node:24-slim AS runtime

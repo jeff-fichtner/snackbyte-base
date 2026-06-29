@@ -1,0 +1,19 @@
+{
+  "$comment": "The environments this app deploys. The single source of truth for the release flow: the version derivation, the CI trigger, the build-time identity bake, the noindex header, and the version chip all read this file. Each entry is one environment; production is simply the entry that is the public face. Edit this file by hand to add, remove, or change an environment (then create/push its branch) — nothing else in the reusable release tooling needs to change. Facets are independent: name (the identity reported at /api/version and to app code), branch (the git branch that drives it), isPublicFace (hide dev-only affordances such as the version chip), noindex (emit X-Robots-Tag: noindex), tagSuffix (stamped on this environment's derived git tags). Two entries sharing a tagSuffix is allowed but warned about (it makes their tags indistinguishable); a push to a branch not listed here is rejected by the derivation. Deploy coordinates (Cloud Run service name, host, GCP project) are per-app and live in the deploy job, not here.",
+  "environments": [
+    {
+      "name": "production",
+      "branch": "main",
+      "isPublicFace": true,
+      "noindex": false,
+      "tagSuffix": ""
+    },
+    {
+      "name": "staging",
+      "branch": "dev",
+      "isPublicFace": false,
+      "noindex": true,
+      "tagSuffix": "-dev"
+    }
+  ]
+}

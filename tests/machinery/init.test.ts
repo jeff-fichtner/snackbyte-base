@@ -253,35 +253,39 @@ describe('CI/CD is inert until spin-up', () => {
 
   // Copies the whole repo incl. node_modules (~150MB), which can exceed the 5s default under
   // load — give it room so the cpSync isn't a flaky timeout.
-  it('strips the template’s inherited git tags so the first push mints v0.1.0', { timeout: 30000 }, () => {
-    const dir = mkdtempSync(join(tmpdir(), 'snackbyte-tags-'));
-    cpSync(repoRoot, dir, {
-      recursive: true,
-      filter: (src) =>
-        !src.includes('/node_modules') && !src.includes('/dist') && !/\/\.git(\/|$)/.test(src),
-    });
-    cpSync(join(repoRoot, 'node_modules'), join(dir, 'node_modules'), { recursive: true });
-    const git = (...a: string[]) => execFileSync('git', a, { cwd: dir, stdio: 'ignore' });
-    try {
-      // A clone/fork inherits the template's release tags; reproduce that, then assert init clears
-      // them (a "Create from template" repo has none, which is the no-op path also exercised here).
-      git('init', '-q');
-      git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '--allow-empty', '-qm', 'seed');
-      git('tag', 'v1.2.0');
-      git('tag', 'v1.2.5');
-      expect(execFileSync('git', ['tag', '-l'], { cwd: dir, encoding: 'utf8' }).trim()).not.toBe(
-        '',
-      );
+  it(
+    'strips the template’s inherited git tags so the first push mints v0.1.0',
+    { timeout: 30000 },
+    () => {
+      const dir = mkdtempSync(join(tmpdir(), 'snackbyte-tags-'));
+      cpSync(repoRoot, dir, {
+        recursive: true,
+        filter: (src) =>
+          !src.includes('/node_modules') && !src.includes('/dist') && !/\/\.git(\/|$)/.test(src),
+      });
+      cpSync(join(repoRoot, 'node_modules'), join(dir, 'node_modules'), { recursive: true });
+      const git = (...a: string[]) => execFileSync('git', a, { cwd: dir, stdio: 'ignore' });
+      try {
+        // A clone/fork inherits the template's release tags; reproduce that, then assert init clears
+        // them (a "Create from template" repo has none, which is the no-op path also exercised here).
+        git('init', '-q');
+        git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '--allow-empty', '-qm', 'seed');
+        git('tag', 'v1.2.0');
+        git('tag', 'v1.2.5');
+        expect(execFileSync('git', ['tag', '-l'], { cwd: dir, encoding: 'utf8' }).trim()).not.toBe(
+          '',
+        );
 
-      execFileSync(
-        'node',
-        ['scripts/init.mjs', '--mode=static', '--render=dynamic', '--name=demo'],
-        { cwd: dir, stdio: 'ignore' },
-      );
+        execFileSync(
+          'node',
+          ['scripts/init.mjs', '--mode=static', '--render=dynamic', '--name=demo'],
+          { cwd: dir, stdio: 'ignore' },
+        );
 
-      expect(execFileSync('git', ['tag', '-l'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('');
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
+        expect(execFileSync('git', ['tag', '-l'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('');
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
 });

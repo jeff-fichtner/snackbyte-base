@@ -21,9 +21,7 @@ const buildEnv = resolveBuildEnv();
 const isPublicFace =
   process.env.APP_IS_PUBLIC_FACE != null
     ? process.env.APP_IS_PUBLIC_FACE !== 'false'
-    : process.env.APP_ENV_NAME != null
-      ? buildEnv.isPublicFace
-      : true;
+    : buildEnv.isPublicFace;
 globalThis.__APP_VERSION__ = isBuildServer ? (process.env.APP_VERSION ?? '0.0.0') : '0.0.0-dev';
 globalThis.__GIT_COMMIT__ = process.env.BUILD_GIT_COMMIT ?? 'dev';
 globalThis.__BUILD_DATE__ = process.env.BUILD_DATE ?? 'dev';

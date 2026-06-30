@@ -19,17 +19,17 @@ const distDir = fileURLToPath(new URL('./dist', import.meta.url));
 // The environment identity (name + isPublicFace) is resolved from environments.json by
 // APP_ENV_NAME (the single build-arg the deploy flow sets). Chip visibility is keyed on the
 // resolved isPublicFace, NOT NODE_ENV (the build always runs NODE_ENV=production): a public-face
-// build hides the chip (prod); a non-public-face build (e.g. staging) shows it. An explicit
-// APP_IS_PUBLIC_FACE still wins when set, so a build can override the chip directly.
-// scripts/prerender.mjs MUST read these identically or prerender and hydration disagree.
+// build hides the chip (prod); a non-public-face build (e.g. staging, or local dev's `local`
+// identity) shows it. An explicit APP_IS_PUBLIC_FACE still wins when set, so a build can override
+// the chip directly. The resolved isPublicFace is the single source — it agrees with the server
+// accessor and the baked identity, so frontend and server never disagree. scripts/prerender.mjs
+// MUST read these identically or prerender and hydration disagree.
 const isBuildServer = process.env.CI === 'true';
 const buildEnv = resolveBuildEnv();
 const isPublicFace =
   process.env.APP_IS_PUBLIC_FACE != null
     ? process.env.APP_IS_PUBLIC_FACE !== 'false'
-    : process.env.APP_ENV_NAME != null
-      ? buildEnv.isPublicFace
-      : true; // no env identity and no override (local dev): default to public face (chip hidden)
+    : buildEnv.isPublicFace;
 const versionDefines = {
   'globalThis.__APP_VERSION__': JSON.stringify(
     isBuildServer ? (process.env.APP_VERSION ?? '0.0.0') : '0.0.0-dev',

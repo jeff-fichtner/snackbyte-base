@@ -126,14 +126,14 @@ image reports `qa`/noindex/chip, and `git diff` shows only `environments.json` c
 
 ### Tests for User Story 3
 
-- [ ] T027 [P] [US3] Add a Vitest test for the frontend accessor (`src/web/env.ts`): with a baked `__APP_ENV_NAME__`, `env.name`/`env.isPublicFace`/`env.is()` report it; with nothing baked, they report `local`.
-- [ ] T028 [P] [US3] Add a Vitest test for the server accessor (`src/env.ts`): same assertions from the baked server-side identity, including the `local` fallback.
+- [X] T027 [P] [US3] Add a Vitest test for the frontend accessor (`src/web/env.ts`): with a baked `__APP_ENV_NAME__`, `env.name`/`env.isPublicFace`/`env.is()` report it; with nothing baked, they report `local`.
+- [X] T028 [P] [US3] Add a Vitest test for the server accessor (`src/env.ts`): same assertions from the baked server-side identity, including the `local` fallback.
 
 ### Implementation for User Story 3
 
-- [ ] T029 [P] [US3] Create `src/env.ts` — the server `env` accessor (`name`, `isPublicFace`, `is(name)`) reading `BAKED` from `src/env.generated.ts`, falling back to `LOCAL` from `src/environments.ts` when the generated module is absent (FR-018, FR-019).
-- [ ] T030 [P] [US3] Create `src/web/env.ts` — the frontend `env` accessor reading the inlined `__APP_ENV_NAME__`/`__IS_PUBLIC_FACE__` define tokens, falling back to a `local` literal that mirrors `src/environments.ts`'s `LOCAL`, mirroring `src/env.ts`'s shape.
-- [ ] T031 [US3] Verify server and frontend accessors agree for the same baked image and degrade to `local` together (quickstart V4 / SC-004).
+- [X] T029 [P] [US3] Create `src/env.ts` — the server `env` accessor (`name`, `isPublicFace`, `is(name)`) reading `BAKED` from `src/env.generated.ts`, falling back to `LOCAL` from `src/environments.ts` when the generated module is absent (FR-018, FR-019).
+- [X] T030 [P] [US3] Create `src/web/env.ts` — the frontend `env` accessor reading the inlined `__APP_ENV_NAME__`/`__IS_PUBLIC_FACE__` define tokens, falling back to a `local` literal that mirrors `src/environments.ts`'s `LOCAL`, mirroring `src/env.ts`'s shape.
+- [X] T031 [US3] Verify server and frontend accessors agree for the same baked image and degrade to `local` together (quickstart V4 / SC-004).
 
 **Checkpoint**: App code has a trustworthy, consistent `env` to branch on.
 
@@ -236,3 +236,16 @@ Task: "T014 wildcard trigger in ci-cd.yml.disabled"
 - Keep prod byte-identical at every step; run `check:all` frequently.
 - No shipped file may cite the spec workflow (Principle VIII) — enforced by T035.
 - Commit after each task or logical group.
+
+---
+
+## Phase 8: Convergence
+
+Appended by `/speckit-converge` after the MVP (Phases 1–3, T001–T022) was implemented and committed.
+The assessment confirmed Foundational + US1 are satisfied in code (manifest, suffix-agnostic
+derivation, baked identity, runtime consumers, resolve-env trigger; behavior matrix 15/15; vitest
+35/35; byte-identical equivalence verified). The remaining specified scope (US2 T023–T026, US3
+T027–T031, US4 T032–T034, Polish T035–T039) is already enumerated above and stands as the pending
+work — converge does not duplicate it. The one NEW finding is a contract-vs-implementation drift:
+
+- [ ] T040 Reconcile `contracts/env-identity.md` (and the T010a wording) with the implemented server-bake mechanism per env-identity contract (contradicts). The contract says `src/env.generated.ts` is **gitignored and absent in local dev**; the implementation instead **commits a `local` default stub that the build overwrites** (so the static `import { BAKED }` always resolves and `check:all`/typecheck pass locally without a missing module). The committed-stub approach is the chosen, more robust design — update the contract text (lines ~42–43 and ~129) and the T010a note to describe it (committed `local` stub + `.prettierignore` entry, not `.gitignore`), so the contract matches the code.

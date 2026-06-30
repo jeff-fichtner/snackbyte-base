@@ -39,3 +39,6 @@ coverage/
 # Misc
 .tmp/
 tmp/
+
+# Generated spec HTML views (source of truth is the .md; regenerate with `npm run spec:html`)
+specs/**/*.html

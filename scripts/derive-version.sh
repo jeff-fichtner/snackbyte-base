@@ -9,9 +9,12 @@
 #   - any other environment's suffix                -> tag vMAJOR.MINOR.PATCH<suffix>
 #
 # One rule, every environment (no per-branch special case):
-#   1. If ANY version number is already tagged on THIS exact commit — regardless of which
-#      environment's suffix it bears — reuse that number. This covers a fast-forward promotion
-#      or resync: the commit ends up carrying this environment's suffix for the same number.
+#   1. If ANY version number is already tagged on a commit carrying THIS exact SOURCE TREE —
+#      regardless of which environment's suffix it bears — reuse that number. The reuse key is
+#      the tree (file content), not the commit SHA, so promoting dev -> main reuses the dev
+#      number whether the promotion fast-forwards, makes a merge commit, squashes, or rebases
+#      cleanly (all four leave main's tree identical to dev's). A rebase that also absorbs
+#      divergent main changes produces a DIFFERENT tree, so it correctly mints a new number.
 #   2. Otherwise advance to (highest patch among ALL vMM.* tags) + 1. Taking the max over every
 #      tag (every suffix, every environment) makes two distinct commits sharing a number
 #      impossible. The cost is gaps (a hotfix consumes a number, so another environment's next
@@ -70,8 +73,25 @@ MME="${MM//./\\.}" # regex-escape the dots for anchored matching
 # suffix-agnostic by construction, so it never needs to know which environments exist.
 patch_re="^v${MME}\.([0-9]+)(-[A-Za-z0-9._-]+)?\$"
 
-# Step 1 — reuse: if any number is already tagged on THIS commit (any suffix), take it.
-patch="$(git tag --points-at HEAD | sed -nE "s/${patch_re}/\1/p" | sort -n | tail -1)"
+# Step 1 — reuse: if any number is already tagged on a commit carrying THIS exact source tree
+# (any suffix), take it. The reuse key is the tree hash, not the commit SHA, so a promotion that
+# rewrites the commit but not the content — a merge commit, a squash, or a rebase that stays
+# clean — still reuses the dev number. (A fast-forward is the special case where the SHA is also
+# unchanged.) A rebase that absorbs divergent main changes yields a DIFFERENT tree and correctly
+# mints a new number. We scan every vMM.* tag, resolve each to its tree, and keep the numbers
+# whose tree matches HEAD's; the highest such number wins (matching the old --points-at tie-break).
+HEAD_TREE="$(git rev-parse "HEAD^{tree}")"
+patch="$(
+  git tag -l "v${MM}.*" | while IFS= read -r t; do
+    n="$(printf '%s\n' "$t" | sed -nE "s/${patch_re}/\1/p")"
+    if [ -n "$n" ]; then
+      # A tag may point at a tag object (annotated) or a commit; ^{tree} resolves both to the tree.
+      if [ "$(git rev-parse "${t}^{tree}" 2>/dev/null)" = "$HEAD_TREE" ]; then
+        printf '%s\n' "$n"
+      fi
+    fi
+  done | sort -n | tail -1
+)"
 
 # Step 2 — otherwise advance to the global max patch + 1 (empty set => -1 => 0 => first tag).
 if [ -z "$patch" ]; then

@@ -57,8 +57,12 @@ fresh_repo() {
   echo "$root/work"
 }
 
-# commit [msg] -> new empty-ish commit on current branch
-commit() { git commit -q --allow-empty -m "${1:-c}"; }
+# commit [msg] -> a commit that CHANGES CONTENT (a new tree). Reuse is keyed on the source tree,
+# not the SHA, so an --allow-empty commit would share its parent's tree and be treated as the SAME
+# release (reuse, not advance). Every fixture that means "a new, distinct release" must therefore
+# change a file. We append a unique line to advance.txt; a global counter keeps each tree distinct.
+COMMIT_N=0
+commit() { COMMIT_N=$((COMMIT_N + 1)); printf 'change %s\n' "$COMMIT_N" >> advance.txt; git add advance.txt; git commit -q -m "${1:-c}"; }
 
 # run the derivation for a branch; prints the tag the SCRIPT reports it created (via its
 # GITHUB_OUTPUT `tag=` line — the authoritative answer), or "FAIL" if it exited non-zero.
@@ -146,18 +150,21 @@ W="$(fresh_repo)"; ( cd "$W"; git checkout -q main
   assert B9 "v${PKG_MM}.9-a" "$(derive aaa)" )
 
 # B10 — diverged merge gets a fresh number. Two diverged tagged commits merged by a 2-parent
-#   untagged merge commit; push P on the merge -> advance to a fresh number. The two side commits
-#   MUST differ (distinct messages AND file changes) or they collapse to one SHA.
+#   untagged merge commit; push P on the merge -> advance to a fresh number. Reuse is keyed on the
+#   merge's resulting TREE, so the merge must produce a tree that differs from BOTH tagged sides —
+#   i.e. it must KEEP BOTH sides' changes (the realistic combine-both-branches merge), not discard
+#   one with -X ours (that would reproduce a side's tree byte-for-byte and BE that release). The
+#   two sides touch DIFFERENT files so the merge is clean and the result contains both edits.
 W="$(fresh_repo)"; ( cd "$W"
   base="$(git rev-parse main)"
   git checkout -q -b mainwork "$base"
-  echo mainwork > side.txt; git add side.txt; git commit -q -m mainwork-change
-  git tag -a "v${PKG_MM}.5" -m x                  # main-side unique commit
+  echo mainwork > main-side.txt; git add main-side.txt; git commit -q -m mainwork-change
+  git tag -a "v${PKG_MM}.5" -m x                  # main-side unique commit + tree
   git checkout -q -b devwork "$base"
-  echo devwork > side.txt; git add side.txt; git commit -q -m devwork-change
-  git tag -a "v${PKG_MM}.6-a" -m x                # other-side unique commit
+  echo devwork > dev-side.txt; git add dev-side.txt; git commit -q -m devwork-change
+  git tag -a "v${PKG_MM}.6-a" -m x                # other-side unique commit + tree
   git checkout -q -B main mainwork
-  git merge -q --no-ff -m merge -X ours devwork   # 2-parent merge commit, untagged
+  git merge -q --no-ff -m merge devwork           # 2-parent merge, untagged, KEEPS BOTH edits
   assert B10 "v${PKG_MM}.7" "$(derive main)" )
 
 # B11 — unknown branch (not in the manifest) -> FAIL-loud, no tag
@@ -184,6 +191,34 @@ W="$(fresh_repo)"; ( cd "$W"; git checkout -q main
   t1="$(derive main)"; commit; t2="$(derive main)"
   assert B13a "v${PKG_MM}.0" "$t1"
   assert B13b "v${PKG_MM}.1" "$t2" )
+
+# B14 — promotion across a MERGE COMMIT reuses the number. dev is tagged v0.1.1-a on its own
+#   commit; main is merged --no-ff (a NEW commit, so the -dev/-a tag is NOT on main's HEAD) but the
+#   merge carries dev's exact tree. Reuse is keyed on the tree, so push P on the merge -> v0.1.1
+#   (number reused, suffix dropped), NOT v0.1.2. This is the bug the old --points-at HEAD logic hit:
+#   a merge commit moved HEAD off the tagged commit and the number was wrongly re-minted.
+W="$(fresh_repo)"; ( cd "$W"
+  base="$(git rev-parse main)"
+  git tag -a "v${PKG_MM}.0" -m x                  # v0.1.0 already consumed on base
+  git checkout -q -b aaa "$base"
+  commit devwork                                  # real content change on dev
+  git tag -a "v${PKG_MM}.1-a" -m x                # dev release, on dev's OWN commit
+  git checkout -q -B main "$base"
+  git merge -q --no-ff -m "merge dev" aaa         # NEW merge commit; tree == dev's, SHA != dev's
+  assert B14 "v${PKG_MM}.1" "$(derive main)" )
+
+# B15 — promotion across a SQUASH reuses the number. Same intent as B14 but via `merge --squash`,
+#   which produces a brand-new single commit (no parent link to dev) whose tree equals dev's. Tree
+#   identity still reuses dev's number -> v0.1.1, proving the fix is independent of merge ancestry.
+W="$(fresh_repo)"; ( cd "$W"
+  base="$(git rev-parse main)"
+  git tag -a "v${PKG_MM}.0" -m x
+  git checkout -q -b aaa "$base"
+  commit devwork
+  git tag -a "v${PKG_MM}.1-a" -m x
+  git checkout -q -B main "$base"
+  git merge -q --squash aaa; git commit -q -m "squash dev"   # new commit, no parent link to dev
+  assert B15 "v${PKG_MM}.1" "$(derive main)" )
 
 echo ""
 P="$(wc -l < "$PASS_F" | tr -d ' ')"; F="$(wc -l < "$FAIL_F" | tr -d ' ')"

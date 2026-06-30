@@ -13,6 +13,7 @@
     "build": "node scripts/build.mjs",
     "preview": "vite preview",
     "spec:html": "node scripts/spec-html.mjs",
+    "spec:html:watch": "node scripts/spec-html.mjs --watch",
     "start": "node dist/server/server.js",
     "lint": "eslint .",
     "format": "prettier --config config/.prettierrc.json --ignore-path config/.prettierignore --write \"**/*.{ts,tsx,js,mjs,json,md,html}\"",

@@ -10,9 +10,10 @@
 // Generated .html files are derived artifacts (git-ignored). Run on demand:
 //   npm run spec:html            # render every specs/**/*.md
 //   npm run spec:html -- <path>  # render one file or one directory
+//   npm run spec:html -- --watch # render, then re-render on save (Ctrl-C to stop)
 //   npm run spec:html -- --clean # remove generated .html alongside .md
 
-import { readdir, readFile, writeFile, stat, unlink, access } from 'node:fs/promises';
+import { readdir, readFile, writeFile, stat, unlink, access, watch } from 'node:fs/promises';
 import { join, dirname, relative, basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import MarkdownIt from 'markdown-it';
@@ -312,9 +313,45 @@ async function resolveTargets(arg) {
   return p;
 }
 
+// Watch the target directory and re-render a .md file when it changes.
+// Uses fs/promises watch (recursive) — no extra dependency. Renders are
+// debounced per-file so a burst of save events collapses to one render.
+async function watchAndRender(dir) {
+  console.log(`\nWatching ${relative(REPO_ROOT, dir) || '.'} for changes… (Ctrl-C to stop)`);
+  const timers = new Map();
+  const DEBOUNCE = 120;
+  const watcher = watch(dir, { recursive: true });
+  for await (const event of watcher) {
+    const name = event.filename;
+    if (!name || !name.endsWith('.md')) continue;
+    const full = join(dir, name);
+    clearTimeout(timers.get(full));
+    timers.set(
+      full,
+      setTimeout(async () => {
+        timers.delete(full);
+        try {
+          // file may have been deleted between event and render
+          if (!(await exists(full))) {
+            await unlink(full.replace(/\.md$/, '.html')).catch(() => {});
+            console.log(`  removed view for deleted ${relative(REPO_ROOT, full)}`);
+            return;
+          }
+          const out = await renderFile(full);
+          const t = new Date().toLocaleTimeString();
+          console.log(`  [${t}] ${relative(REPO_ROOT, full)} -> ${relative(REPO_ROOT, out)}`);
+        } catch (err) {
+          console.error(`  error rendering ${relative(REPO_ROOT, full)}: ${err.message}`);
+        }
+      }, DEBOUNCE),
+    );
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const clean = args.includes('--clean');
+  const watchMode = args.includes('--watch');
   const pathArg = args.find((a) => !a.startsWith('--'));
   const target = await resolveTargets(pathArg);
 
@@ -349,18 +386,20 @@ async function main() {
     return;
   }
 
-  if (!files.length) {
-    console.log('No .md files found.');
-    return;
-  }
-
   let n = 0;
   for (const f of files) {
     const out = await renderFile(f);
     console.log(`  ${relative(REPO_ROOT, f)} -> ${relative(REPO_ROOT, out)}`);
     n++;
   }
-  console.log(`\nRendered ${n} file(s) to HTML.`);
+  console.log(n ? `\nRendered ${n} file(s) to HTML.` : 'No .md files found.');
+
+  // --watch keeps the process alive, re-rendering on save. Watch the directory
+  // even when it started empty, so newly-created specs render automatically.
+  if (watchMode) {
+    const watchDir = s.isFile() ? dirname(target) : target;
+    await watchAndRender(watchDir);
+  }
 }
 
 main().catch((err) => {

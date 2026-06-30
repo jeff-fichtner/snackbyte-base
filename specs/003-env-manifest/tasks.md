@@ -106,13 +106,13 @@ image reports `qa`/noindex/chip, and `git diff` shows only `environments.json` c
 
 ### Tests for User Story 2
 
-- [ ] T023 [P] [US2] Confirm the behavior-complete matrix (T017) already covers the N-env behaviors for US2 — B3 (advance over mixed suffixes), B4/B5 (reuse both directions), B6 (three envs share a number), B13 (single-env self-increment). Add a scenario only if a behavior is uncovered; do NOT add a per-environment row (FR-024).
-- [ ] T024 [P] [US2] Add a guard asserting that adding a third environment changed ONLY `environments.json` in the reusable half (SC-002): in the T025 fixture, after the env-addition commit, assert `git diff --name-only` for that commit lists only `environments.json` (the new branch aside) — i.e. `scripts/derive-version.sh`, `.github/workflows/ci-cd.yml*`, `src/server.ts`, `vite.config.ts`, `scripts/prerender.mjs`, and `scripts/build.mjs` are untouched by the env addition. (Shares the T025 fixture; this is the diff assertion, T025 is the behavioral verification.)
+- [X] T023 [P] [US2] Confirm the behavior-complete matrix (T017) already covers the N-env behaviors for US2 — B3 (advance over mixed suffixes), B4/B5 (reuse both directions), B6 (three envs share a number), B13 (single-env self-increment). Add a scenario only if a behavior is uncovered; do NOT add a per-environment row (FR-024).
+- [X] T024 [P] [US2] Add a guard asserting that adding a third environment changed ONLY `environments.json` in the reusable half (SC-002): in the T025 fixture, after the env-addition commit, assert `git diff --name-only` for that commit lists only `environments.json` (the new branch aside) — i.e. `scripts/derive-version.sh`, `.github/workflows/ci-cd.yml*`, `src/server.ts`, `vite.config.ts`, `scripts/prerender.mjs`, and `scripts/build.mjs` are untouched by the env addition. (Shares the T025 fixture; this is the diff assertion, T025 is the behavioral verification.)
 
 ### Implementation / verification for User Story 2
 
-- [ ] T025 [US2] In a throwaway fixture, add a `qa` row (branch `qa`, isPublicFace false, noindex true, tagSuffix `-qa`), push `qa`, and verify: derives `v<MM>.<patch>-qa`; `resolve-env` recognizes `qa`; a build with `APP_ENV_NAME=qa` reports `qa`, serves noindex, shows the chip (quickstart V2/V3).
-- [ ] T026 [US2] Verify a push to a branch NOT in the manifest short-circuits cleanly (no tag, no deploy, no failure) via `resolve-env` (quickstart V5 / SC-005).
+- [X] T025 [US2] In a throwaway fixture, add a `qa` row (branch `qa`, isPublicFace false, noindex true, tagSuffix `-qa`), push `qa`, and verify: derives `v<MM>.<patch>-qa`; `resolve-env` recognizes `qa`; a build with `APP_ENV_NAME=qa` reports `qa`, serves noindex, shows the chip (quickstart V2/V3).
+- [X] T026 [US2] Verify a push to a branch NOT in the manifest short-circuits cleanly (no tag, no deploy, no failure) via `resolve-env` (quickstart V5 / SC-005).
 
 **Checkpoint**: A third environment works with a one-file edit; non-env branches no-op cleanly.
 

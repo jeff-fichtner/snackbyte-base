@@ -188,4 +188,12 @@ W="$(fresh_repo)"; ( cd "$W"; git checkout -q main
 echo ""
 P="$(wc -l < "$PASS_F" | tr -d ' ')"; F="$(wc -l < "$FAIL_F" | tr -d ' ')"
 echo "PASS=${P} FAIL=${F}"
-[ "$F" -eq 0 ]
+
+# Also run the add-an-environment verification (proves adding an env is a one-row edit that the
+# release tooling picks up). Chained here so `npm run test:release` covers both without a second
+# package.json script.
+echo ""
+echo "--- add-env verification ---"
+bash "$(cd "$(dirname "$0")" && pwd)/add-env.test.sh"; addenv=$?
+
+[ "$F" -eq 0 ] && [ "$addenv" -eq 0 ]

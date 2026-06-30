@@ -12,14 +12,24 @@ Placeholders used throughout: `<project>` (GCP project id), `<service>` (Cloud R
 
 ## The model in one paragraph
 
-The **branch selects the environment**: push `main` → production, push `dev` → staging. On
-push, CI (`.github/workflows/ci-cd.yml`) runs the quality gate and, on pass, **derives a
-version tag from the existing git tags and pushes only that tag** — it never commits
-anything. A chained `deploy` job (per-app — see below) authenticates to GCP via **Workload
-Identity Federation** (keyless), runs a Cloud Build (`cloudbuild.yaml`) that builds the
-`Dockerfile` and deploys to Cloud Run. No manual version bump, no commit pushed back to the
-branch, no long-lived secret. A `vX.Y.Z` tag means "passed checks and deployed to prod";
-`vX.Y.Z-dev` means "…to staging."
+The **branch selects the environment**, and the environments are declared in
+**`environments.json`** at the repo root — the single source of truth. The default ships two:
+`main` → production and `dev` → staging. On push, CI (`.github/workflows/ci-cd.yml`) first
+resolves whether the pushed branch is an environment (a `resolve-env` job reads
+`environments.json`); a push to a non-environment branch short-circuits cleanly. For an
+environment branch it runs the quality gate and, on pass, **derives a version tag from the
+existing git tags and pushes only that tag** — it never commits anything. A chained `deploy`
+job (per-app — see below) authenticates to GCP via **Workload Identity Federation** (keyless),
+runs a Cloud Build (`cloudbuild.yaml`) that builds the `Dockerfile` and deploys to Cloud Run.
+No manual version bump, no commit pushed back to the branch, no long-lived secret. A `vX.Y.Z`
+tag means "passed checks and deployed to the public-face (production) environment";
+`vX.Y.Z-dev` means "…to staging." **Adding an environment is a one-row edit to
+`environments.json`** (then create/push its branch) — the derivation, the workflow, the chip,
+the noindex header, and the baked identity all pick it up; only the per-app deploy job needs
+the new environment's service/host wired (see "Adding a staging environment" below). The
+environment an image belongs to is **baked at build time** (immutable, like a serial number),
+so `/api/version` reports the environment the image was built for and the frontend and server
+never disagree.
 
 ## Versioning — derived from tags, never committed
 
@@ -32,13 +42,15 @@ This is the core of the release model; read it before the deploy mechanics.
   is no `chore: release` commit, no `[skip ci]`, no `npm version`. Because nothing is committed
   back, `dev` and `main` never diverge: fast-forward, merge, and PR promotion all work, with no
   resync and no tag collisions.
-- **One symmetric rule, both branches** (`scripts/derive-version.sh`):
-  1. **Reuse** if the opposite-stream tag is on _this exact commit_ (`git tag --points-at HEAD`)
-     — on `dev`, a prod tag; on `main`, a `-dev` tag. This is a fast-forward promotion or
-     resync; the number is reused (suffix added/dropped), so the commit ends up dual-tagged.
-  2. **Otherwise advance** to `max(all vMM.* tags) + 1`. The max is over **every** tag (prod and
-     `-dev`, both branches), so two commits can never share a number — **collisions are
-     structurally impossible**.
+- **One rule, every environment** (`scripts/derive-version.sh`) — the pushed branch is used only
+  as data (its `tagSuffix`, looked up in `environments.json`):
+  1. **Reuse** if _any_ version number is already tagged on _this exact commit_
+     (`git tag --points-at HEAD`), regardless of which environment's suffix it bears. This is a
+     fast-forward promotion or resync; the number is reused and stamped with this environment's
+     suffix, so the commit ends up carrying both.
+  2. **Otherwise advance** to `max(all vMM.* tags) + 1`. The max is over **every** tag (every
+     suffix, every environment), so two distinct commits can never share a number — **collisions
+     are structurally impossible**, for any number of environments.
 - **Accepted trade-offs** (both intentional): the patch is **not in the repo** (only in tags +
   the built image + `/api/version`); and prod patch numbers **have gaps** — a number consumed on
   one branch (a `main` hotfix) raises the next mint on the other, so `dev` skips ahead. The patch
@@ -88,17 +100,22 @@ new commit → new tag; the orphaned tag harmlessly becomes a build id with no d
 
 ## The CI workflow (`.github/workflows/ci-cd.yml`)
 
-One workflow, triggered on push + PR to both `main` and `dev`:
+One workflow, triggered on any push (except obvious non-environment branch patterns) + PR:
 
-1. `validate (merge gate)` (PRs only): runs `npm run check:all`. A PR can't merge until it passes
+1. `resolve environment` (push only): reads `environments.json` and outputs whether the pushed
+   branch is an environment. A push to a non-environment branch short-circuits here — the
+   downstream jobs are gated on it, so nothing is built, tagged, or deployed.
+2. `validate (merge gate)` (PRs only): runs `npm run check:all`. A PR can't merge until it passes
    — but **only if branch protection requires it** (see below); the workflow can run a check, it
    can't _enforce_ the merge.
-2. `version-and-tag` (push only): re-runs `npm run check:all` (the authoritative gate) plus
-   `npm run test:release` (proves the derivation itself), then derives + pushes the tag.
-3. `deploy` (push, `needs: version-and-tag`): **per-app** — it names your GCP project, service
-   account, and WIF provider, and selects the target from the branch (`dev` → `<service>-staging`
-   - `APP_ENV=staging`; `main` → `<service>` + no `APP_ENV`). The template ships `validate` +
-     `version-and-tag`; add `deploy` from the snippet in the infra runbook below.
+3. `version-and-tag` (push to an environment branch): re-runs `npm run check:all` (the
+   authoritative gate) plus `npm run test:release` (proves the derivation itself), then derives +
+   pushes the tag.
+4. `deploy` (push, `needs: version-and-tag`): **per-app** — it names your GCP project, service
+   account, and WIF provider, and resolves the target from `environments.json` by the branch (the
+   environment name + `isPublicFace`; the service name is mapped per-app). The template ships
+   `resolve-env` + `validate` + `version-and-tag`; add `deploy` from the snippet in the infra
+   runbook below.
 
 The tag is pushed with the default `GITHUB_TOKEN` (`permissions: contents: write`). A
 `GITHUB_TOKEN`-pushed tag does **not** trigger another workflow (GitHub's recursion guard), which
@@ -342,9 +359,11 @@ one hand-assembly step, so don't change these four load-bearing lines (the **att
    deploy, no silent success).
 3. **`ref: ${{ needs.version-and-tag.outputs.tag }}`** — check out the _tagged_ commit, so the
    build is exactly what was versioned (not whatever `HEAD` drifted to).
-4. **the `--substitutions` set** — `TAG_NAME` / `_SERVICE` / `_APP_ENV` / `_APP_IS_PUBLIC_FACE` are
-   what `cloudbuild.yaml` reads; the `Select environment from branch` step derives them from
-   `github.ref_name` (`dev` → `-staging` + `APP_ENV=staging` + chip on; `main` → prod defaults).
+4. **the `--substitutions` set** — `TAG_NAME` / `_SERVICE` / `_APP_ENV_NAME` / `_APP_IS_PUBLIC_FACE`
+   are what `cloudbuild.yaml` reads; the `Resolve environment from manifest` step reads
+   `environments.json` by `github.ref_name` to get the environment **name** and its `isPublicFace`
+   facet (the build resolves the rest from the manifest by that name). The **service name** is the
+   one per-app bit the manifest does not carry — map it from the environment name here.
 
 ```yaml
 deploy:
@@ -361,18 +380,19 @@ deploy:
   steps:
     - uses: actions/checkout@v6
       with: { ref: '${{ needs.version-and-tag.outputs.tag }}', fetch-depth: 0 }
-    - name: Select environment from branch
+    - name: Resolve environment from manifest
       id: target
       run: |
-        if [ "${GITHUB_REF_NAME}" = "dev" ]; then
-          echo "service=<service>-staging" >> "$GITHUB_OUTPUT"
-          echo "app_env=staging" >> "$GITHUB_OUTPUT"
-          echo "is_public_face=false" >> "$GITHUB_OUTPUT"
-        else
-          echo "service=<service>" >> "$GITHUB_OUTPUT"
-          echo "app_env=" >> "$GITHUB_OUTPUT"
-          echo "is_public_face=true" >> "$GITHUB_OUTPUT"
-        fi
+        # The environment NAME + isPublicFace come from environments.json (the source of truth).
+        # The service name is the one per-app bit the manifest doesn't carry — map it here (here:
+        # the public-face env deploys to <service>, others to <service>-<name>).
+        ENV_NAME="$(node -p "(require('./environments.json').environments.find(e => e.branch === process.env.GITHUB_REF_NAME) || {}).name || ''")"
+        IS_PF="$(node -p "String((require('./environments.json').environments.find(e => e.branch === process.env.GITHUB_REF_NAME) || {}).isPublicFace === true)")"
+        if [ -z "$ENV_NAME" ]; then echo "Branch is not an environment — should not reach deploy." >&2; exit 1; fi
+        if [ "$IS_PF" = "true" ]; then echo "service=<service>" >> "$GITHUB_OUTPUT"
+        else echo "service=<service>-${ENV_NAME}" >> "$GITHUB_OUTPUT"; fi
+        echo "app_env_name=${ENV_NAME}" >> "$GITHUB_OUTPUT"
+        echo "is_public_face=${IS_PF}" >> "$GITHUB_OUTPUT"
     - uses: google-github-actions/auth@v2
       with:
         {
@@ -386,21 +406,23 @@ deploy:
         SHORT_SHA="$(git rev-parse --short HEAD)"
         gcloud builds submit \
           --config=cloudbuild.yaml \
-          --substitutions="TAG_NAME=${TAG},SHORT_SHA=${SHORT_SHA},_SERVICE=${{ steps.target.outputs.service }},_APP_ENV=${{ steps.target.outputs.app_env }},_APP_IS_PUBLIC_FACE=${{ steps.target.outputs.is_public_face }}" \
+          --substitutions="TAG_NAME=${TAG},SHORT_SHA=${SHORT_SHA},_SERVICE=${{ steps.target.outputs.service }},_APP_ENV_NAME=${{ steps.target.outputs.app_env_name }},_APP_IS_PUBLIC_FACE=${{ steps.target.outputs.is_public_face }}" \
           --service-account="projects/${PROJECT_ID}/serviceAccounts/${DEPLOY_SA}" \
           --default-buckets-behavior=REGIONAL_USER_OWNED_BUCKET \
           --project="$PROJECT_ID" --region="$REGION" .
 ```
 
 `cloudbuild.yaml` (shipped) stamps a UTC build date, builds the `Dockerfile` forwarding
-`APP_VERSION` / `APP_IS_PUBLIC_FACE` / `BUILD_GIT_COMMIT` / `BUILD_DATE` as build-args, tags the
+`APP_VERSION` / `APP_ENV_NAME` / `APP_IS_PUBLIC_FACE` / `BUILD_GIT_COMMIT` / `BUILD_DATE` as
+build-args (the build resolves the environment's facets from `environments.json` by
+`APP_ENV_NAME` and bakes the identity into the frontend bundle AND the compiled server), tags the
 image `<service>:<TAG>-<sha>`, pushes to Artifact Registry, and `gcloud run deploy`s with
 `--ingress=internal-and-cloud-load-balancing` (locks the service to the LB on every deploy) and
-runtime env (`NODE_ENV=production`, `APP_VERSION`, commit/date, and `APP_ENV` **only when
-non-empty** so prod is never given a stray `APP_ENV=`). It does **not** grant the `allUsers`
-invoker — that's the one-time manual step (§4). Its per-target knobs (`_SERVICE`, `_APP_ENV`,
-`_APP_IS_PUBLIC_FACE`) default to production, so the prod path is byte-identical to a non-staging
-app.
+runtime env (`NODE_ENV=production`, `APP_VERSION`, commit/date). The environment identity is
+**baked at build time**, not a runtime label — a runtime `APP_ENV` is at most a pass-through of the
+same name, never the source of truth. It does **not** grant the `allUsers` invoker — that's the
+one-time manual step (§4). Its per-target knobs (`_SERVICE`, `_APP_ENV_NAME`, `_APP_IS_PUBLIC_FACE`)
+default to production, so the prod path is byte-identical to a non-staging app.
 
 Non-obvious build flags, each learned the hard way:
 
@@ -461,8 +483,9 @@ Per app, in addition to its production wiring:
 
 1. **Cloud Run** — deploy a second service `<service>-staging`. Lock ingress to
    `internal-and-cloud-load-balancing` **and** bind `allUsers run.invoker` (§4 — both, or the LB
-   403s). The `deploy` job sets `APP_ENV=staging` + `APP_IS_PUBLIC_FACE=false` for it (label +
-   chip); `NODE_ENV` stays `production` so the real version is read.
+   403s). The `deploy` job passes `APP_ENV_NAME=staging` (the build resolves `isPublicFace:false`
+   - `noindex:true` from `environments.json` and bakes them — chip shown, no-index); `NODE_ENV`
+     stays `production` so the real version is read.
 2. **Load balancer** — add a serverless NEG → backend for `<service>-staging`, a host-rule for
    `<app>.snackbyte.dev` on the existing URL map. (The flagship is typically the url-map's
    _default_ service; sibling apps are explicit host-rules.)
@@ -472,13 +495,16 @@ Per app, in addition to its production wiring:
 
 ### What the app reports
 
-`/api/version` returns `environment` from `APP_ENV` (falling back to `NODE_ENV`). Staging keeps
-`NODE_ENV=production` and sets `APP_ENV=staging`, so it reports `environment: "staging"` **with the
-real version number**. (Labeling via `NODE_ENV` instead would flip the build's version gate off and
-make `/api/version` report `0.0.0-dev` — don't.) Staging also serves an `X-Robots-Tag: noindex`
-header so it isn't search-indexed; production emits no such header. The **version chip** is shown on
-staging and hidden on production — driven by the `APP_IS_PUBLIC_FACE` build-arg (default `true` =
-public face = chip hidden), not a runtime value.
+`/api/version` returns `environment` from the **baked identity** — the environment the image was
+built for, decided at build from `environments.json` by `APP_ENV_NAME` and inlined into the compiled
+server (and the frontend bundle, so they never disagree). A staging build bakes
+`environment: "staging"` with the **real version number** (`NODE_ENV` stays `production`, so the
+build's version gate is unaffected). Staging also serves an `X-Robots-Tag: noindex` header (from its
+baked `noindex` facet) so it isn't search-indexed; production (facet `noindex:false`) emits no such
+header. The **version chip** is shown on staging and hidden on production — driven by the baked
+`isPublicFace` facet (production's `true` = public face = chip hidden). App code can branch on the
+current environment via the typed `env` accessor (`env.name`, `env.is('staging')`), the same value on
+server and frontend.
 
 ### Promotion & rollback
 
@@ -488,6 +514,70 @@ public face = chip hidden), not a runtime value.
 - **Roll back** either environment without a rebuild: each Cloud Run service keeps its revision
   history. `gcloud run services update-traffic <service|service-staging> --to-revisions=<prev>=100`
   flips back. The `vX.Y.Z[-dev]` tags map a number → its image for finding the revision to pin.
+
+---
+
+## Upgrading an app initialized before the environment manifest
+
+If your app was spun up before `environments.json` existed, it has the older hard-coded
+`main → production` / `dev → staging` wiring. The new model is the same behavior expressed as a
+manifest the tooling reads, so the default path stays byte-identical — the upgrade just introduces
+the manifest and rewires the few places that hard-coded the two streams. **Re-spinning from the
+current template is the simplest path**; if your app is mid-flight, apply these edits by hand. No
+automated upgrade script is provided.
+
+1. **Add `environments.json` at the repo root**, seeded with your current two environments:
+
+   ```json
+   {
+     "environments": [
+       {
+         "name": "production",
+         "branch": "main",
+         "isPublicFace": true,
+         "noindex": false,
+         "tagSuffix": ""
+       },
+       {
+         "name": "staging",
+         "branch": "dev",
+         "isPublicFace": false,
+         "noindex": true,
+         "tagSuffix": "-dev"
+       }
+     ]
+   }
+   ```
+
+2. **Add the shared reader `src/environments.ts`** (typed manifest reader + the `LOCAL` constant)
+   and **`scripts/resolve-env.mjs`** (the build-side facet resolver), and a committed default
+   **`src/env.generated.ts`** holding the `local` identity (the build overwrites it; add it to
+   `.prettierignore`, not `.gitignore`, so the static import always resolves). Copy these from the
+   current template verbatim.
+
+3. **Version derivation (`scripts/derive-version.sh`)** — replace the branch-specific reuse
+   (`if [ "$BRANCH" = "dev" ] … else …`) with a **suffix-agnostic** reuse (reuse any number tagged
+   on HEAD, else global-max + 1) and look the branch's `tagSuffix` up in `environments.json`; reject
+   a branch that is not in the manifest. Copy the current template's script.
+
+4. **Build identity** — thread a single `APP_ENV_NAME` build-arg through `Dockerfile`,
+   `vite.config.ts`, and `scripts/prerender.mjs` (resolve facets from the manifest, bake
+   `__APP_ENV_NAME__` + `__IS_PUBLIC_FACE__`); add the build step in `scripts/build.mjs` that writes
+   `src/env.generated.ts` before the server compile.
+
+5. **Runtime consumers** — `src/server.ts` noindex middleware reads the baked `noindex` facet (not
+   `APP_ENV === 'staging'`); `src/version.ts` reports `environment` from the baked identity. Add the
+   typed accessors `src/env.ts` and `src/web/env.ts`.
+
+6. **CI trigger (`.github/workflows/ci-cd.yml`)** — change the `push` trigger to a wildcard with
+   `branches-ignore` for noise, and add the `resolve-env` first job that reads the manifest and
+   short-circuits non-environment branches; gate `version-and-tag` on it.
+
+7. **The `deploy` job** — replace the hard-coded branch→env step with the manifest-driven
+   `Resolve environment from manifest` step (above), passing `_APP_ENV_NAME` to `cloudbuild.yaml`.
+
+After these edits, `npm run check:all` and `npm run test:release` should pass and the default
+two-environment behavior is unchanged — you can then add a third environment with a one-row edit.
 
 ---
 

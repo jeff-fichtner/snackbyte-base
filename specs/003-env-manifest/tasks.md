@@ -55,7 +55,7 @@ core of the feature and BLOCKS verification of all user stories.
 - [X] T008 Add `ARG APP_ENV_NAME` to `Dockerfile` (single env name build-arg) and thread it into the build `RUN` step alongside the existing build-args; keep `APP_IS_PUBLIC_FACE` (now derivable from the resolved facets).
 - [X] T009 In `vite.config.ts`, resolve the env facets from `environments.json` by `APP_ENV_NAME` at build time, and bake the identity: add a `__APP_ENV_NAME__` define (and keep `__IS_PUBLIC_FACE__`, now sourced from the resolved facet). Read the name from env, fall back to `local` when unset.
 - [X] T010 In `scripts/prerender.mjs`, mirror `vite.config.ts` exactly: resolve the same facets by `APP_ENV_NAME` and set the matching globals (`__APP_ENV_NAME__`, `__IS_PUBLIC_FACE__`) before importing the app, so prerender and hydration agree. The inline `local` literal MUST mirror `src/environments.ts`'s `LOCAL`.
-- [X] T010a In `scripts/build.mjs`, add a build step that resolves `APP_ENV_NAME` against `environments.json` and writes `src/env.generated.ts` (`export const BAKED = { name, isPublicFace, noindex } as const;`) BEFORE the `tsc` server compile, so the server bakes its identity as a build-time constant (env-identity contract "Server-side bake mechanism"). Add `src/env.generated.ts` to `.gitignore`.
+- [X] T010a In `scripts/build.mjs`, add a build step that resolves `APP_ENV_NAME` against `environments.json` and writes `src/env.generated.ts` (`export const BAKED = { name, isPublicFace, noindex } as const;`) BEFORE the `tsc` server compile, so the server bakes its identity as a build-time constant (env-identity contract "Server-side bake mechanism"). The file is COMMITTED with a default `local` identity (so the static import always resolves and check:all passes locally) and OVERWRITTEN by the build; add it to `.prettierignore` (not `.gitignore`), since its content varies per build target. [reconciled by T040]
 - [X] T011 In `cloudbuild.yaml`, add `_APP_ENV_NAME` substitution and pass it as the `APP_ENV_NAME` build-arg; pass the resolved `_APP_IS_PUBLIC_FACE` as today. Set runtime env to carry the same name as a pass-through (not a source of truth). Keep prod defaults byte-identical.
 
 ### Runtime consumers read the baked identity
@@ -147,9 +147,9 @@ image reports `qa`/noindex/chip, and `git diff` shows only `environments.json` c
 
 ### Implementation for User Story 4
 
-- [ ] T032 [US4] Rewrite the relevant `DEPLOY.md` sections to document the manifest model: `environments.json`, the suffix-agnostic derivation, the build→baked-identity flow (env-identity contract), the wildcard+`resolve-env` trigger, and that deploy service/host stay per-app (not in the manifest).
-- [ ] T033 [US4] Add a `DEPLOY.md` "Upgrading an app initialized before the environment manifest" section: exact copy-pasteable diffs to (a) add `environments.json` seeded with the app's current two environments, and rewire (b) `derive-version.sh` reuse, (c) `server.ts` noindex, (d) the workflow trigger + `resolve-env`, plus the build-arg change. No automated script (FR-022). No spec citations (FR-023).
-- [ ] T034 [US4] Dry-run the documented upgrade against a pre-feature layout (or a mental/fixture walkthrough) and confirm the result's default path matches US1 (quickstart V6 / SC-007).
+- [X] T032 [US4] Rewrite the relevant `DEPLOY.md` sections to document the manifest model: `environments.json`, the suffix-agnostic derivation, the build→baked-identity flow (env-identity contract), the wildcard+`resolve-env` trigger, and that deploy service/host stay per-app (not in the manifest).
+- [X] T033 [US4] Add a `DEPLOY.md` "Upgrading an app initialized before the environment manifest" section: exact copy-pasteable diffs to (a) add `environments.json` seeded with the app's current two environments, and rewire (b) `derive-version.sh` reuse, (c) `server.ts` noindex, (d) the workflow trigger + `resolve-env`, plus the build-arg change. No automated script (FR-022). No spec citations (FR-023).
+- [X] T034 [US4] Dry-run the documented upgrade against a pre-feature layout (or a mental/fixture walkthrough) and confirm the result's default path matches US1 (quickstart V6 / SC-007).
 
 **Checkpoint**: In-flight apps have a real, documented path.
 
@@ -159,11 +159,11 @@ image reports `qa`/noindex/chip, and `git diff` shows only `environments.json` c
 
 **Purpose**: Consistency, hygiene, and final validation across the feature.
 
-- [ ] T035 [P] Run the Principle-VIII grep (quickstart V8): no shipped file (`environments.json`, scripts, configs, `DEPLOY.md`) references the spec workflow, FRs, or spec numbers. Fix any leak.
-- [ ] T036 [P] Confirm the derivation scenario count did not grow per-environment (SC-006 / quickstart V7) — the matrix is behavior-sized.
-- [ ] T037 Final `npm run check:all` + `npm run test:release` green on a clean tree (SC-008).
-- [ ] T038 Verify the SPINUP mode-axis markers are untouched and the static/server + prerender axes still resolve correctly (environments are not a mode axis).
-- [ ] T039 Fresh-app spin-up smoke: spin a new app from the template, confirm `environments.json` ships final/identical and `init.mjs` did not touch it (FR-003), and the default dev server + build work (Principle II).
+- [X] T035 [P] Run the Principle-VIII grep (quickstart V8): no shipped file (`environments.json`, scripts, configs, `DEPLOY.md`) references the spec workflow, FRs, or spec numbers. Fix any leak.
+- [X] T036 [P] Confirm the derivation scenario count did not grow per-environment (SC-006 / quickstart V7) — the matrix is behavior-sized.
+- [X] T037 Final `npm run check:all` + `npm run test:release` green on a clean tree (SC-008).
+- [X] T038 Verify the SPINUP mode-axis markers are untouched and the static/server + prerender axes still resolve correctly (environments are not a mode axis).
+- [X] T039 Fresh-app spin-up smoke: spin a new app from the template, confirm `environments.json` ships final/identical and `init.mjs` did not touch it (FR-003), and the default dev server + build work (Principle II).
 
 ---
 
@@ -248,4 +248,4 @@ derivation, baked identity, runtime consumers, resolve-env trigger; behavior mat
 T027–T031, US4 T032–T034, Polish T035–T039) is already enumerated above and stands as the pending
 work — converge does not duplicate it. The one NEW finding is a contract-vs-implementation drift:
 
-- [ ] T040 Reconcile `contracts/env-identity.md` (and the T010a wording) with the implemented server-bake mechanism per env-identity contract (contradicts). The contract says `src/env.generated.ts` is **gitignored and absent in local dev**; the implementation instead **commits a `local` default stub that the build overwrites** (so the static `import { BAKED }` always resolves and `check:all`/typecheck pass locally without a missing module). The committed-stub approach is the chosen, more robust design — update the contract text (lines ~42–43 and ~129) and the T010a note to describe it (committed `local` stub + `.prettierignore` entry, not `.gitignore`), so the contract matches the code.
+- [X] T040 Reconcile `contracts/env-identity.md` (and the T010a wording) with the implemented server-bake mechanism per env-identity contract (contradicts). The contract says `src/env.generated.ts` is **gitignored and absent in local dev**; the implementation instead **commits a `local` default stub that the build overwrites** (so the static `import { BAKED }` always resolves and `check:all`/typecheck pass locally without a missing module). The committed-stub approach is the chosen, more robust design — update the contract text (lines ~42–43 and ~129) and the T010a note to describe it (committed `local` stub + `.prettierignore` entry, not `.gitignore`), so the contract matches the code.

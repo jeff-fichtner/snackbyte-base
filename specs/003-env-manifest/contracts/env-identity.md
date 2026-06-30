@@ -38,10 +38,12 @@ differently — but both resolve from the **same** `APP_ENV_NAME` lookup, so the
   `environments.json` and **writes a generated module** `src/env.generated.ts` (e.g.
   `export const BAKED = { name: 'staging', isPublicFace: false, noindex: true } as const;`) as a build
   step, before `tsc` compiles the server. The compiled server imports `BAKED` — a true build-time
-  constant in the artifact, not a `process.env` read. `src/env.ts` and `src/version.ts` read `BAKED`,
-  falling back to the `local` constant when the generated module is absent (local `npm run dev`, where
-  the build step never ran). The generated file is gitignored and produced by the build, mirroring how
-  the frontend define is produced from the same env name.
+  constant in the artifact, not a `process.env` read. `src/env.ts` and `src/version.ts` read `BAKED`.
+  The file is **committed with a default `local` identity** (not gitignored) so the static
+  `import { BAKED }` always resolves and `tsc`/`check:all` pass locally without a missing module; the
+  build **overwrites** it with the real baked identity. It is listed in `.prettierignore` (its content
+  varies per build target, so it is not format-gated). With no build (local `npm run dev`), the
+  committed `local` default stands in, mirroring how the frontend define falls back to `local`.
 
   *Boundary note*: only the **environment identity** (name + facets) is build-time-baked on the server.
   The version *number*, commit, and date remain runtime env vars (`APP_VERSION`/`BUILD_GIT_COMMIT`/
@@ -126,7 +128,9 @@ The production column MUST be byte-identical to the pre-feature production build
   frontend identity; mirror each other (incl. the inline `local` literal mirroring `LOCAL`).
 - A build step (in `scripts/build.mjs`) — resolves `APP_ENV_NAME` against the manifest and writes
   `src/env.generated.ts` (`export const BAKED = {...}`) before `tsc` compiles the server. The file is
-  gitignored and absent in local dev (triggering the `local` fallback).
+  committed with a default `local` identity (so the static import always resolves) and overwritten by
+  the build; it is in `.prettierignore` (content varies per build). Local dev keeps the `local`
+  default.
 - `src/environments.ts` — the shared typed manifest reader + the `LOCAL` constant (the one source).
 - `src/env.ts` / `src/web/env.ts` — the server and frontend accessors. Server reads `BAKED` (or
   `LOCAL`); frontend reads the define token (or the mirrored `local` literal).

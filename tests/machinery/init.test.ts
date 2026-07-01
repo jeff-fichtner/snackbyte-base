@@ -243,12 +243,18 @@ describe('init requires --name', () => {
   });
 });
 
-describe('CI/CD is inert until spin-up', () => {
-  // The un-resolved template must not run CI or derive a version tag on a push: it ships the
-  // workflow as ci-cd.yml.disabled (GitHub only discovers *.yml/*.yaml). init flips that on.
-  it('ships the workflow disabled in the template source (no live *.yml workflow)', () => {
-    expect(existsSync(join(repoRoot, '.github/workflows/ci-cd.yml.disabled'))).toBe(true);
-    expect(existsSync(join(repoRoot, '.github/workflows/ci-cd.yml'))).toBe(false);
+describe('CI/CD is active in the template repo', () => {
+  // The snackbyte-base repo runs its own CI: it ships the workflow live as ci-cd.yml (no
+  // .disabled). It validates, versions, and tags itself — but ships NO deploy job (deploy is
+  // per-app, copied in from DEPLOY.md at wire-up time).
+  it('ships the workflow active in the template source (live *.yml, no .disabled)', () => {
+    expect(existsSync(join(repoRoot, '.github/workflows/ci-cd.yml'))).toBe(true);
+    expect(existsSync(join(repoRoot, '.github/workflows/ci-cd.yml.disabled'))).toBe(false);
+    const workflow = readFileSync(join(repoRoot, '.github/workflows/ci-cd.yml'), 'utf8');
+    expect(workflow).toContain('name: ci-cd');
+    // no deploy job / deploy provider wiring in the template's own workflow
+    expect(workflow).not.toMatch(/^\s*deploy:/m);
+    expect(workflow).not.toMatch(/gcloud|run\.googleapis|workload_identity/i);
   });
 
   // Copies the whole repo incl. node_modules (~150MB), which can exceed the 5s default under

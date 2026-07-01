@@ -1,11 +1,13 @@
-# DISABLED IN THE TEMPLATE — this file is `ci-cd.yml.disabled`, NOT `.yml`, on purpose.
-# GitHub Actions only discovers `*.yml`/`*.yaml` under `.github/workflows/`, so while it carries
-# the `.disabled` extension GitHub never sees a workflow at all. That is deliberate: an un-resolved
-# template must NOT run CI or derive a version tag on its first push (it isn't an app yet, and the
-# tag would be wrong). The spin-up resolver (scripts/init.mjs) renames this file to `ci-cd.yml`,
-# which is the moment CI becomes live for the app. Do not rename it by hand to "turn CI on" before
-# spin-up — run the resolver. (The template repo itself therefore runs no CI; it is validated by
-# `npm run check:all` + `npm run test:release` run locally.)
+# ACTIVE IN THIS TEMPLATE REPO. Historically this file shipped inert as `ci-cd.yml.disabled` so an
+# un-resolved template would not run CI or derive a version tag on a push. That is no longer the
+# case for snackbyte-base itself: the template repo now runs its own CI and tags its own releases
+# (that is why `v1.x` tags exist on it). It still ships NO deploy job — this repo validates, versions,
+# and tags, but deploys nowhere. A `deploy` job is per-app and is copied in at wire-up time (DEPLOY.md).
+#
+# For apps spun up from this template, the spin-up resolver (scripts/init.mjs) keeps handling the
+# workflow: it de-templates this header (the app gets an app-appropriate one) and, on any repo where
+# the file is still `ci-cd.yml.disabled`, renames it to `ci-cd.yml`. Since this template file is
+# already `ci-cd.yml`, the resolver's rename is a no-op and only the header rewrite applies.
 #
 # Validate, version, and tag — the pushed branch selects the environment (via environments.json).
 #
@@ -27,9 +29,10 @@
 # tag is created only if it passes. A failing push-side gate blocks the tag, and the deploy that
 # depends on it is skipped.
 #
-# This template ships `resolve-env` + `validate` + `version-and-tag`. The `deploy` job is per-app
-# (it names a GCP project, service account, and Workload Identity provider) — copy it in from
-# DEPLOY.md when you wire the app to its environment.
+# This workflow ships `resolve-env` + `validate` + `version-and-tag` and DELIBERATELY has no
+# `deploy` job — neither here in the template nor by default in a spun-up app. The `deploy` job is
+# per-app (it names a GCP project, service account, and Workload Identity provider) — copy it in
+# from DEPLOY.md when you wire an app to its environment. Nothing in this file deploys anywhere.
 
 name: ci-cd
 

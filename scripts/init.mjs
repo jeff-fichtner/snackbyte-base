@@ -116,12 +116,14 @@ if (mode === 'server') {
 }
 
 // ---- activate + de-template the release workflow ---------------------------
-// The template ships the workflow inert as `ci-cd.yml.disabled` so the un-resolved template never
-// runs CI or derives a version tag on a push (GitHub only discovers `*.yml`/`*.yaml`). Spin-up is
-// the moment CI goes live for the app: rename it to `ci-cd.yml`. Then de-template its header so the
-// resolved repo carries no template/spin-up/init references (a fingerprint, and a dangling
-// reference to this script after it self-deletes). Nothing about the release LOGIC changes on
-// spin-up: the version is derived from git tags and nothing is committed back.
+// Historically the template shipped the workflow inert as `ci-cd.yml.disabled` so an un-resolved
+// template would not run CI or tag on a push (GitHub only discovers `*.yml`/`*.yaml`); spin-up
+// renamed it to `ci-cd.yml` to bring CI live for the app. The snackbyte-base repo itself now ships
+// the workflow already active as `ci-cd.yml`, so the rename below is a no-op there and only fires
+// on older/derived repos that still carry the `.disabled` name. Either way, spin-up de-templates
+// the header so the resolved repo carries no template/spin-up/init references (a fingerprint, and a
+// dangling reference to this script after it self-deletes). Nothing about the release LOGIC changes
+// on spin-up: the version is derived from git tags and nothing is committed back.
 {
   const disabled = path('.github/workflows/ci-cd.yml.disabled');
   const wf = path('.github/workflows/ci-cd.yml');

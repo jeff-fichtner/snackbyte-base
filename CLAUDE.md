@@ -22,8 +22,10 @@ is removed and the resulting repo is a normal app you can edit freely.
 For foundational context (technologies, project structure, shell commands), read the
 skeleton plan: `specs/001-template-skeleton/plan.md`
 
-Active feature — declarative N-environment manifest (generalizes the two-environment
-derived-tag/staging model from 002): `specs/003-env-manifest/plan.md`
+Active feature — ClickUp task-sync extension (mirrors each feature into ClickUp as a
+feature-card + US-subtasks, one-way, MCP-only): `specs/004-clickup-sync/plan.md`
+
+Prior feature — declarative N-environment manifest: `specs/003-env-manifest/plan.md`
 
 Prior feature — derived-tag versioning + branch-as-environment staging:
 `specs/002-derived-tag-staging/plan.md`

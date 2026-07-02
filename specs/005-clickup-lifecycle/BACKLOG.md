@@ -188,6 +188,46 @@ baked-in defaults remain the fallback; this is opt-in enrichment.
 ClickUp conventions, and an agent that designs rules to fit them makes the extension adapt to
 the project instead of forcing the project to adapt to the extension.
 
+### 5. Link GitHub commits/PRs to ClickUp cards
+
+004 pushes card/subtask/checklist/status but no code-provenance — you cannot see, from a
+ClickUp card, which commits or PRs implemented the feature. This track links them so the card
+shows the work that delivered it. There are two mechanisms with different cost, and both stay
+consistent with 004's one-way rule (repo → ClickUp); capture both, decide when specifying.
+
+**Option A — MCP-pushed by our extension.** The sync reads the feature's git history
+(`git log` over the feature's commits) and attaches it to the card via the ClickUp MCP server —
+as a card comment, a links section in the body, or task links. Pure one-way, no GitHub remote or
+ClickUp-side configuration required; we build and own it; fits 004's model directly. Limitation:
+whatever we render is static text/links, not ClickUp's live commit/PR UI.
+
+**Option B — ClickUp's native GitHub integration.** Connect the repo in ClickUp and embed the
+ClickUp task ID in commit/branch/PR messages (e.g. `CU-<taskid>`), so ClickUp auto-links commits,
+branches, and PRs on the card with its rich first-party UI (maintained by ClickUp, effectively
+bidirectional in the UI). Our extension's contribution is making the task ID available and
+documenting the commit-message convention. Requires a GitHub remote and the message convention.
+
+**The ordering snag (applies mostly to B, but worth noting for both):** the commit that finishes
+a feature usually cannot contain the ClickUp task ID, because the card is created by **sync,
+which runs after implement commits** — so at commit time the task ID may not exist yet. Same
+"hooks fire in an order" theme as the close-out gap (§0). Solvable — provision could create the
+card earlier so the ID exists before commits, or a later sync/close-out could back-fill the
+links — but it is a real design question, not a given.
+
+**Open questions to resolve when specifying:**
+
+- A vs. B (or both)? A is self-contained and matches 004; B is richer but needs a remote +
+  message convention + solving the ordering snag.
+- If B: where does the task ID come from at commit time, given the card is created post-implement?
+  (Create the card earlier at provision? Back-fill links on close-out/next sync?)
+- If A: commit → card as a comment, a body section, or task links? How much history — just the
+  feature's commits, or PRs too (needs a remote)?
+- Does this run in the normal sync, or as part of close-out (§0 Phase C), where the final commit
+  and the finished card both exist?
+
+**Why:** a card that shows its implementing commits/PRs closes the loop between the tracker and
+the code — the reviewer sees not just "what/why" (spec/tasks) but "what actually shipped it."
+
 ---
 
 ## Non-goals for this backlog (stay deferred or belong elsewhere)

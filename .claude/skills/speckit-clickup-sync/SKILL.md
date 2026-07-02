@@ -50,7 +50,14 @@ Compute desired content:
   completion (all done → done; some → in-progress; none → not-started), mapped via
   `statusMapping`, re-computed each run — a subtask's status reflects its own progress, not the card's.
 
-Hash each element (`clickup-manifest.sh hash --string "<content>"`) to drive create/update/skip.
+Hash each element with a canonical, reproducible serialization of the **derived repo-side data**
+(not the rendered ClickUp prose) via `clickup-manifest.sh hash --string "<content>"`, to drive
+create/update/skip:
+
+- **Card**: `status=<feature-derived-status>;feature=<feature-dir-name>`
+- **US-subtask**: `us=<US#>;status=<per-us-derived-status>;items=<compact-json of that story's parse-tasks items>`
+
+These derive purely from repo state, so an unchanged repo recomputes identical hashes → every element skips (SC-002).
 
 ## Diff and apply (toward the repo — one-way)
 

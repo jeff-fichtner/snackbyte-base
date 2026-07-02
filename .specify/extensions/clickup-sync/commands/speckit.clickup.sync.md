@@ -52,11 +52,22 @@ Then compute each element's desired content:
   in-progress; none → not-started) — mapped via `statusMapping` and re-computed every run
   (FR-009a). A subtask's status reflects its own progress, not the card's.
 
-Hash each element (card body+status; each US-subtask body+status) with:
+Hash each element with a **canonical, reproducible serialization** (hash the derived repo-side
+data, NOT the rendered ClickUp prose — so any future run recomputes the identical hash and a
+no-op stays a no-op):
 
 ```bash
 .specify/extensions/clickup-sync/scripts/bash/clickup-manifest.sh hash --string "<content>"
 ```
+
+Canonical content per element (keep this exact — the stored manifest hashes depend on it):
+
+- **Card**: `status=<feature-derived-status>;feature=<feature-dir-name>`
+- **US-subtask**: `us=<US#>;status=<per-us-derived-status>;items=<compact-json of that story's parse-tasks items array>`
+
+where the items array is `clickup-parse-tasks.sh` output filtered to that story
+(`.groups[] | select(.us==$u) | .items`, compact). Because these derive purely from repo state,
+re-running with no repo change yields identical hashes → every element skips (SC-002).
 
 ## Diff and apply (toward the repo — one-way)
 

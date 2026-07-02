@@ -57,6 +57,29 @@ follow-ups, known gaps, or backlog items surfaced during implementation; and the
 steps left for the human. This is the "start-to-finish, here is everything the AI did and what
 is left" artifact.
 
+**C. Close-out (the missing terminal step).** A feature is not *done* when
+`/speckit-implement` finishes — it is done when the last tasks (often a manual verification the
+AI cannot run) are signed off. Today the lifecycle **ends at `after_implement`** (implement →
+git-commit → clickup-sync → converge), which fires *before* those manual tasks are checked. So
+nothing in the flow: (a) surfaces the remaining manual tasks for human sign-off, (b) marks them
+done in `tasks.md` once signed off, (c) runs the **final sync** to move the ClickUp card to
+done/shipped, or (d) **commits** the close-out. During 004's own dogfood these four steps had to
+be done by hand, out of the normal flow — exactly the gap this phase closes.
+
+Close-out therefore encodes, as a repeatable command, the terminal ceremony:
+
+- Confirm all non-manual tasks are complete; **surface any manual/human-in-the-loop tasks and
+  wait for explicit sign-off** — never silently check them.
+- On sign-off, mark those tasks done in `tasks.md`.
+- Run the **final clickup-sync** so ClickUp reflects the now-complete state (card + subtasks →
+  done/shipped) — reusing the one-way sync, not duplicating it.
+- **Commit** the close-out edits (the git-commit hook fired at implement time, *before* these
+  edits existed, so a fresh commit is required — sync itself must never commit, per 004 FR-019).
+- Emit the handoff report (phase B) as the closing artifact.
+
+This makes "commit vs. sync vs. close" a single ordered ceremony a normal agent runs, instead
+of three decoupled acts whose ordering is only guaranteed if a human drives them.
+
 **Open questions to resolve when specifying:**
 
 - Is this one command (test-then-handoff) or two composable hooks (`after_implement` test gate,
@@ -72,6 +95,14 @@ is left" artifact.
 - Interaction with `converge`: `converge` already runs `after_implement` to append unbuilt work
   as tasks. Does test-everything run before or after converge, and does converge-added work
   re-open the test gate?
+- **Close-out trigger**: close-out happens *later* than `after_implement` (after human sign-off
+  of manual tasks), so it likely can't be an `after_implement` hook — it is probably a distinct
+  user-invoked command (`/speckit-close` or similar) run when the human is ready, OR a new
+  lifecycle point. Which? And does it re-run the phase-A gate first (verify still green) before
+  marking done + syncing + committing?
+- **Commit inside close-out**: close-out must commit (the implement-time git-commit hook already
+  ran, before the close-out edits). Does it reuse the existing `git-commit` extension, or commit
+  directly? Either way, sync must stay non-committing (004 FR-019).
 
 **Why:** codifies the standing testing-discipline rule as a deterministic step so every feature
 gets the same exhaustive pre-handoff treatment instead of relying on the instruction being

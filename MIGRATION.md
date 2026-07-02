@@ -91,6 +91,36 @@ runtime IDs land in each feature's manifest):
 The extension also registers optional hooks — `after_plan` offers provision, `after_tasks` and
 `after_implement` offer sync — so tracking can ride the normal flow once configured.
 
+### Installing into an existing app (not a fresh spin-up)
+
+If the app already exists (has `.specify/`) and you are adding clickup-sync to it, you don't
+run the resolver — you copy the extension in:
+
+1. Copy `.specify/extensions/clickup-sync/` and the `.claude/skills/speckit-clickup-*` skill
+   mirrors from the template into the app.
+2. Register it in the app's `.specify/extensions.yml`: add `clickup-sync` under `installed:`
+   and add its hook rows (`after_plan` → provision; `after_tasks` + `after_implement` → sync).
+3. Fill the app's `config.yml` (§3 above), then provision + sync.
+
+## Upgrading clickup-sync in an app that already has it
+
+Until this lives in a versioned package, propagation is a **manual re-copy** (Constitution IV,
+two-tier propagation). To move a newer version (e.g. the 005 additions) into an app:
+
+1. **Re-copy only the logic**: overwrite the app's `.specify/extensions/clickup-sync/`
+   (commands + `scripts/bash/` + `extension.yml`) and the `.claude/skills/speckit-clickup-*`
+   mirrors from the template. Bump the `extension.yml` `version`.
+2. **Keep the app's state as-is**: do **not** overwrite the app's `config.yml`, and never touch
+   any feature's `specs/<feature>/.clickup-sync.json`. The schema is additive and
+   `schemaVersion`-gated (see `contracts/manifest.schema.md`), so an older manifest keeps
+   working with the newer logic — no migration unless `schemaVersion` bumped (which ships its
+   own steps).
+3. Re-run `/speckit-clickup-sync` on active features; new behavior applies, existing cards are
+   updated in place (one-way, toward the repo).
+
+This is deliberately a copy-and-bump while the extension is still being built. When it moves
+into a versioned `@snackbyte/*`-style package, this manual step is replaced by a version bump.
+
 ## 4. What to commit
 
 - **Do** commit each feature's `.clickup-sync.json` manifest — it is the shared dedup index and

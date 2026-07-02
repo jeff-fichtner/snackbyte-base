@@ -113,26 +113,43 @@ remembered. See the global "Testing Discipline (HARD RULE)" and "do E2E before h
 > independently; the only overlap is §0's optional choice to write its handoff into the
 > ClickUp card body.
 
-### 1. Full status lifecycle (beyond the three derived states)
+### 1. Full status lifecycle, advancing per command (beyond the three derived states)
 
-004 derives only **not-started / in-progress / done**. This feature expands to the fuller
-lifecycle the user wants to grow into — e.g.:
+004 derives only **not-started / in-progress / done**, and only re-derives at two late hooks
+(`after_tasks`, `after_implement`). Two limitations, addressed together here:
+
+**(a) Richer states.** Expand to the fuller lifecycle — e.g.:
 
 ```
 open/not-started → planning → implementing/in-progress → review → testing → done
 ```
 
-with room for even more states later (the user mentioned lists that may have ~7 states;
-004 "uses 3 for now"). Several of these states map naturally onto Spec Kit stages the flow
-already moves through (specify → plan → tasks → implement → review), so part of this work
-is deciding which states are **derivable from repo/flow state** vs. which require an
-external signal.
+with room for even more states later (lists may have ~7 states; 004 "uses 3 for now"). Several
+map naturally onto Spec Kit stages the flow already moves through, so part of the work is
+deciding which states are **derivable from repo/flow state** vs. which require an external
+signal.
+
+**(b) Per-command progress — the card advances as the AI works, at every stage, not just at
+implement.** Today the card barely moves until late (sync fires only after tasks/implement), so
+a feature can be specified, clarified, and planned while the card shows almost no change. This
+track drives the status **per Spec Kit command**: as `/speckit-specify` → `/speckit-clarify` →
+`/speckit-plan` → `/speckit-tasks` → `/speckit-implement` each run, the card reflects the stage
+the feature is actually at *right now*. Mechanism: **register the sync (or a status update) on
+every lifecycle hook** — `after_specify`, `after_clarify`, `after_plan`, `after_tasks`,
+`after_implement` — not just the two 004 uses. The state each command maps to is the crux of (a)
+and is left to the spec (per-command 1:1 like specifying/planning/tasking, or grouped phases
+like planning/in-development/review — decided when specifying).
 
 **Open questions to resolve when specifying:**
 
+- The exact state set and the command→state mapping (per-command 1:1 vs. grouped phases).
 - Which lifecycle states are auto-derivable from Spec Kit artifacts, and which are not?
 - How are non-derivable states (review, testing) entered — and by whom?
 - How does the mapping degrade when a target list has fewer statuses than the full set?
+- Registering on every hook means more frequent ClickUp writes — does every command do a **full**
+  sync, or a lightweight **status-only** bump (with a full re-sync still at tasks/implement)?
+  Idempotence (the manifest hash) must keep an unchanged card a true no-op regardless.
+- Does per-command status apply only to the feature-card, to US-subtasks too, or both?
 
 ### 2. Human-testing handoff
 

@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "1",
+  "feature": "004-clickup-sync",
+  "workspaceId": "90141363864",
+  "spaceId": "90146179799",
+  "listId": "901417496896",
+  "statusMapping": {
+    "not-started": "ready for development",
+    "in-progress": "in development",
+    "done": "shipped"
+  },
+  "card": {
+    "id": "86baq3b05",
+    "hash": "sha256:f861ea45fe16c558ec7e6d9de7916312a1fbfe3672416d598a88049ed26eb1bc"
+  },
+  "userStories": [
+    {
+      "us": "US1",
+      "id": "86baq3b1n",
+      "hash": "h_us1",
+      "dependsOn": []
+    },
+    {
+      "us": "US2",
+      "id": "86baq3b2h",
+      "hash": "h_us2",
+      "dependsOn": [
+        "US1"
+      ]
+    },
+    {
+      "us": "US3",
+      "id": "86baq3b3x",
+      "hash": "h_us3",
+      "dependsOn": [
+        "US1",
+        "US2"
+      ]
+    },
+    {
+      "us": "US4",
+      "id": "86baq3b57",
+      "hash": "h_us4",
+      "dependsOn": [
+        "US1",
+        "US2"
+      ]
+    },
+    {
+      "us": "US5",
+      "id": "86baq3b61",
+      "hash": "h_us5",
+      "dependsOn": [
+        "US1"
+      ]
+    }
+  ]
+}

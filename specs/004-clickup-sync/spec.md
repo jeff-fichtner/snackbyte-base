@@ -219,6 +219,7 @@ and confirm it reverts to match the repo (the hand-edit does not propagate back 
 
 - **FR-008**: The extension MUST derive the feature-card's status from observable repo state, mapping to exactly three states in this version: **not-started** (a spec exists but no `plan.md` yet), **in-progress** (`plan.md` exists and not all tasks are checked — this includes the case where `tasks.md` exists with zero tasks checked), and **done** (`tasks.md` exists and all its tasks are checked). The single canonical rule: no plan → not-started; plan present but not all tasks done → in-progress; all tasks done → done.
 - **FR-009**: The derived status MUST be computed on every sync run and written to the feature-card via the status mapping recorded at provision time.
+- **FR-009a**: Each US-subtask MUST ALSO carry its own derived status, computed from that user story's own task completion and re-computed every sync: all of the story's tasks checked → done; some but not all → in-progress; none checked → not-started. (A US-subtask's status reflects its own progress, not the feature-card's — so a feature card can be in-progress while its finished stories read done.)
 - **FR-010**: The extension MUST NOT require the target list to use any particular custom status names; it MUST map its three logical states onto statuses the list actually has, using the mapping resolved and recorded during provisioning.
 
 #### Provisioning (US3)

@@ -1,10 +1,11 @@
-# Backlog: ClickUp Lifecycle, Human Testing & Manual Mode
+# Backlog: Post-Implement Handoff — Test-Everything, ClickUp Lifecycle, Human Testing & Manual Mode
 
 **Status**: Backlog (not yet specified — do NOT run `/speckit-specify` here until 004 ships)
 
-**Depends on**: `004-clickup-sync` (the base push-and-status extension). This feature
-extends 004; it should not be started until 004's feature-card + derived-status model
-exists and is proven.
+**Depends on**: `004-clickup-sync` (the base push-and-status extension) for the ClickUp
+scope (§1–3). The test-and-handoff scope (§0) is independent of ClickUp and could be
+specified first, but is parked here because it is the _other_ half of "everything the AI
+should do once implementation happens" and shares the same `after_implement` hook slot.
 
 **Why this is a separate spec**: During 004's clarify pass (2026-07-01) the mapping was
 pivoted (feature → ClickUp task, `tasks.md` line → checklist item, status derived from the
@@ -12,9 +13,74 @@ Spec Kit flow). That pivot surfaced a richer set of desires that would have stal
 folded in. They are parked here so 004 stays thin and shippable. See the 004 spec's
 Clarifications section and the memory note `spec004-clickup-mapping-pivot`.
 
+The **test-and-handoff** scope (§0) was added later: the desire for a single codified
+"here is everything the AI must do, start to finish, after implement lands" hook — exhaustive
+automated testing (unit, then E2E as far as is technically possible) followed by an honest
+handoff report of what was verified vs. what remains for the human. It belongs here because
+it is the same lifecycle moment (`after_implement`) as the ClickUp status/handoff work.
+
 ---
 
 ## Scope this backlog captures
+
+### 0. Post-implement test-everything + handoff hook (the "finish the job" gate)
+
+A codified `after_implement` extension that runs **after** `/speckit-implement` completes and
+encodes, as a repeatable command, the discipline of _doing literally everything the AI can to
+verify a feature before handing it to a human_, then reporting honestly. Today that discipline
+lives only as a global instruction; this feature makes it a first-class, per-feature Spec Kit
+step so it runs the same way every time.
+
+Two phases, in order:
+
+**A. Exhaustive automated testing — unit first, then E2E as far as technically possible.**
+
+- **Unit / per-component, as-you-go closure:** ensure the feature's units have tests and the
+  full project check gate is green — for this template that is `npm run check:all` +
+  `npm run test:release`, plus any feature-specific shell tests (the `*.test.sh` pattern used
+  by `derive-version.test.sh`, `add-env.test.sh`, the new `clickup-*.test.sh`). Fail loud on
+  a red gate; do not proceed to handoff over failing tests.
+- **End-to-end, as far as automatable:** do not stop at "this needs a live environment." Drive
+  the real path as far as the available tooling allows — apply migrations, seed and clean up
+  test data, invoke the real inputs (CLI/APIs/MCP), deploy to a non-prod target if that is what
+  it takes, hit real endpoints, and read back real results. For _this_ template that means, at
+  minimum, exercising the spun-up app's real deploy/version/env flow rather than only its unit
+  tests; for a spec that touches ClickUp it means a real MCP round-trip against a scratch space.
+- **Irreducible manual slice:** identify and clearly delimit only the genuinely un-automatable
+  remainder (a visual/UX confirmation, a human-in-the-loop approval, a credential only the human
+  holds) — and say _why_ each could not be automated.
+
+**B. General handoff / report.** Produce a consistent end-of-feature handoff summarizing:
+what the feature does and where it lives; what was verified automatically (with evidence —
+test counts, gate output, endpoint/log rows, MCP results) vs. what remains manual and why; any
+follow-ups, known gaps, or backlog items surfaced during implementation; and the exact manual
+steps left for the human. This is the "start-to-finish, here is everything the AI did and what
+is left" artifact.
+
+**Open questions to resolve when specifying:**
+
+- Is this one command (test-then-handoff) or two composable hooks (`after_implement` test gate,
+  then a separate handoff report)? Leaning: one orchestrating command with two internal phases,
+  mirroring how `git-commit`/`clickup-sync` are single commands.
+- Where does the handoff report land — stdout only, a committed `specs/<feature>/HANDOFF.md`,
+  the ClickUp card body (ties into §1–3), or all three?
+- How does the E2E phase stay _generic_ across spun-up apps that differ wildly in what "E2E"
+  means, without hardcoding app specifics into the template? (Likely: a declared, per-app
+  `e2e` hook/script the extension invokes if present, else a documented no-op with a loud note.)
+- What is the failure contract — does a red gate block the handoff, block the `after_implement`
+  chain (which currently continues into `converge`), or just annotate the report?
+- Interaction with `converge`: `converge` already runs `after_implement` to append unbuilt work
+  as tasks. Does test-everything run before or after converge, and does converge-added work
+  re-open the test gate?
+
+**Why:** codifies the standing testing-discipline rule as a deterministic step so every feature
+gets the same exhaustive pre-handoff treatment instead of relying on the instruction being
+remembered. See the global "Testing Discipline (HARD RULE)" and "do E2E before handing to me."
+
+> **§1–3 below are the ClickUp lifecycle scope** — they depend on 004 and are distinct
+> from §0. §0 (test-everything + handoff) does not depend on ClickUp and can be specified
+> independently; the only overlap is §0's optional choice to write its handoff into the
+> ClickUp card body.
 
 ### 1. Full status lifecycle (beyond the three derived states)
 
@@ -32,6 +98,7 @@ is deciding which states are **derivable from repo/flow state** vs. which requir
 external signal.
 
 **Open questions to resolve when specifying:**
+
 - Which lifecycle states are auto-derivable from Spec Kit artifacts, and which are not?
 - How are non-derivable states (review, testing) entered — and by whom?
 - How does the mapping degrade when a target list has fewer statuses than the full set?
@@ -39,6 +106,7 @@ external signal.
 ### 2. Human-testing handoff
 
 The "review" and "testing" states involve a **person**, not the AI. This feature defines:
+
 - Who moves the card into/out of human-testing states, and how the sync learns of it.
 - The coexistence rule: one-way sync must own only the states it derives and MUST NOT
   overwrite a human-set status (e.g. a person marks "blocked" or "in QA" and the next sync
@@ -50,11 +118,44 @@ The "review" and "testing" states involve a **person**, not the AI. This feature
 For work the user does **themselves**, outside the full Spec Kit pipeline, there is no
 automated flow signal to derive status from. This feature defines a **lighter** tracking
 mode for that case:
+
 - What a manually-tracked item is (a card with no backing `tasks.md`? a hand-maintained
   checklist?).
 - How its status is set (manual only) and how the sync avoids clobbering it.
 - Whether manual items share the same shared list as spec-driven feature-cards, and how
   the two are told apart.
+
+### 4. Agent-designed, project-specific ClickUp rules (expand beyond the baked-in defaults)
+
+004 ships **basic rules baked in**: feature → card, user story → subtask, `tasks.md` line →
+checkbox, and a fixed 3-state status mapping (not-started / in-progress / done) resolved onto
+whatever statuses the list happens to have. Every project gets the same default shape. This
+track lets the **agent actively design a ClickUp ruleset tailored to the specific project**,
+turning the fixed default into a starting point that can be expanded per repo.
+
+The idea: instead of one hardcoded mapping, an agent step inspects the project (its real
+ClickUp space/list workflow and statuses, its spec conventions, how the team actually tracks
+work) and **proposes/generates a project-specific rule set** — which lifecycle states to use
+and how they map, whether phases/user-stories become tags vs. subtasks vs. lists, what the card
+body should emphasize, custom-field usage, etc. — recorded as config the sync then honors. The
+baked-in defaults remain the fallback; this is opt-in enrichment.
+
+**Open questions to resolve when specifying:**
+- What is the boundary between "baked-in defaults" (always present, need no design step) and
+  "designed rules" (agent-generated, per project)? The defaults must keep working untouched.
+- Where do designed rules live — an expanded `config.yml` schema, a separate
+  `clickup-rules.yml`, or the manifest? How are they versioned and re-generated when the
+  project's ClickUp workflow changes?
+- How much does the agent decide vs. propose-for-approval? (Designing rules that reshape a
+  team's board is high-impact — likely propose + confirm, not silent auto-apply.)
+- Interaction with §1 (lifecycle): the richer status set is itself one kind of "designed rule";
+  this track generalizes it from status to the whole mapping.
+- Ties back to the ClickUp read tools already available (`get_workspace_hierarchy`,
+  `get_list`, `get_custom_fields`) — the agent designs *from* the real workspace shape.
+
+**Why:** the one-size default is a deliberate v1 simplification; real projects have their own
+ClickUp conventions, and an agent that designs rules to fit them makes the extension adapt to
+the project instead of forcing the project to adapt to the extension.
 
 ---
 
@@ -64,9 +165,20 @@ mode for that case:
   source of truth for spec-driven work).
 - Any change to 004's core mapping (feature=card, line=checklist item) — this feature
   builds ON that, it does not revisit it.
+- Building the actual test/E2E logic for any _specific_ spun-up app inside this template —
+  §0 defines the generic hook and the per-app extension point, not app-specific tests.
 
 ## When ready to specify
 
-Run the normal flow from this directory once 004 is merged and proven:
-`/speckit-specify` with a description drawn from the three scope sections above, then let
-the pivot memory and the 004 spec inform plan/clarify.
+Two independently-specifiable tracks live here; split them into their own feature dirs when
+specifying rather than forcing one spec to carry both:
+
+- **§0 — test-everything + handoff hook.** Independent of ClickUp; can be specified first
+  (does not wait on 004). Draw the description from §0 above and the global Testing
+  Discipline rule.
+- **§1–3 — ClickUp lifecycle / human-testing / manual mode.** Specify only once `004` is
+  merged and proven. Let the pivot memory (`spec004-clickup-mapping-pivot`) and the 004 spec
+  inform plan/clarify.
+
+Run the normal flow (`/speckit-specify`) from a feature dir per track — do NOT run it in this
+backlog dir directly.

@@ -30,4 +30,18 @@ full agent-driven procedure.
    stash without the user's choice.
 3. Once clean, if currently on the **default branch** (main/master), create/switch
    to the feature branch for the work about to be specified.
-4. Report the final branch and clean state so `/speckit-specify` can proceed.
+4. **On the new feature branch, suggest a minor version bump.** A new feature is a new
+   minor version. If this repo derives its version from `package.json` (a `"version"` of
+   the form `MAJOR.MINOR`, e.g. `1.4`, with the patch derived by CI — see
+   `scripts/derive-version.sh`), and you just created/switched to the feature branch,
+   **suggest** bumping the minor so the feature ships under its own minor line:
+   - Read `package.json` `"version"`. If it is `MAJOR.MINOR` (two numeric parts), propose
+     bumping the minor by one (e.g. `1.4` → `1.5`); on the user's confirmation, update
+     `package.json` and the root `"version"` in `package-lock.json` to match. Do **not**
+     write a patch — the patch is CI-derived.
+   - This is a **suggestion, not automatic**: state the current and proposed version and let
+     the user confirm, skip, or choose a different bump (e.g. MAJOR for a breaking change).
+   - Only do this **after** the feature branch exists (never bump on the default branch), and
+     skip silently if `package.json` has no `MAJOR.MINOR` version or the repo doesn't use this
+     derived-version scheme.
+5. Report the final branch, version state, and clean state so `/speckit-specify` can proceed.

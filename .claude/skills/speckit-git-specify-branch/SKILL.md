@@ -51,10 +51,24 @@ Subcommands: `status`, `commit -m "msg"`, `stash [label]`, `create-branch <name>
    - If `on_default_branch` is false, the user is already on a non-default branch;
      keep it unless the user wants a fresh one.
 
-4. **Report.** State the final branch name and that the working tree is clean, so
-   `/speckit-specify` can proceed. If you created a branch, surface its name (the
-   specify command notes `BRANCH_NAME` for reference; the spec directory name is
-   chosen independently by specify).
+4. **Suggest a minor version bump (on the feature branch).** A new feature is a new
+   minor version. Do this **after** the feature branch exists (never on the default
+   branch). If the repo derives its version from `package.json` — a `"version"` of the
+   form `MAJOR.MINOR` (e.g. `1.4`), with the patch derived by CI (see
+   `scripts/derive-version.sh`):
+   - Read `package.json` `"version"`. If it is `MAJOR.MINOR`, **suggest** bumping the
+     minor by one (e.g. `1.4` → `1.5`) so the feature ships under its own minor line.
+     State the current and proposed version; on the user's confirmation, update
+     `package.json` and the root `"version"` in `package-lock.json`. Never write a patch
+     (CI derives it).
+   - It is a **suggestion, not automatic** — the user may confirm, skip, or pick a
+     different bump (e.g. MAJOR for a breaking change).
+   - Skip silently if there is no `MAJOR.MINOR` version or the repo doesn't use this scheme.
+
+5. **Report.** State the final branch name, the version (bumped or unchanged), and that
+   the working tree is clean, so `/speckit-specify` can proceed. If you created a branch,
+   surface its name (the specify command notes `BRANCH_NAME` for reference; the spec
+   directory name is chosen independently by specify).
 
 ## Notes
 

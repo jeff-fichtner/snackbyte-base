@@ -54,8 +54,8 @@ Subcommands: `status`, `commit -m "msg"`, `stash [label]`, `create-branch <name>
 4. **Suggest a minor version bump (on the feature branch).** A new feature is a new
    minor version. Do this **after** the feature branch exists (never on the default
    branch). If the repo derives its version from `package.json` — a `"version"` of the
-   form `MAJOR.MINOR` (e.g. `1.4`), with the patch derived by CI (see
-   `scripts/derive-version.sh`):
+   form `MAJOR.MINOR` (e.g. `1.4`), with the patch derived by CI (the
+   `snackbyte-release-flow-action`, driven by `environments.json`):
    - Read `package.json` `"version"`. If it is `MAJOR.MINOR`, **suggest** bumping the
      minor by one (e.g. `1.4` → `1.5`) so the feature ships under its own minor line.
      State the current and proposed version; on the user's confirmation, update

@@ -14,11 +14,12 @@ Placeholders used throughout: `<project>` (GCP project id), `<service>` (Cloud R
 
 The **branch selects the environment**, and the environments are declared in
 **`environments.json`** at the repo root — the single source of truth. The default ships two:
-`main` → production and `dev` → staging. On push, CI (`.github/workflows/ci-cd.yml`) first
-resolves whether the pushed branch is an environment (a `resolve-env` job reads
-`environments.json`); a push to a non-environment branch short-circuits cleanly. For an
-environment branch it runs the quality gate and, on pass, **derives a version tag from the
-existing git tags and pushes only that tag** — it never commits anything. A chained `deploy`
+`main` → production and `dev` → staging. On push, CI (`.github/workflows/ci-cd.yml`) runs the
+quality gate and then calls the **`snackbyte-release-flow-action`** (pinned `@v1`), which
+resolves whether the pushed branch is an environment (reading `environments.json`); a push to a
+non-environment branch short-circuits cleanly (no tag). For an environment branch, on gate pass,
+the Action **derives a version tag from the existing git tags and pushes only that tag** — it
+never commits anything. A chained `deploy`
 job (per-app — see below) authenticates to GCP via **Workload Identity Federation** (keyless),
 runs a Cloud Build (`cloudbuild.yaml`) that builds the `Dockerfile` and deploys to Cloud Run.
 No manual version bump, no commit pushed back to the branch, no long-lived secret. A `vX.Y.Z`
@@ -42,8 +43,8 @@ This is the core of the release model; read it before the deploy mechanics.
   is no `chore: release` commit, no `[skip ci]`, no `npm version`. Because nothing is committed
   back, `dev` and `main` never diverge: fast-forward, merge, and PR promotion all work, with no
   resync and no tag collisions.
-- **One rule, every environment** (`scripts/derive-version.sh`) — the pushed branch is used only
-  as data (its `tagSuffix`, looked up in `environments.json`):
+- **One rule, every environment** (implemented by the release-flow Action) — the pushed branch is
+  used only as data (its `tagSuffix`, looked up in `environments.json`):
   1. **Reuse** if _any_ version number is already tagged on _this exact commit_
      (`git tag --points-at HEAD`), regardless of which environment's suffix it bears. This is a
      fast-forward promotion or resync; the number is reused and stamped with this environment's
@@ -102,20 +103,17 @@ new commit → new tag; the orphaned tag harmlessly becomes a build id with no d
 
 One workflow, triggered on any push (except obvious non-environment branch patterns) + PR:
 
-1. `resolve environment` (push only): reads `environments.json` and outputs whether the pushed
-   branch is an environment. A push to a non-environment branch short-circuits here — the
-   downstream jobs are gated on it, so nothing is built, tagged, or deployed.
-2. `validate (merge gate)` (PRs only): runs `npm run check:all`. A PR can't merge until it passes
+1. `validate (merge gate)` (PRs only): runs `npm run check:all`. A PR can't merge until it passes
    — but **only if branch protection requires it** (see below); the workflow can run a check, it
    can't _enforce_ the merge.
-3. `version-and-tag` (push to an environment branch): re-runs `npm run check:all` (the
-   authoritative gate) plus `npm run test:release` (proves the derivation itself), then derives +
-   pushes the tag.
-4. `deploy` (push, `needs: version-and-tag`): **per-app** — it names your GCP project, service
+2. `version-and-tag` (push): runs `npm run check:all` (the authoritative gate) and, on pass, calls
+   the **`snackbyte-release-flow-action`**. The Action resolves whether the pushed branch is an
+   environment and, if so, derives + pushes the tag; a push to a non-environment branch is
+   short-circuited by the Action (`is-env=false`, no tag), so nothing is tagged or deployed.
+3. `deploy` (push, `needs: version-and-tag`): **per-app** — it names your GCP project, service
    account, and WIF provider, and resolves the target from `environments.json` by the branch (the
    environment name + `isPublicFace`; the service name is mapped per-app). The template ships
-   `resolve-env` + `validate` + `version-and-tag`; add `deploy` from the snippet in the infra
-   runbook below.
+   `validate` + `version-and-tag`; add `deploy` from the snippet in the infra runbook below.
 
 The tag is pushed with the default `GITHUB_TOKEN` (`permissions: contents: write`). A
 `GITHUB_TOKEN`-pushed tag does **not** trigger another workflow (GitHub's recursion guard), which
@@ -555,10 +553,11 @@ automated upgrade script is provided.
    `.prettierignore`, not `.gitignore`, so the static import always resolves). Copy these from the
    current template verbatim.
 
-3. **Version derivation (`scripts/derive-version.sh`)** — replace the branch-specific reuse
-   (`if [ "$BRANCH" = "dev" ] … else …`) with a **suffix-agnostic** reuse (reuse any number tagged
-   on HEAD, else global-max + 1) and look the branch's `tagSuffix` up in `environments.json`; reject
-   a branch that is not in the manifest. Copy the current template's script.
+3. **Version derivation + resolve-env** — delegated to the **`snackbyte-release-flow-action`**
+   (pinned `@v1`). You do not build or copy a derivation script; the Action reads `environments.json`
+   (branch → `tagSuffix`), does the suffix-agnostic reuse (reuse any number tagged on HEAD, else
+   global-max + 1), rejects a branch not in the manifest, and pushes the tag. See the Action's
+   `CONSUMING.md` for wiring and the app-vs-library `version-strategy` choice.
 
 4. **Build identity** — thread a single `APP_ENV_NAME` build-arg through `Dockerfile`,
    `vite.config.ts`, and `scripts/prerender.mjs` (resolve facets from the manifest, bake
@@ -570,14 +569,14 @@ automated upgrade script is provided.
    typed accessors `src/env.ts` and `src/web/env.ts`.
 
 6. **CI trigger (`.github/workflows/ci-cd.yml`)** — change the `push` trigger to a wildcard with
-   `branches-ignore` for noise, and add the `resolve-env` first job that reads the manifest and
-   short-circuits non-environment branches; gate `version-and-tag` on it.
+   `branches-ignore` for noise; the `version-and-tag` job runs the gate and calls the Action, which
+   itself short-circuits a non-environment branch (no separate resolve-env job needed).
 
 7. **The `deploy` job** — replace the hard-coded branch→env step with the manifest-driven
    `Resolve environment from manifest` step (above), passing `_APP_ENV_NAME` to `cloudbuild.yaml`.
 
-After these edits, `npm run check:all` and `npm run test:release` should pass and the default
-two-environment behavior is unchanged — you can then add a third environment with a one-row edit.
+After these edits, `npm run check:all` passes and the default two-environment behavior is unchanged
+— you can then add a third environment with a one-row edit.
 
 ---
 

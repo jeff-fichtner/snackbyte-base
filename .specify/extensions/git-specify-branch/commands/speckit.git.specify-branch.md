@@ -32,8 +32,9 @@ full agent-driven procedure.
    to the feature branch for the work about to be specified.
 4. **On the new feature branch, suggest a minor version bump.** A new feature is a new
    minor version. If this repo derives its version from `package.json` (a `"version"` of
-   the form `MAJOR.MINOR`, e.g. `1.4`, with the patch derived by CI — see
-   `scripts/derive-version.sh`), and you just created/switched to the feature branch,
+   the form `MAJOR.MINOR`, e.g. `1.4`, with the patch derived by CI — the
+   `snackbyte-release-flow-action`, driven by `environments.json`), and you just
+   created/switched to the feature branch,
    **suggest** bumping the minor so the feature ships under its own minor line:
    - Read `package.json` `"version"`. If it is `MAJOR.MINOR` (two numeric parts), propose
      bumping the minor by one (e.g. `1.4` → `1.5`); on the user's confirmation, update

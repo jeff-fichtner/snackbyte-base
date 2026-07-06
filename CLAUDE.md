@@ -22,7 +22,11 @@ is removed and the resulting repo is a normal app you can edit freely.
 For foundational context (technologies, project structure, shell commands), read the
 skeleton plan: `specs/001-template-skeleton/plan.md`
 
-Active feature — ClickUp task-sync extension (mirrors each feature into ClickUp as a
+Active feature — consume the release-flow GitHub Action (delegate the CI-side release flow —
+resolve-env + version derivation — to `snackbyte-release-flow-action@v1`; the app-runtime
+manifest readers stay): `specs/005-release-flow-action/spec.md`
+
+Prior feature — ClickUp task-sync extension (mirrors each feature into ClickUp as a
 feature-card + US-subtasks, one-way, MCP-only): `specs/004-clickup-sync/plan.md`
 
 Prior feature — declarative N-environment manifest: `specs/003-env-manifest/plan.md`

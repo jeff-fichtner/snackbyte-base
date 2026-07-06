@@ -14,25 +14,31 @@
 # Every app spun up from this template inherits this workflow. The release flow is the same
 # everywhere: GitHub-hosted, npm, a quality gate, and a git tag as the deploy signal. Which
 # branches are environments is NOT hard-coded here — it lives in environments.json (the default
-# ships `main` -> production and `dev` -> staging). The trigger can't read that file (GitHub
-# evaluates `on:` before checkout), so this workflow triggers on any push and a lightweight
-# `resolve-env` job reads the manifest and short-circuits a push to a non-environment branch.
-# Adding an environment is a one-row edit to environments.json — this workflow needs no change.
+# ships `main` -> production and `dev` -> staging). Adding an environment is a one-row edit to
+# environments.json — this workflow needs no change.
 #
-# VERSIONING — derived from tags, never committed. package.json holds only MAJOR.MINOR; the
-# PATCH is a global, monotonic build id derived from existing tags (see scripts/derive-version.sh).
-# CI creates a tag and pushes ONLY the tag — no commit, no branch push — so environment branches
-# never diverge: fast-forward, merge, and PR promotion all work, with no resync and no collisions.
+# THE RELEASE FLOW IS DELEGATED to a reusable GitHub Action, `snackbyte-release-flow-action`
+# (pinned `@v1`). The Action does both halves of the flow: resolve-env ("is this pushed branch an
+# environment?") and version derivation ("what tag does this push get?"). It reads environments.json
+# and creates a tag ONLY — no commit, no branch push — so environment branches never diverge:
+# fast-forward, merge, and PR promotion all work, with no resync and no collisions. A push to a
+# non-environment branch is short-circuited by the Action (is-env=false, no tag). See the Action's
+# CONSUMING.md for the full wiring and the app-vs-library version-strategy choice.
+#
+# VERSIONING — derived from tags, never committed. package.json holds only MAJOR.MINOR; the PATCH is
+# a global, monotonic build id the Action derives from existing tags (build-id strategy, the default
+# for a deployable app; a published library sets version-strategy: package-json instead).
 #
 # Two independent gates protect a release: a PR is blocked until `check:all` passes (enforced by
-# branch protection, not this file — see DEPLOY.md), AND `check:all` is re-run on the push and a
-# tag is created only if it passes. A failing push-side gate blocks the tag, and the deploy that
-# depends on it is skipped.
+# branch protection, not this file — see DEPLOY.md), AND `check:all` is re-run on the push before the
+# Action runs — a tag is created only if it passes. A failing push-side gate blocks the tag, and the
+# deploy that depends on it is skipped.
 #
-# This workflow ships `resolve-env` + `validate` + `version-and-tag` and DELIBERATELY has no
-# `deploy` job — neither here in the template nor by default in a spun-up app. The `deploy` job is
-# per-app (it names a GCP project, service account, and Workload Identity provider) — copy it in
-# from DEPLOY.md when you wire an app to its environment. Nothing in this file deploys anywhere.
+# This workflow ships `validate` (PR gate) + `version-and-tag` (push gate + the Action) and
+# DELIBERATELY has no `deploy` job — neither here in the template nor by default in a spun-up app.
+# The `deploy` job is per-app (it names a GCP project, service account, and Workload Identity
+# provider) — copy it in from DEPLOY.md when you wire an app to its environment. Nothing in this file
+# deploys anywhere.
 
 name: ci-cd
 

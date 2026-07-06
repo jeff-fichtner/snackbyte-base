@@ -67,11 +67,12 @@ defaults:
     working-directory: <app>
 ```
 
-This is what makes `npm ci`, `npm run check:all`, `npm run test:release`, and
-`scripts/derive-version.sh` resolve correctly — they now run inside `<app>/`. It matters
-for the version script too, not just npm: `derive-version.sh` reads `./package.json`
-(relative to cwd) for the `MAJOR.MINOR`, so without the working directory it can't find the
-version. (Its `git` calls are cwd-independent — git walks up to `.git` on its own.)
+This is what makes `npm ci` and `npm run check:all` resolve correctly — they now run inside
+`<app>/`. The release-flow Action needs the same subdir awareness, but it is a `uses:` step
+(see the note below), so `working-directory` does NOT reach it: pass its `manifest` input as
+`<app>/environments.json` instead. The Action reads that manifest (branch → `tagSuffix`) and
+`<app>/package.json` for the `MAJOR.MINOR` line. (Its `git` calls are cwd-independent — git
+walks up to `.git` on its own.)
 
 > `working-directory` only affects `run:` steps. `uses:` steps (checkout, setup-node) are
 > unaffected and are handled next.
@@ -127,7 +128,7 @@ The only subdirectory-specific part: the step that ships the build source
 
 ## What this does NOT change
 
-- **`derive-version.sh` and the tag scheme** — versioning derives from **git tags**, which
+- **The release-flow Action and the tag scheme** — versioning derives from **git tags**, which
   are repo-global, not directory-scoped. A subdirectory app shares the repo's tag namespace.
   If the repo holds more than one releasable thing, that's a tag-collision design question
   (prefix tags, separate repos) — out of scope here, but flag it before you wire a second

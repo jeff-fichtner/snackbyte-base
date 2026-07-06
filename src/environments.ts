@@ -3,8 +3,8 @@
  *
  * `environments.json` at the app root is the single source of truth for the release
  * flow. This module gives Node code (build tooling, the server) a typed view of it.
- * The version derivation reads the same file from bash via `node -p`, so every consumer
- * agrees.
+ * The CI-side release flow (the snackbyte-release-flow-action) reads the same file to
+ * resolve the environment and derive the version tag, so every consumer agrees.
  *
  * The file is read from the working directory (like the dist/ lookup in server.ts) rather
  * than imported, so the same path works whether this runs from source or compiled, and so
@@ -15,7 +15,8 @@
  *   `${PREFIX}${MAJOR}.${MINOR}.${PATCH}${tagSuffix}`
  * with PREFIX = 'v'. MAJOR.MINOR come from package.json; PATCH is the derived global build
  * id; tagSuffix is the per-environment suffix below. The integer-PATCH numbering is fixed;
- * a fundamentally different scheme is a fork of scripts/derive-version.sh, not config.
+ * a fundamentally different scheme is a fork of the release-flow Action's derivation
+ * (snackbyte-release-flow-action), not config.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';

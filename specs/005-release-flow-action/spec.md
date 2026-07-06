@@ -172,7 +172,9 @@ them). The existing app-side behavior tests (build identity, `/api/version`) sti
 - **I3 — The split is load-bearing**: `scripts/resolve-env.mjs`, `src/environments.ts`, `src/env.ts`,
   `src/web/env.ts`, the `/api/version` + version-chip surface (`src/routes/version.ts`,
   `src/version.ts`, `src/web/version.ts`), and `environments.json` are explicitly out of deletion
-  scope. Only the CI-side release flow (FR-004/FR-005) is removed.
+  scope. Only the CI-side release flow (FR-004/FR-005) is removed. *Exception:* comment-only edits to
+  these files (e.g. a doc-comment that pointed at the now-deleted `scripts/derive-version.sh`, updated
+  to point at the Action) are permitted — they are not functional changes and keep the files honest.
 
 ## Success Criteria *(mandatory)*
 

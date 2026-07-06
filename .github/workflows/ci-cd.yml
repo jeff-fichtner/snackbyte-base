@@ -52,34 +52,6 @@ env:
   NODE_VERSION: '24' # Node major for the gate (keep aligned with .nvmrc)
 
 jobs:
-  # Is the pushed branch an environment? The `on:` trigger can't read environments.json (GitHub
-  # evaluates it before checkout), so this lightweight job does the lookup: a shallow checkout, read
-  # the manifest, and output whether GITHUB_REF_NAME is one of its branches. A push to a
-  # non-environment branch short-circuits here (the downstream jobs are gated on `is-env == true`),
-  # so nothing is built, tagged, or deployed — and no expensive `npm ci` runs. Adding an environment
-  # is a one-row edit to environments.json; this job needs no change.
-  resolve-env:
-    name: resolve environment
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      is-env: ${{ steps.lookup.outputs.is-env }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 1 # manifest only — no history needed
-      - id: lookup
-        run: |
-          if node -e "process.exit(require('./environments.json').environments.some(e => e.branch === process.env.GITHUB_REF_NAME) ? 0 : 1)"; then
-            echo "is-env=true" >> "$GITHUB_OUTPUT"
-            echo "Branch '${GITHUB_REF_NAME}' is an environment — proceeding."
-          else
-            echo "is-env=false" >> "$GITHUB_OUTPUT"
-            echo "Branch '${GITHUB_REF_NAME}' is not an environment in environments.json — nothing to do."
-          fi
-
   # Merge gate: PRs must pass the quality gate before they can merge. (The merge is *enforced* by
   # branch protection requiring this check — repo config, not expressible here.)
   validate:
@@ -96,15 +68,20 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run check:all
-      - run: npm run test:release # also gate changes to the release tooling itself
 
-  # Push-side gate + derive the version + create the tag. Runs only when resolve-env confirms the
-  # pushed branch is an environment. The gate is mandatory and authoritative; on failure nothing is
-  # tagged and no deploy can follow.
+  # Push-side gate + derive the version + create the tag. The quality gate is mandatory and runs
+  # first; only if it passes does the release-flow Action run. The Action performs BOTH steps of the
+  # release flow — resolve-env ("is this branch an environment?") and, if so, derive+push the version
+  # tag. A push to a non-environment branch is short-circuited by the Action itself (is-env=false,
+  # no tag), so this job needs no separate resolve-env pre-gate. The Action creates a tag only —
+  # never a commit or branch push — so environment branches never diverge.
+  #
+  # Adding an environment is a one-row edit to environments.json (the Action reads it); this job
+  # needs no change. What version number a push gets, and which branches are environments, live
+  # entirely in the Action + the manifest — not here.
   version-and-tag:
     name: version and tag
-    needs: resolve-env
-    if: github.event_name == 'push' && needs.resolve-env.outputs.is-env == 'true'
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     # Serialize same-branch runs so two pushes can't derive the same patch concurrently.
     concurrency:
@@ -113,8 +90,9 @@ jobs:
     permissions:
       contents: write # to push the TAG only (we never push a commit to the branch)
     outputs:
-      version: ${{ steps.derive.outputs.version }} # plain number, e.g. 0.1.4
-      tag: ${{ steps.derive.outputs.tag }} # git tag, e.g. v0.1.4-dev (staging) or v0.1.4 (prod)
+      is-env: ${{ steps.release.outputs.is-env }} # "true"/"false" — gate a deploy job on this
+      version: ${{ steps.release.outputs.version }} # plain number, e.g. 1.5.4 (env pushes only)
+      tag: ${{ steps.release.outputs.tag }} # git tag, e.g. v1.5.4-dev (staging) or v1.5.4 (prod)
     steps:
       - uses: actions/checkout@v6
         with:
@@ -122,7 +100,7 @@ jobs:
           # which is fine: the deploy is a chained `needs:` job in THIS run, so no second event is
           # needed and no personal access token is required.
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0 # full history + tags so derivation is correct (and not mis-derived shallow)
+          fetch-depth: 0 # full history + tags — the Action's derivation refuses a shallow clone
 
       - uses: actions/setup-node@v6
         with:
@@ -131,16 +109,15 @@ jobs:
 
       - run: npm ci
 
-      # Push-side gate (mandatory): app code must be green, and the release tooling itself must
-      # still pass its scenarios, before anything is tagged.
+      # Push-side gate (mandatory): app code must be green before anything is tagged. On failure the
+      # job stops here, the Action never runs, and no tag is created.
       - run: npm run check:all
-      - run: npm run test:release
 
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Derive version and tag
-        id: derive
-        run: scripts/derive-version.sh "${GITHUB_REF_NAME}"
+      # Resolve the environment and derive+push the version tag. All inputs default: branch =
+      # github.ref_name, manifest = ./environments.json, major-minor read from package.json's version.
+      # No version-strategy → the build-id default, for a deployable app (a published library would
+      # instead set version-strategy: package-json). See the Action's CONSUMING.md. The Action
+      # configures a git identity itself when the runner has none, so no separate git-config is needed.
+      - name: Resolve environment and derive version tag
+        id: release
+        uses: jeff-fichtner/snackbyte-release-flow-action@v1

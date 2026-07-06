@@ -28,7 +28,7 @@ longer lives here).
 **Purpose**: Establish the ground truth this refactor depends on, so the deletion is safe.
 
 - [ ] T001 Confirm `jeff-fichtner/snackbyte-release-flow-action@v1` resolves on GitHub (annotated tag, points at a released commit) and that its `action.yml` contract matches what `spec.md` §Context assumes (inputs: `branch`/`manifest`/`major-minor`/`version-strategy`; outputs: `is-env`/`version`/`tag`). Record the resolved SHA in the PR description. (Done in spec authoring: v1 → 1d897e7; re-confirm at implement time.)
-- [ ] T002 Inventory the CI-side release logic to delete vs. the app-runtime half to keep. Deletion set: `scripts/derive-version.sh`, `scripts/derive-version.test.sh`, `scripts/add-env.test.sh`, the inline `resolve-env` node lookup + `version-and-tag` derivation in `.github/workflows/ci-cd.yml`, the `test:release` script + its CI invocations. Keep set (DO NOT TOUCH): `environments.json`, `scripts/resolve-env.mjs`, `src/environments.ts`, `src/env.ts`, `src/web/env.ts`. (I2/I3.)
+- [ ] T002 Inventory the CI-side release logic to delete vs. the app-runtime half to keep. Deletion set: `scripts/derive-version.sh`, `scripts/derive-version.test.sh`, `scripts/add-env.test.sh`, the inline `resolve-env` node lookup + `version-and-tag` derivation in `.github/workflows/ci-cd.yml`, the `test:release` script + its CI invocations. Keep set (DO NOT TOUCH): `environments.json`, `scripts/resolve-env.mjs`, `src/environments.ts`, `src/env.ts`, `src/web/env.ts`, `src/routes/version.ts`, `src/version.ts`, `src/web/version.ts`. (I2/I3.) NOTE: the three deleted test files form one chain — `test:release` (package.json) runs `derive-version.test.sh`, which internally invokes `add-env.test.sh` (see `derive-version.test.sh:~232`). Deleting all three + removing `test:release` leaves nothing dangling; the `[P]` on T006/T007 is safe because all three are being removed together.
 
 **Checkpoint**: The Action is confirmed consumable and the exact seam is written down.
 
@@ -59,7 +59,7 @@ remains. `npm run check:all` passes locally.
 
 **Purpose**: The guardrail. Confirm the deletion did not cross into the manifest's app-runtime half.
 
-- [ ] T009 [US3] Diff the branch against `main` and confirm the deletion set (Phase 2) is the ONLY release/tooling change; assert zero edits to `environments.json`, `scripts/resolve-env.mjs`, `src/environments.ts`, `src/env.ts`, `src/web/env.ts`, and no app-source (`src/**`) churn beyond what a doc/CI change requires (I2/I3, FR-006/FR-007).
+- [ ] T009 [US3] Diff the branch against `main` and confirm the deletion set (Phase 2) is the ONLY release/tooling change; assert zero edits to `environments.json`, `scripts/resolve-env.mjs`, `src/environments.ts`, `src/env.ts`, `src/web/env.ts`, the `/api/version` + version-chip surface (`src/routes/version.ts`, `src/version.ts`, `src/web/version.ts`), and no app-source (`src/**`) churn beyond what a doc/CI change requires (I2/I3, FR-006/FR-007).
 - [ ] T010 [US3] Exercise the app-runtime identity path still works: build (or `npm run dev`) and confirm `resolveBuildEnv()` reads `environments.json`, `/api/version` reports the expected identity, `noindex` is emitted for the no-index environment, and the version chip visibility rule is unchanged (SC-005).
 
 **Checkpoint**: The app-runtime half is provably unchanged and still functions.

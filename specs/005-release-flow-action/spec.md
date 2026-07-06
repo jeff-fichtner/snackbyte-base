@@ -34,8 +34,9 @@ Four design facts shape everything below; they were resolved deliberately and ar
    environment?" (resolve-env) and "what version tag does this push get?" (derive-version) — is what
    the Action owns and what this template deletes. The **app-runtime half** — the build-time identity
    bake (`scripts/resolve-env.mjs`), the typed server/frontend accessors (`src/environments.ts`,
-   `src/env.ts`, `src/web/env.ts`), `/api/version`, the `noindex` header, the version chip — stays in
-   this template untouched. The Action does not cover that half. A careless reading of "extract the
+   `src/env.ts`, `src/web/env.ts`), and the `/api/version` + version-chip surface
+   (`src/routes/version.ts`, `src/version.ts`, `src/web/version.ts`), plus the `noindex` header — stays
+   in this template untouched. The Action does not cover that half. A careless reading of "extract the
    env manifest" would wrongly delete these runtime readers; it must not.
 
 2. **`environments.json` itself stays.** The Action *reads* the manifest (it consumes `branch` and
@@ -103,9 +104,10 @@ the manifest." It is P1 because a regression here silently corrupts every spun-u
 identity — a much worse failure than a broken tag, and one that would not show up in the release flow
 at all.
 
-**Independent test**: `scripts/resolve-env.mjs`, `src/environments.ts`, `src/env.ts`,
-`src/web/env.ts`, and `environments.json` are unchanged by this feature (diff shows no edits to them).
-The existing app-side behavior tests (build identity, `/api/version`) still pass.
+**Independent test**: `scripts/resolve-env.mjs`, `src/environments.ts`, `src/env.ts`, `src/web/env.ts`,
+the `/api/version` + version-chip surface (`src/routes/version.ts`, `src/version.ts`,
+`src/web/version.ts`), and `environments.json` are unchanged by this feature (diff shows no edits to
+them). The existing app-side behavior tests (build identity, `/api/version`) still pass.
 
 ## Requirements *(mandatory)*
 
@@ -140,9 +142,10 @@ The existing app-side behavior tests (build identity, `/api/version`) still pass
   the app-runtime half reads; nothing in this feature edits it.
 
 - **FR-007**: The app-runtime manifest consumers MUST be left functionally unchanged by this feature:
-  `scripts/resolve-env.mjs` (build-time identity bake) and the typed accessors
-  (`src/environments.ts`, `src/env.ts`, `src/web/env.ts`), together with `/api/version`, the `noindex`
-  header, and the version chip. This feature does not touch the app-runtime half.
+  `scripts/resolve-env.mjs` (build-time identity bake), the typed accessors (`src/environments.ts`,
+  `src/env.ts`, `src/web/env.ts`), and the `/api/version` + version-chip surface
+  (`src/routes/version.ts`, `src/version.ts`, `src/web/version.ts`), together with the `noindex`
+  header. This feature does not touch the app-runtime half.
 
 - **FR-008**: Documentation that describes the release flow as in-repo scripts (notably `DEPLOY.md`,
   the `ci-cd.yml` header comments, and any spec-referencing prose in `CLAUDE.md`) MUST be updated to
@@ -167,8 +170,9 @@ The existing app-side behavior tests (build identity, `/api/version`) still pass
   crossed.
 
 - **I3 — The split is load-bearing**: `scripts/resolve-env.mjs`, `src/environments.ts`, `src/env.ts`,
-  `src/web/env.ts`, and `environments.json` are explicitly out of deletion scope. Only the CI-side
-  release flow (FR-004/FR-005) is removed.
+  `src/web/env.ts`, the `/api/version` + version-chip surface (`src/routes/version.ts`,
+  `src/version.ts`, `src/web/version.ts`), and `environments.json` are explicitly out of deletion
+  scope. Only the CI-side release flow (FR-004/FR-005) is removed.
 
 ## Success Criteria *(mandatory)*
 

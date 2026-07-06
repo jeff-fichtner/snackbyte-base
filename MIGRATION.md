@@ -105,7 +105,7 @@ run the resolver — you copy the extension in:
 ## Upgrading clickup-sync in an app that already has it
 
 Until this lives in a versioned package, propagation is a **manual re-copy** (Constitution IV,
-two-tier propagation). To move a newer version (e.g. the 005 additions) into an app:
+two-tier propagation). To move a newer version's additions into an app:
 
 1. **Re-copy only the logic**: overwrite the app's `.specify/extensions/clickup-sync/`
    (commands + `scripts/bash/` + `extension.yml`) and the `.claude/skills/speckit-clickup-*`

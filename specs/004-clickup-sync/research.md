@@ -64,7 +64,7 @@ The most consequential finding (no checklist API) amended the spec mid-plan.
   would change the task format (out of scope for a tracker extension). Parsing prose "Why
   this priority" text for dependencies — too unreliable.
 - **Open for /speckit-tasks**: if a feature declares non-linear US dependencies, v1 records
-  the linear default and the author can adjust; a richer notation is backlog (005).
+  the linear default and the author can adjust; a richer notation is backlog (006).
 
 ## Decision 4: Derived status from repo state
 

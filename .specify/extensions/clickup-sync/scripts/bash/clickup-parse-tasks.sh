@@ -14,7 +14,7 @@
 #
 # Output (JSON):
 #   {
-#     "feature": "004-clickup-sync",
+#     "feature": "001-clickup-sync",
 #     "groups": [
 #       { "us": "US1", "items": [ {"id":"T001","done":false,"text":"T001 Description…"}, … ] },
 #       { "us": "unattributed", "items": [ … ] }

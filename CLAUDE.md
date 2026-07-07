@@ -27,7 +27,9 @@ resolve-env + version derivation — to `snackbyte-release-flow-action@v1`; the 
 manifest readers stay): `specs/005-release-flow-action/spec.md`
 
 Prior feature — ClickUp task-sync extension (mirrors each feature into ClickUp as a
-feature-card + US-subtasks, one-way, MCP-only): `specs/004-clickup-sync/plan.md`
+feature-card + US-subtasks, one-way, MCP-only). The extension source still lives here at
+`.specify/extensions/clickup-sync/`; its spec docs were extracted to the standalone
+`snackbyte-clickup-sync` repo (as `001-clickup-sync`) and removed from this repo.
 
 Prior feature — declarative N-environment manifest: `specs/003-env-manifest/plan.md`
 

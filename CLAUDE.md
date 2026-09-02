@@ -26,13 +26,69 @@ Active feature — consume the release-flow GitHub Action (delegate the CI-side 
 resolve-env + version derivation — to `snackbyte-release-flow-action@v1`; the app-runtime
 manifest readers stay): `specs/005-release-flow-action/spec.md`
 
-Prior feature — ClickUp task-sync extension (mirrors each feature into ClickUp as a
-feature-card + US-subtasks, one-way, MCP-only). The extension source still lives here at
-`.specify/extensions/clickup-sync/`; its spec docs were extracted to the standalone
-`snackbyte-clickup-sync` repo (as `001-clickup-sync`) and removed from this repo.
+Moved out — the ClickUp task-sync extension is no longer *authored* here. It is a Spec Kit
+plug, not a template asset, so its source now lives in the `snackbyte-speckit-engine` repo
+(which is `snackbyte-clickup-sync` renamed). The in-tree copy the template used to own was
+deleted.
+
+What is under `.specify/extensions/` now — `engine`, `git`, `specify`, `analyze`, `clickup`,
+`agent-context` — is the template *consuming* that engine, the same way any project does. It
+is installed tooling, not template source: fix a bug in the engine repo and reinstall, never
+by editing the copy here. **Every spun-up app gets none of it** — the resolver deletes
+`.specify/` wholesale.
 
 Prior feature — declarative N-environment manifest: `specs/003-env-manifest/plan.md`
 
 Prior feature — derived-tag versioning + branch-as-environment staging:
 `specs/002-derived-tag-staging/plan.md`
 <!-- SPECKIT END -->
+
+## Conventions this template carries
+Both survive spin-up into every generated app deliberately, and both are raised in
+`SPIN-UP.md` at the moment they first matter. Keep them in sync if a rule changes.
+- `NAMING.md` — brand is a surface, not an identifier.
+- `MULTI-TENANCY.md` — multi-tenant schema from commit one, single seeded tenant,
+  no user-management UI until there is a second user.
+
+## Settled: the template does not ship what the setup checklist owns (2026-09-02)
+
+Project setup is owned by the machine-level checklist at
+`~/snackbyte/tools/project-setup/SETUP-CHECKLIST.md` (repo
+`jeff-fichtner/project-setup`). The checklist supersedes this template for setup
+concerns; the template predates it and bootstrapped everything only because nothing
+else existed yet. **This template's job is the app skeleton** — Vite/React/TS source,
+the mode/render resolver, the Cloud Run packaging — not project setup.
+
+The rule, and it is absolute: **anything setup-shaped that the checklist covers does
+not ship from here.** It is installed fresh, per project, via the checklist. There is
+no "but this one is thin" exemption — a half-applied rule is what produced the
+contradictory notes this replaced.
+
+The template keeps all of it **for its own use** and the resolver (`scripts/init.mjs`)
+deletes it on spin-up. Nothing was removed from this repo; the delete list grew:
+
+- `.specify/`, the `speckit-*` skill mirrors, `specs/`, and the stub `CLAUDE.md` — a
+  shipped copy would be a spec-kit fork pinned at whatever version built the template.
+- The `spec:html`/`spec:html:watch` scripts and the `@snackbyte/spec-render`
+  devDependency (plus its lockfile entries — `npm ci` fails if they disagree).
+- `.github/workflows/ci-cd.yml`, and `.github/` once empty. CI is installed per repo
+  from `CONSUMING.md` in `jeff-fichtner/snackbyte-release-flow-action`, which is the
+  authoritative source for the wiring, the `@v1` pin, the version-strategy choice, and
+  the repo settings a tag-pushing workflow needs.
+
+`environments.json` is deliberately NOT on that list — it is app build input
+(`scripts/build.mjs` generates `src/env.generated.ts` from it), not release-flow
+config. Nor is the app-runtime half (`scripts/resolve-env.mjs`, `src/environments.ts`).
+
+`MIGRATION.md` is gone from the repo outright — it documented the ClickUp extension,
+which moved to `snackbyte-speckit-engine`. It left with its subject, not under this rule.
+
+**When you add anything to this template, ask first whether the checklist covers it.**
+If it does, it belongs in the resolver's delete list, not in the shipped skeleton.
+
+### The one thing that had to move out with the workflow
+
+SPIN-UP.md used to carry the repo-level `default_workflow_permissions=write` grant —
+without it the first release 403s on the tag push while every check passes green. That
+warning belongs to whoever installs CI, so it now lives in the checklist's release-flow
+step. The job-level `contents: write` is a different setting and does not cover it.

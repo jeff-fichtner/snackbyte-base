@@ -41,16 +41,17 @@ the prerendered markup.
 
 ## CI
 
-A GitHub Action (`.github/workflows/ci-cd.yml`) gates pull requests and, on each push, runs
-the checks and **derives a version tag from git history** — `dev` → `vX.Y.Z-dev` (staging),
-`main` → `vX.Y.Z` (production). The PATCH is not stored in `package.json` (which holds only
-`MAJOR.MINOR`); CI creates and pushes the **tag only**, never a commit. The tag is the deploy
-signal.
+**This repo ships no CI workflow yet.** Adding one is a deliberate, one-time step: follow
+**`CONSUMING.md`** in `jeff-fichtner/snackbyte-release-flow-action`, which owns the workflow
+wiring and the repo settings it needs. Until then a push runs nothing and tags nothing.
 
-**One-time setup, before the first push:** enable
-**Settings → Actions → General → Workflow permissions → "Read and write permissions"** (so CI
-can push the tag), and set branch protection requiring the `validate (merge gate)` check. The
-first push tags on success; without write permission the checks pass but the tag step 403s.
+Once wired, the flow gates pull requests and, on each push, runs the checks and **derives a
+version tag from git history** — `dev` → `vX.Y.Z-dev` (staging), `main` → `vX.Y.Z`
+(production). The PATCH is not stored in `package.json` (which holds only `MAJOR.MINOR`); CI
+creates and pushes the **tag only**, never a commit. The tag is the deploy signal.
+`environments.json` at the repo root declares which branches are environments — it is already
+here, because the app's own build reads it too.
+
 See [DEPLOY.md](DEPLOY.md) for the full versioning + CI/deploy model.
 
 ## Deploy
@@ -73,27 +74,21 @@ expected, not a bug. (The frontend chip's version comes from `package.json` at b
 time; its commit/date are populated only if the build passes them as Docker build-args —
 see [DEPLOY.md](DEPLOY.md).)
 
-## Spec-driven development
+## Naming
 
-This project is set up for spec-driven development (GitHub Spec Kit). Nothing is
-spec'd yet — start here:
+The repo/package/service names describe **what this app does**. The product name is a
+**UX surface** — wordmark, page `<title>`, copy, domain — and lives in one branding
+module, rendered from there. Never let the brand become an identifier: renaming a
+package is a find-replace, but renaming an Artifact Registry repo, a Cloud Run
+service, a secret, or a database is a migration with CI re-authorization attached.
 
-1. **`/speckit-constitution`** — establish this app's principles. A few worth carrying
-   forward (they apply broadly, not just to this app):
-   - **Spec stays in spec spaces.** `specs/`, `.specify/`, `.claude/` are AI-assist
-     scaffolding. Shipped code (`src/`, `tests/`, `README`, `docs/`, scripts) must
-     stand on its own and never reference specs, FRs, or principle numbers — state the
-     rule directly instead.
-   - **Convention over configuration.** The tooling is set up and complete; don't
-     re-litigate it per feature.
-   - **Pinned, linted, type-safe, tested.** Node 24 LTS, TypeScript throughout, and
-     `npm run check:all` (format + lint + typecheck + test) green on every change.
-   - Then add principles specific to this app.
-2. **`/speckit-specify`** → **`/speckit-plan`** → **`/speckit-tasks`** →
-   **`/speckit-implement`** — one feature at a time, one branch per feature.
-   - Optional quality gates: **`/speckit-clarify`** (de-risk an ambiguous spec before
-     planning), **`/speckit-checklist`** (validate requirements after planning), and
-     **`/speckit-analyze`** (cross-artifact consistency before implementing).
-   - **`/speckit-converge`** — when implementation drifts from the plan, it reconciles
-     the built code against spec/plan/tasks and appends the remaining work so
-     `/speckit-implement` can finish it.
+See [NAMING.md](NAMING.md).
+
+## Users
+
+This app is multi-user in its data model from the start, with a single seeded user
+and no user-management interface until there is a second one. Every table carries an
+owner id, every query is scoped by it, and no code path assumes there is exactly one
+user — always resolve the current user from the session.
+
+See [MULTI-TENANCY.md](MULTI-TENANCY.md).

@@ -69,10 +69,34 @@ This step is **intentionally not autonomous**: because the resolver refuses to d
 the mode/render choice, an unattended/automated spin-up can't proceed past here without a
 human answering. That's by design — these are identity decisions, not conveniences.
 
-What `init` keeps (intentionally): the Spec Kit tooling under `.specify/` and `.claude/`,
-and an empty `specs/`. The app's spec-dev state is left exactly as a fresh `specify init`
-would leave it — the template's own constitution and specs are removed, the tooling
-stays, ready for you to run `/speckit-constitution` and `/speckit-specify`.
+### Spec-driven development is not part of the transfer
+
+This template is itself built with [Spec Kit](https://github.com/github/spec-kit), but it
+does **not** install Spec Kit into the apps it spins up. `init` removes the whole workflow:
+`.specify/`, the `.claude/speckit-*` skill mirrors, `specs/`, `CLAUDE.md`, and the
+`spec:html` scripts and their dependency. What lands is a plain app.
+
+That's deliberate. Spec Kit is installed per repo, on its own schedule; a copy shipped
+inside the template would be a pinned fork that silently drifts. Set it up in the new app
+the same way you set it up anywhere:
+
+```bash
+specify init --here      # then: /speckit-constitution
+```
+
+When you write that constitution, a few principles are worth carrying forward — they apply
+broadly, not just to this app:
+
+- **Spec stays in spec spaces.** `specs/`, `.specify/`, `.claude/` are AI-assist
+  scaffolding. Shipped code (`src/`, `tests/`, `README`, `docs/`, scripts) must stand on
+  its own and never reference specs, FRs, or principle numbers — state the rule directly
+  instead. (This is exactly why `init` strips the workflow rather than shipping it: an app
+  that inherited the template's spec references would carry dangling pointers to specs it
+  never had.)
+- **Convention over configuration.** The tooling is set up and complete; don't re-litigate
+  it per feature.
+- **Pinned, linted, type-safe, tested.** Node 24 LTS, TypeScript throughout, and
+  `npm run check:all` (format + lint + typecheck + test) green on every change.
 
 ## 3. Verify
 
@@ -86,53 +110,32 @@ prerender app, that file ships real markup (no `<!--app-html-->` placeholder); c
 with `grep -c app-html dist/index.html` → `0`. (Prerendering runs at build, so in `dev`
 the page is still the empty shell.)
 
-## 4. Authorize CI, then push
+## 4. Commit
 
-The release workflow shipped **inert** in the template (`.github/workflows/ci-cd.yml.disabled`,
-which GitHub ignores) so the un-resolved template never ran CI or tagged a non-app. The
-resolver in step 2 activated it (renamed it to `ci-cd.yml`) and cleared the template's
-inherited tags — so CI is live now, and the first push starts a clean version line at `v0.1.0`.
+The resolver cleared the template's inherited git tags, so this app starts a clean version
+line rather than continuing the template's.
 
-On a push the release workflow runs the checks and **derives a version tag from git
-history**, pushing the **tag only** (`vX.Y.Z` on `main`, `vX.Y.Z-dev` on `dev`) — it never
-commits anything back. For the tag push to succeed, the repo must grant Actions write
-access — a deliberate, one-time authorization. **Do it before the first push**, or the
-first release fails with a 403.
+**No CI ships with the app.** The template runs its own release workflow, but it does not
+hand that workflow to the apps it spins up — CI is installed per repo, from the release
+flow's own documentation, so an app never carries a second, staler copy of that wiring.
+The resolver removed `.github/` on the way out. Adding it is a separate, deliberate step:
+follow **CONSUMING.md** in `jeff-fichtner/snackbyte-release-flow-action`, which owns the
+workflow wiring, the `@v1` pin, the app-vs-library version-strategy choice, and the repo
+settings a tag-pushing workflow needs.
 
-This is a security setting (it lets CI push tags to the repo), so it's authorized consciously:
+Until that is done, a push runs nothing and tags nothing.
 
-```bash
-gh api -X PUT repos/<owner>/<repo>/actions/permissions/workflow \
-  -f default_workflow_permissions=write
-```
+See [DEPLOY.md](DEPLOY.md) for the versioning and deploy model the release flow implements.
 
-(Or in the web UI: **Settings → Actions → General → Workflow permissions → "Read and
-write permissions" → Save**.) The command needs admin rights on the repo, which the
-account that created it has.
-
-> **If you are an agent doing this spin-up: STOP here and ask the person before granting
-> this.** It's a privilege escalation (it lets CI push to `main`), so it needs a
-> conscious human decision — present the command above and ask them to either run it
-> themselves or explicitly approve you running it. Don't grant it silently, and don't
-> proceed to the push until it's authorized. (Many agent sandboxes will refuse the
-> `gh api` elevation outright; either way, the human is in the loop.)
-
-Once it's authorized, commit the spin-up and push. The version PATCH is derived from git
-tags by CI (not stored in `package.json`, which holds only `MAJOR.MINOR`), so the first push
-to `main` produces `v0.1.0`. See [DEPLOY.md](DEPLOY.md) for the full versioning + CI/deploy
-model.
-
-> **If you are an agent doing this spin-up: STOP and ask the person before pushing to
-> `main`.** Pushing to the default branch is the irreversible, outward-facing step that
-> kicks off the first release — get explicit approval before you push. Have the commit
-> staged and ready, show them what you're about to push, and wait for the go-ahead.
-> (Many agent sandboxes will refuse a push to `main` outright; either way, the human
-> approves the push.)
+> **If you are an agent doing this spin-up: commit before you stop.** The spin-up must be
+> **committed locally** — never leave the repo uncommitted and report the task done. A
+> spun-up app with no commit is an incomplete spin-up, not a completed one.
 >
-> **Stopping here is NOT finishing.** Before you pause, the spin-up must be **committed
-> locally** — never leave the repo uncommitted or empty and report the task done. "Stop and
-> ask before pushing" means: commit, then hold at the push. A spun-up app with no commit is
-> an incomplete spin-up, not a completed one.
+> **Then STOP and ask the person before pushing to `main`.** Pushing to the default branch
+> is the irreversible, outward-facing step — get explicit approval first. Have the commit
+> staged and ready, show them what you're about to push, and wait for the go-ahead. (Many
+> agent sandboxes will refuse a push to `main` outright; either way, the human approves
+> the push.)
 
 ## Switching mode later
 
@@ -213,3 +216,28 @@ not one to default into. Decide it (or ask) up front.
 Reverse it: restore the entry in `src/web/prerender.ts`
 (`[{ html: 'index.html', element: createElement(App) }]`) and the prerender build step.
 Keep prerendered content limited to what's known at build time.
+
+## Naming: keep the brand out of the identifiers
+
+When you resolve what this app is (§2), you are choosing **two** names, not one:
+
+- a **descriptive** name for the code — repo, package, service, registry, secrets,
+  schema. It should say what the thing does and should outlive any rebrand.
+- a **brand** name for users — wordmark, `<title>`, copy, domain. This one lives in
+  a single branding module and is rendered from there.
+
+Do not let the brand become an identifier. Renaming a package is a find-replace;
+renaming an Artifact Registry repository, a Cloud Run service, a secret, or a
+database is a migration with CI re-authorization attached.
+
+See [NAMING.md](NAMING.md) for the full line, the leak table, and the grep check.
+
+## Users: multi-tenant schema, one seeded tenant
+
+Do not scaffold this app as single-user. Every table carries an owner id from the
+first migration, every query is scoped by it, and the first user is seeded rather
+than signed up. Build no signup, invite, or user-administration UI until a second
+user actually exists.
+
+The schema half is nearly free now and a migration later. The product half is
+expensive and premature. See [MULTI-TENANCY.md](MULTI-TENANCY.md).

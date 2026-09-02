@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, rmSync, cpSync, existsSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, cpSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -124,19 +124,35 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     expect(existsSync(join(dir, 'scripts/init.mjs'))).toBe(false);
     expect(existsSync(join(dir, 'SPIN-UP.md'))).toBe(false);
     expect(existsSync(join(dir, 'README.app.md'))).toBe(false);
+    // Template-only guidance docs (getting FROM the template TO an app) don't reach
+    // the resolved app — they'd be dead weight in its root.
+    expect(existsSync(join(dir, 'SUBDIR-LAYOUT.md'))).toBe(false);
     expect(existsSync(join(dir, 'src/routes'))).toBe(mode === 'server');
-    // App's spec-dev state matches a fresh `specify init`: tooling + stub stay; the
-    // template's own constitution and specs are gone; specs/ is empty and ready.
-    expect(existsSync(join(dir, '.specify/memory/constitution.md'))).toBe(false);
-    expect(existsSync(join(dir, '.specify/templates/constitution-template.md'))).toBe(true);
-    expect(existsSync(join(dir, '.specify/feature.json'))).toBe(false);
-    expect(existsSync(join(dir, 'specs/001-template-skeleton'))).toBe(false);
-    expect(existsSync(join(dir, 'specs/.gitkeep'))).toBe(true);
-    expect(existsSync(join(dir, '.claude/skills'))).toBe(true);
+    // The spec-driven-development workflow does not transfer: the app installs it itself
+    // (`specify init`) if it wants it, rather than inheriting the template's copy.
+    expect(existsSync(join(dir, '.specify'))).toBe(false);
+    expect(existsSync(join(dir, 'specs'))).toBe(false);
+    // The resolver takes out the `speckit-*` skills by name and drops `.claude/` only once
+    // it is empty — it must never delete an agent config the person wrote before spinning up.
+    // So assert the promise (no speckit mirrors), not the stronger claim that `.claude` is
+    // always gone: a checkout carrying e.g. `.claude/settings.local.json` keeps the directory,
+    // and that is correct behavior rather than a failure.
+    expect(existsSync(join(dir, '.claude/skills'))).toBe(false);
+    if (existsSync(join(dir, '.claude'))) {
+      expect(readdirSync(join(dir, '.claude')).some((e) => e.startsWith('speckit-'))).toBe(false);
+    }
+    expect(existsSync(join(dir, 'CLAUDE.md'))).toBe(false);
+    expect(readFileSync(join(dir, '.gitignore'), 'utf8')).not.toMatch(/specs\//);
     const readme = readFileSync(join(dir, 'README.md'), 'utf8');
     expect(readme).not.toMatch(/template|skeleton|Use this template/i);
     const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
     expect(pkg.scripts.init).toBeUndefined();
+    // spec-render only renders specs/*.md, which the app has none of — scripts and the
+    // dependency both go, and package.json/package-lock.json stay in sync so `npm ci`
+    // (used by CI and the Dockerfile) still installs.
+    expect(pkg.scripts['spec:html']).toBeUndefined();
+    expect(pkg.scripts['spec:html:watch']).toBeUndefined();
+    expect(pkg.devDependencies['@snackbyte/spec-render']).toBeUndefined();
     // app starts its own version line at MAJOR.MINOR 0.1 (the patch is derived from tags by CI,
     // not stored in package.json), not the template's version
     expect(pkg.version).toBe('0.1');
@@ -151,27 +167,27 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     expect(lock.version).toBe('0.1');
     expect(lock.packages['']?.name).toBe('demo');
     expect(JSON.stringify(lock)).not.toMatch(/snackbyte-base/);
+    expect(lock.packages['']?.devDependencies?.['@snackbyte/spec-render']).toBeUndefined();
+    expect(lock.packages['node_modules/@snackbyte/spec-render']).toBeUndefined();
     // tests re-tiered: machinery gone, app tests kept, vite config points at tests/app
     expect(existsSync(join(dir, 'tests/machinery'))).toBe(false);
     expect(existsSync(join(dir, 'tests/app'))).toBe(true);
     expect(readFileSync(join(dir, 'vite.config.ts'), 'utf8')).not.toMatch(/tests\/machinery/);
-    // the app inherits the derived-tag ci-cd workflow; init ACTIVATES it (renames the
-    // template's inert ci-cd.yml.disabled to the live ci-cd.yml GitHub will discover), and
-    // after resolution it carries no template/spin-up/init fingerprint and none of the old
-    // commit-the-bump machinery
-    expect(existsSync(join(dir, '.github/workflows/ci-cd.yml'))).toBe(true);
+    // the app inherits NO CI: the template runs its own release workflow, but does not hand
+    // it to spun-up apps. CI is installed per repo from the release-flow Action's CONSUMING.md,
+    // so a shipped copy would just be a staler second copy of that wiring. The now-empty
+    // .github/ directory goes with it.
+    expect(existsSync(join(dir, '.github/workflows/ci-cd.yml'))).toBe(false);
     expect(existsSync(join(dir, '.github/workflows/ci-cd.yml.disabled'))).toBe(false);
-    const workflow = readFileSync(join(dir, '.github/workflows/ci-cd.yml'), 'utf8');
-    expect(workflow).toContain('name: ci-cd');
-    expect(workflow).not.toMatch(/AUTO_BUMP|\[skip ci\]|chore: release|npm version/);
-    expect(workflow).not.toMatch(/template|spin-?up|resolver|init sets|disabled/i);
-    // CLAUDE.md is cleaned for the app: no dangling template-plan reference, no
-    // "this is a template, don't edit" guard (the app is meant to be edited).
-    const claude = readFileSync(join(dir, 'CLAUDE.md'), 'utf8');
-    expect(claude).not.toMatch(/specs\/001-template-skeleton/);
-    expect(claude).toContain('/speckit-constitution');
-    expect(claude).not.toMatch(/TEMPLATE-GUARD/);
-    expect(claude).not.toMatch(/do not edit it to build an app/i);
+    expect(existsSync(join(dir, '.github'))).toBe(false);
+    // environments.json is NOT release-flow-only config — it is app build input
+    // (scripts/build.mjs generates src/env.generated.ts from it), so it stays.
+    expect(existsSync(join(dir, 'environments.json'))).toBe(true);
+    // The convention docs survive the transfer deliberately, and the resolved README points
+    // at both by name — so a missing one ships every app a dangling pointer in its own README.
+    for (const doc of ['NAMING.md', 'MULTI-TENANCY.md']) {
+      expect(existsSync(join(dir, doc)), `${doc} must survive spin-up`).toBe(true);
+    }
     // the page <title> is set to the app name, not the template placeholder
     const html = readFileSync(join(dir, 'src/web/index.html'), 'utf8');
     expect(html).toContain('<title>demo</title>');
@@ -200,20 +216,51 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     expect(result.status).toBe(0);
   });
 
+  it('resolved docs point at no file the app does not have', () => {
+    // A doc reference that survives the transfer but whose target does not is a dangling
+    // pointer in the app's own README — worse than saying nothing, because it reads as a
+    // file the owner has misplaced. Only the markdown-link form is checked: a relative link
+    // is unambiguously a file in THIS repo, whereas a backticked name may well be a doc in
+    // another repo (`CONSUMING.md` in the release-flow Action, say). So the convention is:
+    // link a local doc, backtick a foreign one — which is what makes this guard decidable.
+    for (const doc of ['README.md', 'NAMING.md', 'MULTI-TENANCY.md']) {
+      const text = readFileSync(join(dir, doc), 'utf8');
+      const refs = new Set(
+        [...text.matchAll(/\[[^\]]*\]\(([A-Za-z0-9_-]+\.md)\)/g)].map((m) => m[1]),
+      );
+      for (const ref of refs) {
+        expect(existsSync(join(dir, ref)), `${doc} points at missing ${ref}`).toBe(true);
+      }
+    }
+  });
+
   it('leaves no "snackbyte-base" / template-word fingerprint in resolved metadata + key files', () => {
     // The files most likely to carry a leftover template name/word after resolution.
-    for (const rel of [
-      'package.json',
-      'package-lock.json',
-      'README.md',
-      'src/web/index.html',
-      '.github/workflows/ci-cd.yml',
-    ]) {
+    for (const rel of ['package.json', 'package-lock.json', 'README.md', 'src/web/index.html']) {
       const text = readFileSync(join(dir, rel), 'utf8');
       expect(text, `${rel} still references snackbyte-base`).not.toMatch(/snackbyte-base/);
     }
     // The resolved README must not carry template/skeleton/spin-up wording.
     expect(readFileSync(join(dir, 'README.md'), 'utf8')).not.toMatch(/skeleton|spin-?up/i);
+  });
+
+  it('leaves no spec-driven-development references in the resolved app', () => {
+    // The workflow is gone, so nothing shipped may point at it — a `/speckit-*` command or
+    // a `.specify/` path in the app's own docs would be an instruction it cannot follow.
+    for (const rel of [
+      'README.md',
+      'DEPLOY.md',
+      'package.json',
+      '.gitignore',
+      '.dockerignore',
+      'config/.prettierignore',
+    ]) {
+      const file = join(dir, rel);
+      if (!existsSync(file)) continue;
+      expect(readFileSync(file, 'utf8'), `${rel} still references Spec Kit`).not.toMatch(
+        /speckit|spec[- ]kit|\.specify|spec-render/i,
+      );
+    }
   });
 });
 
@@ -260,7 +307,7 @@ describe('CI/CD is active in the template repo', () => {
   // Copies the whole repo incl. node_modules (~150MB), which can exceed the 5s default under
   // load — give it room so the cpSync isn't a flaky timeout.
   it(
-    'strips the template’s inherited git tags so the first push mints v0.1.0',
+    'strips the template’s inherited git tags so the app’s first release mints v0.1.0',
     { timeout: 30000 },
     () => {
       const dir = mkdtempSync(join(tmpdir(), 'snackbyte-tags-'));

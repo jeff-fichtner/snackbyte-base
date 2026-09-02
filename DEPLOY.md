@@ -14,7 +14,8 @@ Placeholders used throughout: `<project>` (GCP project id), `<service>` (Cloud R
 
 The **branch selects the environment**, and the environments are declared in
 **`environments.json`** at the repo root — the single source of truth. The default ships two:
-`main` → production and `dev` → staging. On push, CI (`.github/workflows/ci-cd.yml`) runs the
+`main` → production and `dev` → staging. On push, CI (`.github/workflows/ci-cd.yml`, added per
+repo — see below) runs the
 quality gate and then calls the **`snackbyte-release-flow-action`** (pinned `@v1`), which
 resolves whether the pushed branch is an environment (reading `environments.json`); a push to a
 non-environment branch short-circuits cleanly (no tag). For an environment branch, on gate pass,
@@ -101,7 +102,15 @@ new commit → new tag; the orphaned tag harmlessly becomes a build id with no d
 
 ## The CI workflow (`.github/workflows/ci-cd.yml`)
 
-One workflow, triggered on any push (except obvious non-environment branch patterns) + PR:
+> **This workflow is not shipped with the app — you add it.** The release flow lives in the
+> `snackbyte-release-flow-action` repo, and its **`CONSUMING.md`** is the authoritative source for
+> the wiring: the `@v1` pin, `fetch-depth: 0`, the job's `contents: write`, the app-vs-library
+> `version-strategy` choice, and the repo-level Actions permission a tag-pushing workflow needs.
+> Follow it once, per repo, rather than inheriting a copy that drifts. The recipes there produce a
+> workflow conventionally named **`ci-cd`** — the name the rest of this document assumes.
+
+Once added, it is one workflow, triggered on any push (except obvious non-environment branch
+patterns) + PR:
 
 1. `validate (merge gate)` (PRs only): runs `npm run check:all`. A PR can't merge until it passes
    — but **only if branch protection requires it** (see below); the workflow can run a check, it
@@ -119,11 +128,6 @@ The tag is pushed with the default `GITHUB_TOKEN` (`permissions: contents: write
 `GITHUB_TOKEN`-pushed tag does **not** trigger another workflow (GitHub's recursion guard), which
 is fine: the deploy is a chained `needs:` job in the **same** run, so no second event is needed
 and no personal access token is required.
-
-> **App in a subdirectory, not at the repo root?** This workflow assumes the app _is_ the repo.
-> When it lives under `<app>/` instead, the workflow must move to the repo-root `.github/` and
-> gain `working-directory`, `cache-dependency-path`, and `paths:` adjustments. See
-> [SUBDIR-LAYOUT.md](SUBDIR-LAYOUT.md) for the full playbook.
 
 ## One-time CI setup (per repo): authorize the tag push and the merge gate
 
@@ -594,8 +598,8 @@ Per new app `<app>`:
 4. **Load balancer** — add a serverless NEG + backend + host-rule on the existing URL map; add one
    `A` record for the sub → same `<LB-IP>`. TLS is already covered by the wildcard cert (§5). **No
    new LB, no new IP, no cert work, ~$0 added.**
-5. **Workflow** — copy `ci-cd.yml` and add the per-app `deploy` job (above), changing `_SERVICE`,
-   the WIF principal, and the host.
+5. **Workflow** — wire the release flow per `CONSUMING.md` as usual, then add the per-app `deploy`
+   job (above), changing `_SERVICE`, the WIF principal, and the host.
 
 ---
 

@@ -21,15 +21,7 @@
  * After it runs there is no "mode"/"render" concept left: the app simply is what it
  * is. Switching later is a documented code edit (see the template's docs), not a flag.
  */
-import {
-  readFileSync,
-  writeFileSync,
-  rmSync,
-  existsSync,
-  unlinkSync,
-  mkdirSync,
-  renameSync,
-} from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync, rmSync, existsSync, unlinkSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -115,42 +107,26 @@ if (mode === 'server') {
   writeFileSync(cfg, text);
 }
 
-// ---- activate + de-template the release workflow ---------------------------
-// Historically the template shipped the workflow inert as `ci-cd.yml.disabled` so an un-resolved
-// template would not run CI or tag on a push (GitHub only discovers `*.yml`/`*.yaml`); spin-up
-// renamed it to `ci-cd.yml` to bring CI live for the app. The snackbyte-base repo itself now ships
-// the workflow already active as `ci-cd.yml`, so the rename below is a no-op there and only fires
-// on older/derived repos that still carry the `.disabled` name. Either way, spin-up de-templates
-// the header so the resolved repo carries no template/spin-up/init references (a fingerprint, and a
-// dangling reference to this script after it self-deletes). Nothing about the release LOGIC changes
-// on spin-up: the version is derived from git tags and nothing is committed back.
+// ---- remove the CI release workflow ----------------------------------------
+// The template runs its own CI from `.github/workflows/ci-cd.yml` (that is where snackbyte-base's
+// own version tags come from), but it does NOT hand that workflow to the apps it spins up. CI is
+// installed per repo, on its own schedule, from the release-flow Action's own CONSUMING.md — the
+// authoritative source for the wiring, the `@v1` pin, and the app-vs-library version-strategy
+// choice. A copy shipped inside the template would be a second, staler copy of that wiring.
+//
+// `environments.json` deliberately stays: it is app build input (scripts/build.mjs generates
+// src/env.generated.ts from it), not release-flow-only config. So does the app-side runtime half
+// (scripts/resolve-env.mjs, src/environments.ts) — only the CI file goes.
+//
+// Remove the directories only once they are empty, so an app that already had its own
+// `.github/` content (issue templates, CODEOWNERS) keeps it.
 {
-  const disabled = path('.github/workflows/ci-cd.yml.disabled');
-  const wf = path('.github/workflows/ci-cd.yml');
-  if (existsSync(disabled)) renameSync(disabled, wf);
-  let text = readFileSync(wf, 'utf8');
-  // Replace the template-authored header (everything before `name:`) with an app-appropriate
-  // version — no template/spin-up/init references. Anchored on `name:`.
-  const appHeader =
-    [
-      '# Validate, version, and tag — the pushed branch selects the environment (via environments.json).',
-      '#',
-      '# environments.json lists this app’s environments; the default ships main -> production',
-      '# (tag vMAJOR.MINOR.PATCH) and dev -> staging (tag vMAJOR.MINOR.PATCH-dev). Add an environment',
-      '# by adding a row there — this workflow needs no change (a resolve-env job reads the manifest',
-      '# and short-circuits a push to a non-environment branch).',
-      '#',
-      '# The version PATCH is derived from git tags, never committed: package.json holds only',
-      '# MAJOR.MINOR, and CI creates + pushes a tag only (no commit, no branch push). A PR is',
-      '# blocked until `npm run check:all` passes, and the gate is re-run on the push before any',
-      '# tag is created. The deploy job is wired per environment (see DEPLOY.md).',
-      '',
-    ].join('\n') + '\n';
-  const nameIdx = text.indexOf('\nname:');
-  if (nameIdx !== -1) {
-    text = appHeader + text.slice(nameIdx + 1);
+  rmSync(path('.github/workflows/ci-cd.yml'), { force: true });
+  rmSync(path('.github/workflows/ci-cd.yml.disabled'), { force: true });
+  for (const rel of ['.github/workflows', '.github']) {
+    const dir = path(rel);
+    if (existsSync(dir) && readdirSync(dir).length === 0) rmSync(dir, { recursive: true });
   }
-  writeFileSync(wf, text);
 }
 
 // ---- rename the package ----------------------------------------------------
@@ -163,19 +139,30 @@ if (typeof args.name === 'string') {
 
 // ---- remove the init script line + template description, reset version -----
 // The app starts its own version line at MAJOR.MINOR 0.1 (not the template's version).
-// package.json holds only MAJOR.MINOR; the PATCH is derived from git tags by CI, so the first
-// push to main tags v0.1.0. Bump MAJOR.MINOR by hand for a meaningful release.
+// package.json holds only MAJOR.MINOR; the PATCH is derived from git tags once a release flow
+// is wired up, so the app's first release is v0.1.0. Bump MAJOR.MINOR by hand for a
+// meaningful release.
 const pkgPath = path('package.json');
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
 delete pkg.scripts.init;
+// Spec-driven-development tooling is not part of the app (see the removal block below).
+// spec-render turns `specs/**/*.md` into HTML views — with no `specs/` to render, both
+// scripts and the dependency are dead weight, so they go with it.
+delete pkg.scripts['spec:html'];
+delete pkg.scripts['spec:html:watch'];
+delete pkg.devDependencies['@snackbyte/spec-render'];
 // Derive a placeholder description from the name rather than blanking it (the app owner
 // can refine it, but a blank description is worse than a sensible stub).
 pkg.description = `${pkg.name} — a snackbyte app.`;
 pkg.version = '0.1';
 writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 
-// Sync package-lock.json's name/version to match — otherwise the lockfile keeps the
-// template's name and version (a surviving fingerprint, and a stale version number).
+// Sync package-lock.json to match package.json — its name/version (otherwise the lockfile
+// keeps the template's, a surviving fingerprint and a stale version number) and the
+// dependency we just dropped. The lockfile edit is not cosmetic: `npm ci` — which both CI
+// and the Dockerfile use — refuses to install when package.json and package-lock.json
+// disagree, so a lock still declaring @snackbyte/spec-render would fail the app's first
+// build. Done in-process so it cannot depend on a network or a warm npm cache.
 {
   const lockPath = path('package-lock.json');
   if (existsSync(lockPath)) {
@@ -185,19 +172,40 @@ writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
     if (lock.packages && lock.packages['']) {
       lock.packages[''].name = pkg.name;
       lock.packages[''].version = pkg.version;
+      delete lock.packages['']?.devDependencies?.['@snackbyte/spec-render'];
+      delete lock.packages['node_modules/@snackbyte/spec-render'];
     }
     writeFileSync(lockPath, JSON.stringify(lock, null, 2) + '\n');
   }
 }
 
+// Tidy the transitive entries spec-render left behind (markdown-it, highlight.js, …).
+// `npm ci` already ignores unreachable entries — the lock above is correct without this —
+// so this is a cleanliness pass only, and a failure is reported rather than fatal.
+{
+  const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const tidy = spawnSync(
+    npmBin,
+    ['install', '--package-lock-only', '--prefer-offline', '--ignore-scripts', '--no-audit'],
+    { cwd: root, stdio: 'ignore' },
+  );
+  if (tidy.status !== 0) {
+    console.warn(
+      'Note: could not re-resolve package-lock.json; it keeps a few unused entries.\n' +
+        '      Harmless — run `npm install --package-lock-only` to tidy them.',
+    );
+  }
+}
+
 // ---- strip the template's inherited git tags -------------------------------
 // The version reset above (0.1) only sets MAJOR.MINOR; the PATCH is derived from existing git tags
-// by CI. A "Create from template" repo carries no tags, but a clone or fork inherits ALL of the
-// template's release tags (v1.0.0 … v1.2.x). Left in place those would make the first push derive
-// vMM.<max+1> off the template's history instead of the promised v0.1.0 — and pollute the app's
-// history with releases that were never its own. Delete every local tag so the app's first push
-// mints a clean v0.1.0. Best-effort: no git, no remote, or no tags is fine (a template-created
-// repo has none); only this clone's local tags are touched, never anything already pushed.
+// whenever a release flow is wired up. A "Create from template" repo carries no tags, but a clone
+// or fork inherits ALL of the template's release tags (v1.0.0 … v1.2.x). Left in place those would
+// make the app's first release derive vMM.<max+1> off the template's history instead of a clean
+// v0.1.0 — and pollute the app's history with releases that were never its own. So they go now,
+// at resolve time, rather than lying in wait until CI is installed. Best-effort: no git, no remote,
+// or no tags is fine (a template-created repo has none); only this clone's local tags are touched,
+// never anything already pushed.
 {
   const inGit =
     spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
@@ -217,13 +225,16 @@ writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 }
 
 // ---- swap in the forward-facing app README, drop template docs -------------
-// The app gets its own README (no template/skeleton language); the template README
-// and this handoff guide are removed.
+// The app gets its own README (no template/skeleton language); the template README and the
+// template-only handoff/guidance docs are removed. SPIN-UP.md (the resolver handoff) and
+// SUBDIR-LAYOUT.md (a pre-spin-up layout decision) are both about getting FROM the template TO
+// an app — neither is part of the resolved app, so leaving them would clutter every spun-up
+// repo's root with docs it can't act on.
 const appName = typeof args.name === 'string' ? args.name : pkg.name;
 const appReadme = readFileSync(path('README.app.md'), 'utf8').replace(/APP_NAME/g, appName);
 writeFileSync(path('README.md'), appReadme);
 rmSync(path('README.app.md'), { force: true });
-for (const rel of ['SPIN-UP.md']) {
+for (const rel of ['SPIN-UP.md', 'SUBDIR-LAYOUT.md']) {
   if (existsSync(path(rel))) rmSync(path(rel), { force: true });
 }
 
@@ -235,47 +246,86 @@ for (const rel of ['SPIN-UP.md']) {
   writeFileSync(htmlPath, html);
 }
 
-// Leave the app's spec-driven-dev state exactly as a fresh `specify init` would: the
-// Spec Kit tooling (.specify/, .claude/) stays, but the template's own constitution
-// and specs are removed — they were about building the template, not this app. The
-// app's first step is to run /speckit-constitution, then /speckit-specify.
-rmSync(path('.specify/memory/constitution.md'), { force: true });
-rmSync(path('specs'), { recursive: true, force: true });
-mkdirSync(path('specs'), { recursive: true });
-writeFileSync(path('specs/.gitkeep'), '');
-// feature.json tracks the active feature; the template's points at a spec we just
-// deleted. A fresh `specify init` has none, so drop it — the first /speckit-specify
-// recreates it for the app's own first feature.
-rmSync(path('.specify/feature.json'), { force: true });
+// ---- remove the spec-driven-development scaffolding ------------------------
+// The template develops itself with Spec Kit, but it does not install Spec Kit into the
+// apps it spins up — that tooling is set up per repo on its own, so shipping a copy would
+// hand every app a pinned fork of it that silently drifts out of date. So the whole
+// workflow leaves with the transfer: the tooling (`.specify/`), its agent-skill mirrors
+// (`.claude/`), the template's own specs and constitution (`specs/`), and the agent
+// instructions that reference them (`CLAUDE.md` — the template guard is its only other
+// content, and that goes too now that this is a normal app meant to be edited).
+//
+// Nothing here is left behind as a stub: an app that wants the workflow runs `specify
+// init` (plus `/speckit-constitution`), which installs the current version configured for
+// that app — strictly better than inheriting the copy the template happened to carry.
+for (const rel of ['.specify', 'specs']) {
+  rmSync(path(rel), { recursive: true, force: true });
+}
+rmSync(path('CLAUDE.md'), { force: true });
 
-// Clean up CLAUDE.md for the app: remove the template guard (it's a normal app now,
-// meant to be edited), and rewrite the SPECKIT block — the template pointed it at its
-// own plan (specs/001-template-skeleton/plan.md), which we just deleted, leaving a
-// dangling reference. The result matches a fresh `specify init` state.
+// `.claude/` holds only the speckit skill mirrors in the template, but it is also where an
+// agent keeps settings the person may already have written in this repo before spinning up.
+// So take out the speckit skills by name and remove the directories only once they are
+// empty — never blow away a `.claude/` that has something else in it.
 {
-  const claudePath = path('CLAUDE.md');
-  if (existsSync(claudePath)) {
-    const generic =
-      '<!-- SPECKIT START -->\n' +
-      'This project uses spec-driven development (GitHub Spec Kit). Nothing is spec’d\n' +
-      'yet — run `/speckit-constitution` to establish this app’s principles, then\n' +
-      '`/speckit-specify` to define the first feature. Plans live under `specs/`.\n' +
-      '<!-- SPECKIT END -->\n';
-    let text = readFileSync(claudePath, 'utf8');
-    text = text.replace(
-      /<!-- TEMPLATE-GUARD START -->[\s\S]*?<!-- TEMPLATE-GUARD END -->\n?\n?/,
-      '',
-    );
-    text = text.replace(/<!-- SPECKIT START -->[\s\S]*?<!-- SPECKIT END -->\n?/, generic);
-    writeFileSync(claudePath, text);
+  const skills = path('.claude/skills');
+  if (existsSync(skills)) {
+    for (const entry of readdirSync(skills)) {
+      if (entry.startsWith('speckit-')) rmSync(resolve(skills, entry), { recursive: true });
+    }
   }
+  for (const rel of ['.claude/skills', '.claude']) {
+    const dir = path(rel);
+    if (existsSync(dir) && readdirSync(dir).length === 0) rmSync(dir, { recursive: true });
+  }
+}
+
+// The ignore rules that named those paths go with them. Left behind they are entries for
+// directories that cannot exist — dead config, and the last place the workflow would still
+// be visible in an app that has no idea what it is.
+const unstripped = [];
+for (const [rel, pattern] of [
+  // the generated HTML spec views + the ClickUp plug's local target (no specs/, no plug left)
+  ['.gitignore', /\n# Spec-workflow scaffolding[\s\S]*?config\.local\.yml\n/],
+  ['.dockerignore', /\nspecs\/\n\.specify\/\n\.claude\/\n/],
+  [
+    'config/.prettierignore',
+    /\n# Spec-workflow scaffolding[^\n]*\n\.specify\/\n\.claude\/\nspecs\/\nCLAUDE\.md\n/,
+  ],
+]) {
+  const file = path(rel);
+  // Report rather than throw. This runs near the END of the resolve — `.specify/`, `specs/`
+  // and CLAUDE.md are already deleted by now — so aborting here would strand a half-resolved
+  // repo, which is strictly worse than a stale ignore entry. But it must never pass silently:
+  // these patterns are anchored on exact multi-line blocks, so an upstream edit to any of
+  // these files makes the replace a no-op, and the only symptom would be a spun-up app
+  // carrying ignore rules for directories it does not have.
+  if (!existsSync(file)) {
+    unstripped.push(`${rel} (missing)`);
+    continue;
+  }
+  const before = readFileSync(file, 'utf8');
+  const after = before.replace(pattern, '\n');
+  if (after === before) {
+    unstripped.push(rel);
+    continue;
+  }
+  writeFileSync(file, after);
+}
+if (unstripped.length > 0) {
+  console.warn(
+    `Note: could not remove the spec-workflow block from: ${unstripped.join(', ')}.\n` +
+      '      The resolve is otherwise complete — delete those entries by hand.',
+  );
 }
 
 // ---- tidy formatting -------------------------------------------------------
 // Deleting marker blocks can leave stray blank lines; reformat so the quality gate
-// passes cleanly on the resolved app.
+// passes cleanly on the resolved app. This needs the local prettier, so say so when it
+// isn't installed — otherwise the resolve looks clean but `npm run check:all` opens red
+// on formatting, which reads as a broken template rather than a skipped `npm install`.
 const prettierBin = path(`node_modules/.bin/prettier${process.platform === 'win32' ? '.cmd' : ''}`);
-spawnSync(
+const formatted = spawnSync(
   prettierBin,
   [
     '--config',
@@ -289,29 +339,28 @@ spawnSync(
   ],
   { cwd: root, stdio: 'ignore' },
 );
+if (formatted.status !== 0) {
+  console.warn(
+    'Note: prettier did not run, so the resolved source is not reformatted.\n' +
+      '      Run `npm install && npm run format` before `npm run check:all`.',
+  );
+}
 
 console.log(`Initialized as a ${mode} / ${render} app named "${appName}".`);
 console.log('Removed template scaffolding. This repo is now your app.');
 
-// ---- print the next step: authorize CI to push tags ------------------------
-// The release workflow tags main on the first push, which needs the repo's Actions
-// permission set to write. Print the exact command, with the repo slug filled in from
-// the git remote when available (falls back to a placeholder otherwise).
+// ---- print the next steps --------------------------------------------------
+// No CI is shipped with the app (see the workflow-removal block above), so there is nothing to
+// authorize here. Point at the release-flow Action instead: its CONSUMING.md owns the wiring, the
+// `@v1` pin, the app-vs-library version-strategy choice, AND the repo settings a tag-pushing
+// workflow needs. Naming it keeps that knowledge in one place rather than half-copied into here.
 {
-  const remote = spawnSync('git', ['remote', 'get-url', 'origin'], {
-    cwd: root,
-    encoding: 'utf8',
-  }).stdout?.trim();
-  const match = remote?.match(/github\.com[/:]([^/]+\/[^/]+?)(?:\.git)?$/);
-  const slug = match ? match[1] : '<owner>/<repo>';
   console.log('');
   console.log('Next:');
   console.log('  1. Verify:  npm run check:all  &&  npm run dev');
-  console.log('  2. Authorize CI to push version tags (before your first push to main):');
-  console.log(
-    `       gh api -X PUT repos/${slug}/actions/permissions/workflow -f default_workflow_permissions=write`,
-  );
-  console.log('  3. Commit and push to main (the first push derives and tags v0.1.0).');
+  console.log('  2. Commit this spin-up.');
+  console.log('  3. This app ships no CI workflow. To add the release flow, follow');
+  console.log('     CONSUMING.md in jeff-fichtner/snackbyte-release-flow-action.');
 }
 
 // ---- self-delete (last) ----------------------------------------------------

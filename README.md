@@ -18,7 +18,7 @@ app simply _is_ that mode, with no leftover template machinery.
    ```
 
 2. **Follow [SPIN-UP.md](./SPIN-UP.md)** — it's the authoritative, step-by-step handoff
-   (install, resolve, enable CI, push). Start there.
+   (install, resolve, commit). Start there.
 
 The resolve step bakes two identity choices into the source — `--mode` (static vs. an
 Express API) and `--render` (build-time HTML vs. client-side). They have no default;

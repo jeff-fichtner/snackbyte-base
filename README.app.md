@@ -73,12 +73,3 @@ env), it self-reports `0.0.0-dev` / `commit: dev` / `environment: development` �
 expected, not a bug. (The frontend chip's version comes from `package.json` at build
 time; its commit/date are populated only if the build passes them as Docker build-args —
 see [DEPLOY.md](DEPLOY.md).)
-
-## Users
-
-This app is multi-user in its data model from the start, with a single seeded user
-and no user-management interface until there is a second one. Every table carries an
-owner id, every query is scoped by it, and no code path assumes there is exactly one
-user — always resolve the current user from the session.
-
-See [MULTI-TENANCY.md](MULTI-TENANCY.md).

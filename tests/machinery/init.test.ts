@@ -183,10 +183,6 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     // environments.json is NOT release-flow-only config — it is app build input
     // (scripts/build.mjs generates src/env.generated.ts from it), so it stays.
     expect(existsSync(join(dir, 'environments.json'))).toBe(true);
-    // The convention doc survives the transfer deliberately, and the resolved README links it
-    // by name — so if it stopped shipping, every app would carry a dangling pointer in its
-    // own README. (That is not hypothetical: it is exactly what a missing NAMING.md did.)
-    expect(existsSync(join(dir, 'MULTI-TENANCY.md'))).toBe(true);
     // the page <title> is set to the app name, not the template placeholder
     const html = readFileSync(join(dir, 'src/web/index.html'), 'utf8');
     expect(html).toContain('<title>demo</title>');
@@ -222,7 +218,7 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     // is unambiguously a file in THIS repo, whereas a backticked name may well be a doc in
     // another repo (`CONSUMING.md` in the release-flow Action, say). So the convention is:
     // link a local doc, backtick a foreign one — which is what makes this guard decidable.
-    for (const doc of ['README.md', 'MULTI-TENANCY.md']) {
+    for (const doc of ['README.md']) {
       const text = readFileSync(join(dir, doc), 'utf8');
       const refs = new Set(
         [...text.matchAll(/\[[^\]]*\]\(([A-Za-z0-9_-]+\.md)\)/g)].map((m) => m[1]),

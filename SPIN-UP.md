@@ -216,13 +216,3 @@ not one to default into. Decide it (or ask) up front.
 Reverse it: restore the entry in `src/web/prerender.ts`
 (`[{ html: 'index.html', element: createElement(App) }]`) and the prerender build step.
 Keep prerendered content limited to what's known at build time.
-
-## Users: multi-tenant schema, one seeded tenant
-
-Do not scaffold this app as single-user. Every table carries an owner id from the
-first migration, every query is scoped by it, and the first user is seeded rather
-than signed up. Build no signup, invite, or user-administration UI until a second
-user actually exists.
-
-The schema half is nearly free now and a migration later. The product half is
-expensive and premature. See [MULTI-TENANCY.md](MULTI-TENANCY.md).

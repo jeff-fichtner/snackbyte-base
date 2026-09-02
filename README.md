@@ -47,6 +47,18 @@ npm run check:all    # format check + lint + typecheck + test
 
 ## What this template does not include
 
+Deliberately. Each of these is installed per repo, on its own schedule — a copy shipped
+from here would be a pinned fork that silently drifts out of date.
+
+- **CI.** The resolver deletes `.github/` on spin-up. Wire the release flow from
+  `CONSUMING.md` in `jeff-fichtner/snackbyte-release-flow-action`, which owns the recipe
+  and the repo settings it needs.
+- **The spec-driven-development workflow.** `.specify/`, the `speckit-*` skill mirrors,
+  `specs/` and `CLAUDE.md` all leave with the transfer. Run `specify init` in the new repo
+  if you want it.
+- **GCP hosting.** Standing up Cloud Run, Workload Identity Federation and the shared load
+  balancer is one-time, per-project infrastructure — see `GCP-SETUP.md` in the
+  `project-setup` repo. `DEPLOY.md` here covers only the app's own half.
 - **Shared visual identity** (theme, header/footer, shared components) — distributed
   separately as a versioned package, not baked into the template.
 - **Application logic** — the sample page and `/api/health` liveness route are

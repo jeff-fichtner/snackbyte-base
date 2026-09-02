@@ -1,45 +1,24 @@
-# ACTIVE IN THIS TEMPLATE REPO. Historically this file shipped inert as `ci-cd.yml.disabled` so an
-# un-resolved template would not run CI or derive a version tag on a push. That is no longer the
-# case for snackbyte-base itself: the template repo now runs its own CI and tags its own releases
-# (that is why `v1.x` tags exist on it). It still ships NO deploy job — this repo validates, versions,
-# and tags, but deploys nowhere. A `deploy` job is per-app and is copied in at wire-up time (DEPLOY.md).
-#
-# For apps spun up from this template, the spin-up resolver (scripts/init.mjs) keeps handling the
-# workflow: it de-templates this header (the app gets an app-appropriate one) and, on any repo where
-# the file is still `ci-cd.yml.disabled`, renames it to `ci-cd.yml`. Since this template file is
-# already `ci-cd.yml`, the resolver's rename is a no-op and only the header rewrite applies.
+# THIS REPO'S OWN CI. snackbyte-base runs it to validate and tag its own releases — that is where
+# its `v1.x` tags come from. It is NOT handed to the apps this template spins up: the spin-up
+# resolver (scripts/init.mjs) DELETES this file, and `.github/` with it. CI is installed per repo
+# from CONSUMING.md in jeff-fichtner/snackbyte-release-flow-action, which owns the wiring — a copy
+# shipped from here would be a second, staler copy of it.
 #
 # Validate, version, and tag — the pushed branch selects the environment (via environments.json).
+# Which branches are environments is not hard-coded here; adding one is a one-row edit to
+# environments.json and this file needs no change.
 #
-# Every app spun up from this template inherits this workflow. The release flow is the same
-# everywhere: GitHub-hosted, npm, a quality gate, and a git tag as the deploy signal. Which
-# branches are environments is NOT hard-coded here — it lives in environments.json (the default
-# ships `main` -> production and `dev` -> staging). Adding an environment is a one-row edit to
-# environments.json — this workflow needs no change.
-#
-# THE RELEASE FLOW IS DELEGATED to a reusable GitHub Action, `snackbyte-release-flow-action`
-# (pinned `@v1`). The Action does both halves of the flow: resolve-env ("is this pushed branch an
-# environment?") and version derivation ("what tag does this push get?"). It reads environments.json
-# and creates a tag ONLY — no commit, no branch push — so environment branches never diverge:
-# fast-forward, merge, and PR promotion all work, with no resync and no collisions. A push to a
-# non-environment branch is short-circuited by the Action (is-env=false, no tag). See the Action's
-# CONSUMING.md for the full wiring and the app-vs-library version-strategy choice.
-#
-# VERSIONING — derived from tags, never committed. package.json holds only MAJOR.MINOR; the PATCH is
-# a global, monotonic build id the Action derives from existing tags (build-id strategy, the default
-# for a deployable app; a published library sets version-strategy: package-json instead).
+# THE RELEASE FLOW IS DELEGATED to `snackbyte-release-flow-action` (pinned `@v1`), which resolves
+# whether the pushed branch is an environment and, if so, derives and pushes the tag — a tag only,
+# never a commit. A push to a non-environment branch short-circuits (is-env=false, no tag). The
+# derivation rules, the repo settings the flow needs, and the app-vs-library version-strategy
+# choice all live in the Action's CONSUMING.md; nothing here restates them.
 #
 # Two independent gates protect a release: a PR is blocked until `check:all` passes (enforced by
-# branch protection, not this file — see DEPLOY.md), AND `check:all` is re-run on the push before the
-# Action runs — a tag is created only if it passes. A failing push-side gate blocks the tag, and the
-# deploy that depends on it is skipped.
+# branch protection — repo config, not this file), AND `check:all` is re-run on the push before the
+# Action runs, so a tag is created only if it passes.
 #
-# This workflow ships `validate` (PR gate) + `version-and-tag` (push gate + the Action) and
-# DELIBERATELY has no `deploy` job — neither here in the template nor by default in a spun-up app.
-# The `deploy` job is per-app (it names a GCP project, service account, and Workload Identity
-# provider) — copy it in from DEPLOY.md when you wire an app to its environment. Nothing in this file
-# deploys anywhere.
-
+# This workflow DELIBERATELY has no `deploy` job — this repo is a template, and deploys nowhere.
 name: ci-cd
 
 on:

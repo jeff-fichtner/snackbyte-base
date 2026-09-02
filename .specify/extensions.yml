@@ -1,15 +1,15 @@
 installed:
+- engine
+- git
+- specify
+- analyze
+- clickup
 - agent-context
-- git-commit
-- git-specify-branch
-- specify-review-loop
-- analyze-autofix
-- clickup-sync
 settings:
   auto_execute_hooks: true
 hooks:
   before_specify:
-  - extension: git-specify-branch
+  - extension: git
     command: speckit.git.specify-branch
     enabled: true
     optional: true
@@ -17,17 +17,8 @@ hooks:
     prompt: Clean the working area and switch to the feature branch before specifying?
     description: Ensure a clean working area and feature branch before specifying
     condition: null
-  before_implement:
-  - extension: git-commit
-    command: speckit.git.commit
-    enabled: true
-    optional: true
-    priority: 10
-    prompt: Commit this feature's spec artifacts before implementing?
-    description: Checkpoint the feature's spec artifacts before implementation
-    condition: null
   after_specify:
-  - extension: specify-review-loop
+  - extension: specify
     command: speckit.specify.review-loop
     enabled: true
     optional: false
@@ -43,6 +34,14 @@ hooks:
     prompt: Execute speckit.agent-context.update?
     description: Refresh agent context after specification
     condition: null
+  - extension: clickup
+    command: speckit.clickup.sync
+    enabled: true
+    optional: true
+    priority: 15
+    prompt: Sync this feature's card to ClickUp (→ in-design)?
+    description: Mirror the feature to ClickUp and advance the card to in-design
+    condition: null
   - extension: core
     command: speckit.clarify
     enabled: true
@@ -51,48 +50,14 @@ hooks:
     prompt: Clarify underspecified areas in the spec?
     description: Automatically clarify the spec after specification
     condition: null
-  after_tasks:
-  - extension: clickup-sync
-    command: speckit.clickup.sync
-    enabled: true
-    optional: true
-    priority: 15
-    prompt: Sync this feature's card to ClickUp?
-    description: Mirror the feature-card, US-subtasks, checklist, and status to ClickUp
-    condition: null
-  - extension: core
-    command: speckit.analyze
-    enabled: true
-    optional: false
-    priority: 20
-    prompt: Analyze cross-artifact consistency after tasks?
-    description: Automatically analyze consistency after task generation
-    condition: null
-  after_implement:
-  - extension: clickup-sync
-    command: speckit.clickup.sync
-    enabled: true
-    optional: true
-    priority: 15
-    prompt: Sync this feature's card to ClickUp?
-    description: Mirror the feature-card, US-subtasks, checklist, and status to ClickUp
-    condition: null
-  - extension: core
-    command: speckit.converge
-    enabled: true
-    optional: false
-    priority: 20
-    prompt: Converge the codebase against spec, plan, and tasks?
-    description: Automatically converge after implementation
-    condition: null
-  after_analyze:
-  - extension: analyze-autofix
-    command: speckit.analyze.autofix
+  before_implement:
+  - extension: git
+    command: speckit.git.commit
     enabled: true
     optional: true
     priority: 10
-    prompt: Apply unambiguous analysis fixes and re-present the results?
-    description: Apply unambiguous analysis fixes and re-present results
+    prompt: Commit this feature's spec artifacts before implementing?
+    description: Checkpoint the feature's spec artifacts before implementation
     condition: null
   after_plan:
   - extension: agent-context
@@ -103,7 +68,7 @@ hooks:
     prompt: Execute speckit.agent-context.update?
     description: Refresh agent context after planning
     condition: null
-  - extension: clickup-sync
+  - extension: clickup
     command: speckit.clickup.provision
     enabled: true
     optional: true
@@ -118,4 +83,64 @@ hooks:
     priority: 20
     prompt: Generate tasks.md from the plan?
     description: Automatically generate tasks after planning
+    condition: null
+  after_tasks:
+  - extension: clickup
+    command: speckit.clickup.sync
+    enabled: true
+    optional: true
+    priority: 15
+    prompt: Sync this feature's card to ClickUp (→ ready)?
+    description: Mirror the feature-card, US-subtasks, checklist, and status; advance to ready
+    condition: null
+  - extension: core
+    command: speckit.analyze
+    enabled: true
+    optional: false
+    priority: 20
+    prompt: Analyze cross-artifact consistency after tasks?
+    description: Automatically analyze consistency after task generation
+    condition: null
+  after_analyze:
+  - extension: analyze
+    command: speckit.analyze.autofix
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Apply unambiguous analysis fixes and re-present the results?
+    description: Apply unambiguous analysis fixes and re-present results
+    condition: null
+  - extension: clickup
+    command: speckit.clickup.sync
+    enabled: true
+    optional: true
+    priority: 15
+    prompt: Sync this feature's card to ClickUp (→ ready)?
+    description: Mirror the feature and hold the card at ready (artifacts complete)
+    condition: null
+  after_implement:
+  - extension: clickup
+    command: speckit.clickup.sync
+    enabled: true
+    optional: true
+    priority: 15
+    prompt: Sync this feature's card to ClickUp (→ in-development)?
+    description: Mirror the feature-card, US-subtasks, checklist, and status; advance to in-development
+    condition: null
+  - extension: core
+    command: speckit.converge
+    enabled: true
+    optional: false
+    priority: 20
+    prompt: Converge the codebase against spec, plan, and tasks?
+    description: Automatically converge after implementation
+    condition: null
+  after_converge:
+  - extension: clickup
+    command: speckit.clickup.sync
+    enabled: true
+    optional: true
+    priority: 15
+    prompt: Sync this feature's card to ClickUp (stays in-development)?
+    description: Re-sync after converge; the card holds at in-development until /speckit-engine-verify passes
     condition: null

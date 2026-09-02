@@ -34,7 +34,7 @@ before running.
 
 ## Execution
 
-- **Bash**: `.specify/extensions/git-commit/scripts/bash/commit-spec-artifacts.sh [--json] [--message "msg"]`
+- **Bash**: `.specify/extensions/git/scripts/bash/commit-spec-artifacts.sh [--json] [--message "msg"]`
 
 Run from anywhere inside the repo. Add `--json` for machine-readable output
 (`{"status": "...", "message": "..."}`, where status is `committed`,

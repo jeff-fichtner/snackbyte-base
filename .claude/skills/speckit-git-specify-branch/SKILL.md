@@ -17,7 +17,7 @@ This skill drives the interactive decisions; a bundled script does the mechanica
 git operations:
 
 ```
-.specify/extensions/git-specify-branch/scripts/bash/prepare-specify-branch.sh <subcommand> --json
+.specify/extensions/git/scripts/bash/prepare-specify-branch.sh <subcommand> --json
 ```
 
 Subcommands: `status`, `commit -m "msg"`, `stash [label]`, `create-branch <name>`.

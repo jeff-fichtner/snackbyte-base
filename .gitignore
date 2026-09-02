@@ -40,5 +40,9 @@ coverage/
 .tmp/
 tmp/
 
+# Spec-workflow scaffolding — all of this is removed at spin-up
 # Generated spec HTML views (source of truth is the .md; regenerate with `npm run spec:html`)
 specs/**/*.html
+# This repo's live ClickUp target. config.yml ships placeholders and refuses to provision
+# against them; the real space/list go here and stay out of version control.
+.specify/extensions/clickup/config.local.yml

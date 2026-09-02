@@ -49,82 +49,26 @@ nested:
 
 After copying, `cd <app>` and run `npm install` there.
 
-## CI: move the workflow up and make it directory-aware
+## CI: the workflow lives at the repo root, pointed into `<app>/`
 
-The single workflow `.github/workflows/ci-cd.yml` must live at the **repo root** (move the
-template's copy up; delete the nested `<app>/.github/`). Then make it run from `<app>/`.
-There are four edits, all mechanical:
+GitHub only discovers workflows in the **repo root** `.github/workflows/`, so a workflow at
+`<app>/.github/workflows/` is never run. This app ships no workflow of its own — you add one
+per repo — so there is nothing to move; you simply create it at the root.
 
-### 1. Run npm from `<app>/` — `defaults.run.working-directory`
+**The subdirectory wiring belongs to the release flow, and its `CONSUMING.md` owns it:** see
+**"Consuming from a subdirectory"** in `jeff-fichtner/snackbyte-release-flow-action`. It covers
+`defaults.run.working-directory`, passing `manifest: <app>/environments.json` to the Action
+(a `uses:` step, which `working-directory` does not reach), the `cache-dependency-path` fix,
+and the `paths:` trigger trade-off.
 
-Add a `defaults` block so every `run:` step's shell starts in `<app>/`. Put it at the job
-level on the jobs that run npm (`validate` and `version-and-tag`), or once at the top level
-to cover all jobs:
+### The `deploy` job (per app, as always)
 
-```yaml
-defaults:
-  run:
-    working-directory: <app>
-```
-
-This is what makes `npm ci` and `npm run check:all` resolve correctly — they now run inside
-`<app>/`. The release-flow Action needs the same subdir awareness, but it is a `uses:` step
-(see the note below), so `working-directory` does NOT reach it: pass its `manifest` input as
-`<app>/environments.json` instead. The Action reads that manifest (branch → `tagSuffix`) and
-`<app>/package.json` for the `MAJOR.MINOR` line. (Its `git` calls are cwd-independent — git
-walks up to `.git` on its own.)
-
-> `working-directory` only affects `run:` steps. `uses:` steps (checkout, setup-node) are
-> unaffected and are handled next.
-
-### 2. Fix the npm cache key — `cache-dependency-path`
-
-On each `actions/setup-node` step, the template uses `cache: 'npm'` with no explicit path,
-which assumes a root `package-lock.json`. Point it at the real lockfile:
-
-```yaml
-- uses: actions/setup-node@v6
-  with:
-    node-version: ${{ env.NODE_VERSION }}
-    cache: 'npm'
-    cache-dependency-path: <app>/package-lock.json
-```
-
-Without this the cache key is wrong and the npm cache never helps (and can warn).
-
-### 3. Scope the triggers — `paths:`
-
-The template's `on:` triggers on every push/PR to `main`/`dev`. In a shared repo that means
-unrelated changes (to the prototype, to shared content) trigger a pointless app run. Scope
-it to the app's directory and the workflow file itself:
-
-```yaml
-on:
-  pull_request:
-    branches: [main, dev]
-    paths:
-      - '<app>/**'
-      - '.github/workflows/ci-cd.yml'
-  push:
-    branches: [main, dev]
-    paths:
-      - '<app>/**'
-      - '.github/workflows/ci-cd.yml'
-```
-
-> Trade-off to be aware of: with `paths:` filters, a push that touches **only** files
-> outside `<app>/` produces **no** `version-and-tag` run, so no tag and no deploy. That's
-> the intended behavior (nothing about the app changed). Just know that the app's release
-> cadence is now coupled to changes under `<app>/`, not to every push.
-
-### 4. The `deploy` job (per app, as always)
-
-The `deploy` job is per-app regardless of layout — copy it in from `DEPLOY.md` as usual.
-The only subdirectory-specific part: the step that ships the build source
-(`gcloud builds submit`) must run from `<app>/` so it uploads the `<app>/` tree (picking up
-`<app>/cloudbuild.yaml` and `<app>/Dockerfile`). The top-level or job-level
-`defaults.run.working-directory: <app>` from edit 1 already covers this; if you set
-`working-directory` only on `validate`/`version-and-tag`, add it to the submit step too.
+The `deploy` job is per-app regardless of layout — copy it in from [DEPLOY.md](DEPLOY.md) as
+usual. The only subdirectory-specific part: the step that ships the build source
+(`gcloud builds submit`) must run from `<app>/` so it uploads the `<app>/` tree, picking up
+`<app>/cloudbuild.yaml` and `<app>/Dockerfile`. A top-level `defaults.run.working-directory`
+covers this; if you scoped `working-directory` to individual jobs, add it to the submit step
+too.
 
 ## What this does NOT change
 
@@ -144,11 +88,7 @@ The only subdirectory-specific part: the step that ships the build source
 - [ ] App tree copied into `<app>/`; `.git`, `.github/`, `.specify/`, `.claude/`, `specs/`,
       `node_modules` excluded.
 - [ ] `npm install` run from `<app>/`.
-- [ ] Workflow moved to repo-root `.github/workflows/ci-cd.yml`; nested `<app>/.github/`
-      removed.
-- [ ] `defaults.run.working-directory: <app>` added (job-level on `validate` +
-      `version-and-tag`, or top-level).
-- [ ] `cache-dependency-path: <app>/package-lock.json` on every `setup-node`.
-- [ ] `paths:` filters scope the workflow to `<app>/**` + the workflow file.
+- [ ] Release-flow workflow created at the **repo root** and made subdirectory-aware, per
+      "Consuming from a subdirectory" in the Action's `CONSUMING.md`.
 - [ ] `deploy` job copied from `DEPLOY.md`; its `gcloud builds submit` runs from `<app>/`.
 - [ ] Considered tag-namespace sharing if the repo holds another releasable.

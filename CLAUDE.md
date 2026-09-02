@@ -79,9 +79,17 @@ which moved to `snackbyte-speckit-engine`. It left with its subject, not under t
 **When you add anything to this template, ask first whether the checklist covers it.**
 If it does, it belongs in the resolver's delete list, not in the shipped skeleton.
 
-### The one thing that had to move out with the workflow
+### Where the boundary now sits
 
-SPIN-UP.md used to carry the repo-level `default_workflow_permissions=write` grant —
-without it the first release 403s on the tag push while every check passes green. That
-warning belongs to whoever installs CI, so it now lives in the checklist's release-flow
-step. The job-level `contents: write` is a different setting and does not cover it.
+Three repos, no overlap, each the single source for its half:
+
+- **`project-setup` (the checklist)** — the ORDER of setup and the yes/no per step. It points
+  at owners; it does not restate their mechanics.
+- **`snackbyte-release-flow-action` → `CONSUMING.md`** — everything about the release flow:
+  the recipes, version derivation, promotion, subdirectory wiring, and the two repo settings
+  it needs (the Actions write permission and branch protection).
+- **this repo** — the app skeleton, and `DEPLOY.md` for what happens *after* a tag exists:
+  GCP, Cloud Run, Workload Identity, the per-app deploy job.
+
+The test to apply before adding anything here: **could this be said by the checklist or by
+CONSUMING.md?** If yes, it belongs there and this repo links to it.

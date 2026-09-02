@@ -76,27 +76,9 @@ does **not** install Spec Kit into the apps it spins up. `init` removes the whol
 `.specify/`, the `.claude/speckit-*` skill mirrors, `specs/`, `CLAUDE.md`, and the
 `spec:html` scripts and their dependency. What lands is a plain app.
 
-That's deliberate. Spec Kit is installed per repo, on its own schedule; a copy shipped
-inside the template would be a pinned fork that silently drifts. Set it up in the new app
-the same way you set it up anywhere:
-
-```bash
-specify init --here      # then: /speckit-constitution
-```
-
-When you write that constitution, a few principles are worth carrying forward — they apply
-broadly, not just to this app:
-
-- **Spec stays in spec spaces.** `specs/`, `.specify/`, `.claude/` are AI-assist
-  scaffolding. Shipped code (`src/`, `tests/`, `README`, `docs/`, scripts) must stand on
-  its own and never reference specs, FRs, or principle numbers — state the rule directly
-  instead. (This is exactly why `init` strips the workflow rather than shipping it: an app
-  that inherited the template's spec references would carry dangling pointers to specs it
-  never had.)
-- **Convention over configuration.** The tooling is set up and complete; don't re-litigate
-  it per feature.
-- **Pinned, linted, type-safe, tested.** Node 24 LTS, TypeScript throughout, and
-  `npm run check:all` (format + lint + typecheck + test) green on every change.
+That's deliberate. Spec Kit is installed per repo, on its own schedule; a copy shipped inside
+the template would be a pinned fork that silently drifts. **Installing it — and writing the
+constitution — is a later step in your project setup checklist, not part of this handoff.**
 
 ## 3. Verify
 

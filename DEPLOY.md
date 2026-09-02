@@ -14,13 +14,9 @@ Placeholders used throughout: `<project>` (GCP project id), `<service>` (Cloud R
 
 The **branch selects the environment**, and the environments are declared in
 **`environments.json`** at the repo root — the single source of truth. The default ships two:
-`main` → production and `dev` → staging. On push, CI (`.github/workflows/ci-cd.yml`, added per
-repo — see below) runs the
-quality gate and then calls the **`snackbyte-release-flow-action`** (pinned `@v1`), which
-resolves whether the pushed branch is an environment (reading `environments.json`); a push to a
-non-environment branch short-circuits cleanly (no tag). For an environment branch, on gate pass,
-the Action **derives a version tag from the existing git tags and pushes only that tag** — it
-never commits anything. A chained `deploy`
+`main` → production and `dev` → staging. On push, your CI workflow (added per repo — see below)
+runs the quality gate and calls the **`snackbyte-release-flow-action`**, which tags the commit
+if the branch is an environment and does nothing if it isn't. A chained `deploy`
 job (per-app — see below) authenticates to GCP via **Workload Identity Federation** (keyless),
 runs a Cloud Build (`cloudbuild.yaml`) that builds the `Dockerfile` and deploys to Cloud Run.
 No manual version bump, no commit pushed back to the branch, no long-lived secret. A `vX.Y.Z`
@@ -33,52 +29,26 @@ environment an image belongs to is **baked at build time** (immutable, like a se
 so `/api/version` reports the environment the image was built for and the frontend and server
 never disagree.
 
-## Versioning — derived from tags, never committed
+## Versioning and the release flow — owned by the Action
 
-This is the core of the release model; read it before the deploy mechanics.
+How a version is derived, why collisions are structurally impossible, why patch numbers have
+gaps, how `dev` → `main` promotion reuses a number, and the two repo settings the flow needs
+(the Actions write permission and branch protection) all belong to the release-flow Action.
 
-- **`package.json` holds `MAJOR.MINOR` only** (e.g. `1.4`). The **PATCH is not stored in the
-  repo** — it is a global, monotonic **build id** derived from the git tags that already
-  exist. Bump `MAJOR.MINOR` by hand (an ordinary commit) for a meaningful release.
-- **CI commits nothing.** It creates a tag on the pushed commit and pushes only the tag. There
-  is no `chore: release` commit, no `[skip ci]`, no `npm version`. Because nothing is committed
-  back, `dev` and `main` never diverge: fast-forward, merge, and PR promotion all work, with no
-  resync and no tag collisions.
-- **One rule, every environment** (implemented by the release-flow Action) — the pushed branch is
-  used only as data (its `tagSuffix`, looked up in `environments.json`):
-  1. **Reuse** if _any_ version number is already tagged on _this exact commit_
-     (`git tag --points-at HEAD`), regardless of which environment's suffix it bears. This is a
-     fast-forward promotion or resync; the number is reused and stamped with this environment's
-     suffix, so the commit ends up carrying both.
-  2. **Otherwise advance** to `max(all vMM.* tags) + 1`. The max is over **every** tag (every
-     suffix, every environment), so two distinct commits can never share a number — **collisions
-     are structurally impossible**, for any number of environments.
-- **Accepted trade-offs** (both intentional): the patch is **not in the repo** (only in tags +
-  the built image + `/api/version`); and prod patch numbers **have gaps** — a number consumed on
-  one branch (a `main` hotfix) raises the next mint on the other, so `dev` skips ahead. The patch
-  is a build id, not a release counter; gaps are normal and informative.
-- **First push mints the first tag** automatically: a fresh app pushing `main` with no tags gets
-  `vMM.0` (and `dev` gets `vMM.0-dev`), regardless of how many commits precede it. The only
-  refusal is a **shallow checkout** (which would hide tags and mis-derive) — the workflow uses
-  `fetch-depth: 0` and the derivation fails loudly if the clone is shallow.
+**Read `CONSUMING.md` in `jeff-fichtner/snackbyte-release-flow-action`.** It is the single
+source for that half, and nothing here restates it.
 
-### Promotion `dev` → `main` (the gate)
-
-Promote by bringing `main` up to the `dev` commit so it is a **fast-forward** (`main` ⊆ `dev`).
-That guarantees the `vX.Y.Z-dev` tag is on `main`'s new HEAD, so `main` **reuses that number**
-(drops the `-dev` suffix) rather than minting a fresh one — prod ships the exact number staging
-validated. The fast-forward requirement also makes **divergent `dev` code unpromotable**: if
-`dev` hasn't absorbed a `main` hotfix, it can't fast-forward, so it can't carry stale code to
-prod under a wrong number. Enforce it with branch protection's "require branches up to date
-before merging" (see below); follow it as a reflex regardless (update `dev` from `main` before
-promoting).
+What matters for _this_ document: a tag is the deploy signal. `vX.Y.Z` means "passed the gate
+and deployed to the public-face environment"; `vX.Y.Z-dev` means "…to staging." Everything
+below is about what happens once a tag exists.
 
 ## TL;DR — ship a change
 
 1. **To production:** commit to `main` and push. CI runs `npm run check:all`, derives + pushes a
    `vX.Y.Z` tag, then the chained `deploy` job builds and deploys.
 2. **To staging:** commit to `dev` and push → `vX.Y.Z-dev` → staging on `<app>.snackbyte.dev`.
-3. **Promote:** fast-forward `main` to the `dev` commit (see the gate above) → prod on
+3. **Promote:** fast-forward `main` to the `dev` commit (the promotion gate — see the Action's
+   `CONSUMING.md`) → prod on
    `<app>.snackbyte.io`, reusing the staging number.
 4. Verify through the load balancer (NOT the `*.run.app` URL — it's 404 by design):
 
@@ -100,83 +70,16 @@ guard. Just **re-run the `deploy` job alone** against the existing tag — `depl
 tag and doesn't re-derive, so the guard is never engaged. (A _code_ failure is instead fixed by a
 new commit → new tag; the orphaned tag harmlessly becomes a build id with no deploy.)
 
-## The CI workflow (`.github/workflows/ci-cd.yml`)
+## The CI workflow
 
-> **This workflow is not shipped with the app — you add it.** The release flow lives in the
-> `snackbyte-release-flow-action` repo, and its **`CONSUMING.md`** is the authoritative source for
-> the wiring: the `@v1` pin, `fetch-depth: 0`, the job's `contents: write`, the app-vs-library
-> `version-strategy` choice, and the repo-level Actions permission a tag-pushing workflow needs.
-> Follow it once, per repo, rather than inheriting a copy that drifts. The recipes there produce a
-> workflow conventionally named **`ci-cd`** — the name the rest of this document assumes.
+**This app ships no workflow** — you add one per repo from the Action's `CONSUMING.md`, which
+owns the recipe, the `@v1` pin, `fetch-depth: 0`, the job's `contents: write`, and the repo
+settings. The rest of this document assumes the resulting workflow is named `ci-cd` and that
+its tag job is `version-and-tag`.
 
-Once added, it is one workflow, triggered on any push (except obvious non-environment branch
-patterns) + PR:
-
-1. `validate (merge gate)` (PRs only): runs `npm run check:all`. A PR can't merge until it passes
-   — but **only if branch protection requires it** (see below); the workflow can run a check, it
-   can't _enforce_ the merge.
-2. `version-and-tag` (push): runs `npm run check:all` (the authoritative gate) and, on pass, calls
-   the **`snackbyte-release-flow-action`**. The Action resolves whether the pushed branch is an
-   environment and, if so, derives + pushes the tag; a push to a non-environment branch is
-   short-circuited by the Action (`is-env=false`, no tag), so nothing is tagged or deployed.
-3. `deploy` (push, `needs: version-and-tag`): **per-app** — it names your GCP project, service
-   account, and WIF provider, and resolves the target from `environments.json` by the branch (the
-   environment name + `isPublicFace`; the service name is mapped per-app). The template ships
-   `validate` + `version-and-tag`; add `deploy` from the snippet in the infra runbook below.
-
-The tag is pushed with the default `GITHUB_TOKEN` (`permissions: contents: write`). A
-`GITHUB_TOKEN`-pushed tag does **not** trigger another workflow (GitHub's recursion guard), which
-is fine: the deploy is a chained `needs:` job in the **same** run, so no second event is needed
-and no personal access token is required.
-
-## One-time CI setup (per repo): authorize the tag push and the merge gate
-
-### Allow Actions to push tags
-
-The `version-and-tag` job pushes the version tag back to the repo. That requires the repo to
-allow Actions to write:
-
-```bash
-gh api -X PUT repos/<owner>/<repo>/actions/permissions/workflow \
-  -f default_workflow_permissions=write
-```
-
-(Or web UI: **Settings → Actions → General → Workflow permissions → "Read and write
-permissions" → Save**.) Set this _before_ the first push, or the gate passes but the tag step
-403s. (Fix: enable it, then re-run the failed job.)
-
-### Branch protection (the merge gate is repo config, not YAML)
-
-The workflow can _run_ `check:all` on a PR, but it cannot _require_ it for merge — that is branch
-protection, a repo setting. Ship it as a one-time `gh api` call on **both** `main` and `dev`:
-
-```bash
-for BRANCH in main dev; do
-  gh api -X PUT "repos/<owner>/<repo>/branches/${BRANCH}/protection" \
-    --input - <<'JSON'
-{
-  "required_status_checks": { "strict": false, "contexts": ["validate (merge gate)"] },
-  "required_pull_request_reviews": null,
-  "enforce_admins": false,
-  "restrictions": null,
-  "allow_force_pushes": true
-}
-JSON
-done
-```
-
-The knobs, each deliberate:
-
-- **`contexts: ["validate (merge gate)"]`** — the required check is the **job name**, not the
-  `ci-cd / …` UI label. Get it wrong and the check is never matched.
-- **`required_pull_request_reviews: null`** — do **not** require PRs. Requiring them breaks the
-  fast-forward promotion model (a fast-forward isn't a PR).
-- **`enforce_admins: false`** — admin override is the explicit at-own-risk escape hatch.
-- **`allow_force_pushes: true`** — needed for the fast-forward/promotion flows.
-
-The authoritative backstop is the push-side gate: `version-and-tag` re-runs `check:all` and tags
-only on pass, so a tag (hence a deploy) exists only if the gate passed — true for PR-merge,
-admin-override, and direct/FF push alike.
+The one job `CONSUMING.md` does **not** give you is `deploy` — it is per-app, because it names
+your GCP project, service account, and Workload Identity provider, and resolves the target from
+`environments.json`. That job is this document's job, and the snippet is below.
 
 ## One-time GCP setup (per app)
 
@@ -510,77 +413,13 @@ server and frontend.
 
 ### Promotion & rollback
 
-- **Promote** staging → prod by fast-forwarding `main` to the `dev` commit (the gate, above). CI
+- **Promote** staging → prod by fast-forwarding `main` to the `dev` commit (the promotion gate —
+  see the Action's `CONSUMING.md`). CI
   reuses the `-dev` number, drops the suffix, deploys prod. The same commit carries both tags; no
   second number is minted.
 - **Roll back** either environment without a rebuild: each Cloud Run service keeps its revision
   history. `gcloud run services update-traffic <service|service-staging> --to-revisions=<prev>=100`
   flips back. The `vX.Y.Z[-dev]` tags map a number → its image for finding the revision to pin.
-
----
-
-## Upgrading an app initialized before the environment manifest
-
-If your app was spun up before `environments.json` existed, it has the older hard-coded
-`main → production` / `dev → staging` wiring. The new model is the same behavior expressed as a
-manifest the tooling reads, so the default path stays byte-identical — the upgrade just introduces
-the manifest and rewires the few places that hard-coded the two streams. **Re-spinning from the
-current template is the simplest path**; if your app is mid-flight, apply these edits by hand. No
-automated upgrade script is provided.
-
-1. **Add `environments.json` at the repo root**, seeded with your current two environments:
-
-   ```json
-   {
-     "environments": [
-       {
-         "name": "production",
-         "branch": "main",
-         "isPublicFace": true,
-         "noindex": false,
-         "tagSuffix": ""
-       },
-       {
-         "name": "staging",
-         "branch": "dev",
-         "isPublicFace": false,
-         "noindex": true,
-         "tagSuffix": "-dev"
-       }
-     ]
-   }
-   ```
-
-2. **Add the shared reader `src/environments.ts`** (typed manifest reader + the `LOCAL` constant)
-   and **`scripts/resolve-env.mjs`** (the build-side facet resolver), and a committed default
-   **`src/env.generated.ts`** holding the `local` identity (the build overwrites it; add it to
-   `.prettierignore`, not `.gitignore`, so the static import always resolves). Copy these from the
-   current template verbatim.
-
-3. **Version derivation + resolve-env** — delegated to the **`snackbyte-release-flow-action`**
-   (pinned `@v1`). You do not build or copy a derivation script; the Action reads `environments.json`
-   (branch → `tagSuffix`), does the suffix-agnostic reuse (reuse any number tagged on HEAD, else
-   global-max + 1), rejects a branch not in the manifest, and pushes the tag. See the Action's
-   `CONSUMING.md` for wiring and the app-vs-library `version-strategy` choice.
-
-4. **Build identity** — thread a single `APP_ENV_NAME` build-arg through `Dockerfile`,
-   `vite.config.ts`, and `scripts/prerender.mjs` (resolve facets from the manifest, bake
-   `__APP_ENV_NAME__` + `__IS_PUBLIC_FACE__`); add the build step in `scripts/build.mjs` that writes
-   `src/env.generated.ts` before the server compile.
-
-5. **Runtime consumers** — `src/server.ts` noindex middleware reads the baked `noindex` facet (not
-   `APP_ENV === 'staging'`); `src/version.ts` reports `environment` from the baked identity. Add the
-   typed accessors `src/env.ts` and `src/web/env.ts`.
-
-6. **CI trigger (`.github/workflows/ci-cd.yml`)** — change the `push` trigger to a wildcard with
-   `branches-ignore` for noise; the `version-and-tag` job runs the gate and calls the Action, which
-   itself short-circuits a non-environment branch (no separate resolve-env job needed).
-
-7. **The `deploy` job** — replace the hard-coded branch→env step with the manifest-driven
-   `Resolve environment from manifest` step (above), passing `_APP_ENV_NAME` to `cloudbuild.yaml`.
-
-After these edits, `npm run check:all` passes and the default two-environment behavior is unchanged
-— you can then add a third environment with a one-row edit.
 
 ---
 
@@ -605,14 +444,10 @@ Per new app `<app>`:
 
 ## Operational gotchas
 
-- **Version-line drift** — if the derivation fails on "tag vX.Y.Z already exists" for a number
-  you didn't expect, you're likely re-running a job whose tag already landed (idempotent re-run is
-  by job, not by re-deriving) or racing a concurrent push (the `concurrency` group should prevent
-  the latter). For a deploy that failed _after_ tagging, re-run the `deploy` job alone (see
-  Recovery, above) — don't re-run `version-and-tag`.
-- **`main` ahead of `dev` after a hotfix** — a direct-to-`main` hotfix consumes a number `dev`
-  hasn't seen, so `dev`'s next mint skips ahead and `main` is briefly ahead. Reconcile by updating
-  `dev` from `main` before the next promotion (the promotion gate requires it).
+- **For a deploy that failed _after_ tagging**, re-run the `deploy` job alone (see Recovery,
+  above) — don't re-run the tag job. (Version-line questions — an unexpected "tag already
+  exists", or `main` running ahead of `dev` after a hotfix — are release-flow behavior and are
+  explained in the Action's `CONSUMING.md`.)
 - **`gcloud` auth expiry** — tokens expire ~hourly; re-auth with `gcloud auth login <account>`.
   Pass the right `--account` for the project (a machine may own several Google identities — the
   wrong one silently targets the wrong project).

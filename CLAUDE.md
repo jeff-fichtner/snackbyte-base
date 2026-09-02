@@ -43,12 +43,15 @@ Prior feature — derived-tag versioning + branch-as-environment staging:
 `specs/002-derived-tag-staging/plan.md`
 <!-- SPECKIT END -->
 
-## Conventions this template carries
-Both survive spin-up into every generated app deliberately, and both are raised in
-`SPIN-UP.md` at the moment they first matter. Keep them in sync if a rule changes.
-- `NAMING.md` — brand is a surface, not an identifier.
-- `MULTI-TENANCY.md` — multi-tenant schema from commit one, single seeded tenant,
-  no user-management UI until there is a second user.
+## Convention this template carries
+`MULTI-TENANCY.md` — multi-tenant schema from commit one, single seeded tenant, no
+user-management UI until there is a second user. It survives spin-up into every
+generated app deliberately, and `SPIN-UP.md` raises it at the moment it first matters.
+Keep the two in sync if the rule changes.
+
+Naming (brand vs. identifier) is deliberately NOT here. It is a global rule that
+applies to every project, so the template does not carry a copy of it — a copy would
+drift from the rule the same way a vendored dependency drifts from upstream.
 
 ## Settled: the template does not ship what the setup checklist owns (2026-09-02)
 

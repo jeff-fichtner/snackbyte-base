@@ -74,16 +74,6 @@ expected, not a bug. (The frontend chip's version comes from `package.json` at b
 time; its commit/date are populated only if the build passes them as Docker build-args —
 see [DEPLOY.md](DEPLOY.md).)
 
-## Naming
-
-The repo/package/service names describe **what this app does**. The product name is a
-**UX surface** — wordmark, page `<title>`, copy, domain — and lives in one branding
-module, rendered from there. Never let the brand become an identifier: renaming a
-package is a find-replace, but renaming an Artifact Registry repo, a Cloud Run
-service, a secret, or a database is a migration with CI re-authorization attached.
-
-See [NAMING.md](NAMING.md).
-
 ## Users
 
 This app is multi-user in its data model from the start, with a single seeded user

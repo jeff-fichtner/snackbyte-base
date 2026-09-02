@@ -217,21 +217,6 @@ Reverse it: restore the entry in `src/web/prerender.ts`
 (`[{ html: 'index.html', element: createElement(App) }]`) and the prerender build step.
 Keep prerendered content limited to what's known at build time.
 
-## Naming: keep the brand out of the identifiers
-
-When you resolve what this app is (§2), you are choosing **two** names, not one:
-
-- a **descriptive** name for the code — repo, package, service, registry, secrets,
-  schema. It should say what the thing does and should outlive any rebrand.
-- a **brand** name for users — wordmark, `<title>`, copy, domain. This one lives in
-  a single branding module and is rendered from there.
-
-Do not let the brand become an identifier. Renaming a package is a find-replace;
-renaming an Artifact Registry repository, a Cloud Run service, a secret, or a
-database is a migration with CI re-authorization attached.
-
-See [NAMING.md](NAMING.md) for the full line, the leak table, and the grep check.
-
 ## Users: multi-tenant schema, one seeded tenant
 
 Do not scaffold this app as single-user. Every table carries an owner id from the

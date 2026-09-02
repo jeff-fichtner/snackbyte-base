@@ -1,9 +1,16 @@
 # Deploying
 
-This app deploys to **Google Cloud Run**, fronted by a **global external HTTPS load
-balancer**. Apps can share one GCP project (each its own Cloud Run service + subdomain on
-the shared LB). The GCP/infra model below is **as-built and proven** — it's what actually
-works end to end, distilled from standing up the first apps in the project.
+This app deploys to **Google Cloud Run**, fronted by a global external HTTPS load balancer
+shared across the project's apps.
+
+This document covers the half that is **this app's**: how a tag becomes a deploy, the `deploy`
+job, the build arguments `cloudbuild.yaml` expects, and how `environments.json` becomes the
+environment identity baked into the image. The two halves it does _not_ own:
+
+| Half                                                                      | Owner                                                           |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| The release flow — versions, tags, promotion, repo settings               | `CONSUMING.md` in `jeff-fichtner/snackbyte-release-flow-action` |
+| The GCP hosting itself — project, WIF, deploy SA, load balancer, TLS, DNS | `GCP-SETUP.md` in the `project-setup` repo                      |
 
 Placeholders used throughout: `<project>` (GCP project id), `<service>` (Cloud Run service
 = app name), `<owner>/<repo>` (GitHub repo), `<region>` (e.g. `us-central1`), `<LB-IP>`
@@ -81,175 +88,20 @@ The one job `CONSUMING.md` does **not** give you is `deploy` — it is per-app, 
 your GCP project, service account, and Workload Identity provider, and resolves the target from
 `environments.json`. That job is this document's job, and the snippet is below.
 
-## One-time GCP setup (per app)
+## The hosting it deploys onto — owned by the setup runbook
 
-In dependency order. Most of this is one-time _per project_ and reused by every app; the
-genuinely per-app bits are flagged.
+Cloud Run behind a shared global HTTPS load balancer. Standing that up — project APIs, keyless
+CI auth via Workload Identity Federation, the deploy service account, Cloud Run's ingress and
+invoker settings, the load balancer, TLS, and DNS — is **one-time, per-project infrastructure**
+that has nothing to do with this app in particular. It would read identically for a Go service
+or a static site.
 
-### 1. APIs
+**It lives in `GCP-SETUP.md` in the `project-setup` repo**, alongside the setup checklist that
+sequences it. Do it once for the project; each additional app then costs one NEG, one backend,
+one host rule, and one DNS record.
 
-```bash
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
-  artifactregistry.googleapis.com compute.googleapis.com \
-  iamcredentials.googleapis.com secretmanager.googleapis.com \
-  certificatemanager.googleapis.com \
-  cloudresourcemanager.googleapis.com --project=<project>
-```
-
-(Run + Cloud Build + Artifact Registry for the build/deploy. Compute for the load balancer.
-IAM Credentials for WIF. Certificate Manager for the cert-map TLS model. Secret Manager +
-Resource Manager for the optional connected-repo link / any 2nd-gen Cloud Build resources.)
-
-### 2. Workload Identity Federation (keyless auth — no JSON key anywhere)
-
-One pool/provider serves the whole project; reuse it for every repo.
-
-```bash
-# Pool + provider (issuer = GitHub's OIDC), restricted to your GitHub org/owner:
-gcloud iam workload-identity-pools create github-pool \
-  --project=<project> --location=global --display-name="GitHub pool"
-gcloud iam workload-identity-pools providers create-oidc github-provider \
-  --project=<project> --location=global --workload-identity-pool=github-pool \
-  --issuer-uri="https://token.actions.githubusercontent.com" \
-  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.repository_owner=assertion.repository_owner" \
-  --attribute-condition="assertion.repository_owner == '<owner>'"
-```
-
-Then let **only this repo** impersonate the deploy SA (per-app — one binding per repo):
-
-```bash
-gcloud iam service-accounts add-iam-policy-binding <deployer-SA> \
-  --project=<project> --role="roles/iam.workloadIdentityUser" \
-  --member="principalSet://iam.googleapis.com/projects/<project-number>/locations/global/workloadIdentityPools/github-pool/attribute.repository/<owner>/<repo>"
-```
-
-### 3. Deploy service account (user-managed — required)
-
-A build that runs with an **explicit** `--service-account` must use a **user-managed** SA;
-the Google-managed Cloud Build SA (`…@cloudbuild.gserviceaccount.com`) is rejected at run
-time with `INVALID_ARGUMENT: provide a user-managed service account`.
-
-```bash
-gcloud iam service-accounts create <name> --project=<project> \
-  --display-name="Tag deploy (Cloud Build)"   # => <deployer-SA>
-```
-
-Project roles it needs: `roles/run.admin`, `roles/cloudbuild.builds.editor`,
-`roles/artifactregistry.writer`, `roles/storage.admin`, `roles/logging.logWriter`
-(required because the build uses `logging: CLOUD_LOGGING_ONLY`).
-
-`actAs` (`roles/iam.serviceAccountUser`) bindings — **both** matter:
-
-```bash
-# (a) on the compute runtime SA — Cloud Run runs the service as the compute SA:
-gcloud iam service-accounts add-iam-policy-binding \
-  <project-number>-compute@developer.gserviceaccount.com \
-  --project=<project> --role="roles/iam.serviceAccountUser" \
-  --member="serviceAccount:<deployer-SA>"
-
-# (b) on ITSELF — the workflow authenticates AS <deployer-SA> (via WIF) and then submits a
-#     build that runs AS <deployer-SA>; without self-actAs the submit fails with
-#     "PERMISSION_DENIED: caller does not have permission to act as service account".
-gcloud iam service-accounts add-iam-policy-binding <deployer-SA> \
-  --project=<project> --role="roles/iam.serviceAccountUser" \
-  --member="serviceAccount:<deployer-SA>"
-```
-
-### 4. Cloud Run service — ingress AND invoker (both required)
-
-Two independent controls, and a service is only reachable-through-the-LB-and-only-the-LB when
-**both** are set. They are applied differently:
-
-- **Ingress — automated, every deploy.** `cloudbuild.yaml` passes
-  `--ingress=internal-and-cloud-load-balancing` on every `gcloud run deploy`, so the service
-  rejects direct `*.run.app` traffic and the LB is the only front door — including on the very
-  first deploy. **Consequence:** the `run.app` URL returns **404 by design** — always test through
-  the LB / your hostname. (Nothing to do here; it's in the pipeline.)
-- **Invoker — a ONE-TIME manual grant you must not forget on a NEW service.** Bind `allUsers` to
-  `roles/run.invoker`. This is an IAM posture decision granted once at stand-up, **not** done by
-  the deploy pipeline. **Until you run it, a brand-new service's host returns a Google-frontend
-  `403`** through the LB (an HTML 403 from Google's infra, not your app) even though the deploy
-  succeeded and the cert is ACTIVE — that 403 is the signature of the missing invoker.
-
-```bash
-# Run ONCE per new service, right after its first deploy:
-gcloud run services add-iam-policy-binding <service> \
-  --member=allUsers --role=roles/run.invoker --project=<project> --region=<region>
-```
-
-> **First-deploy checklist for a new service.** The pipeline locks ingress for you, but the first
-> deploy of a new app (or a new `-staging` service) lands **half-wired** until you grant the
-> invoker. If the host 403s through the LB right after a green deploy: run the grant above. (Ingress
-> is the lockdown; the invoker is the grant — a public site needs both. The ingress lock is about
-> _path_, not _authz_.)
-
-### 5. Load balancer + TLS (one-time per project, shared by all apps)
-
-Cloud Run's built-in domain mapping **can't serve an apex domain** and **isn't GA in every
-region** (e.g. `us-central1`), so it's the wrong tool. Stand up a **global external HTTPS load
-balancer** once; every app rides it on a different hostname.
-
-Resources (one set per project): a global static IP (`<LB-IP>`, the DNS target), a serverless
-NEG → backend service → URL map → HTTPS proxy + forwarding rule (:443), plus an HTTP forwarding
-rule (:80) that 301-redirects to HTTPS.
-
-**TLS is a Certificate Manager cert-MAP, not a classic SSL cert.** When a cert map is attached to
-the HTTPS proxy it takes precedence, so adding a SAN to a classic cert is a **no-op**. A second
-TLD needs its **own** per-domain DNS authorization, a managed cert, and cert-map entries — you
-cannot reuse another domain's authorization. Use a **wildcard** so future subdomain apps need no
-cert work:
-
-```bash
-# Per TLD, once: a wildcard-capable DNS authorization (PER_PROJECT_RECORD, not FIXED_RECORD),
-# a managed cert covering the apex + wildcard, and cert-map entries pointing at it.
-gcloud certificate-manager dns-authorizations create <tld>-dnsauth \
-  --domain="<tld>" --type=PER_PROJECT_RECORD --project=<project>
-gcloud certificate-manager certificates create <tld>-cert \
-  --domains="<tld>,*.<tld>" --dns-authorizations=<tld>-dnsauth --project=<project>
-gcloud certificate-manager maps entries create <tld>-apex \
-  --map=<cert-map> --certificates=<tld>-cert --hostname="<tld>" --project=<project>
-gcloud certificate-manager maps entries create <tld>-wild \
-  --map=<cert-map> --certificates=<tld>-cert --hostname="*.<tld>" --project=<project>
-```
-
-The wildcard pre-solves TLS for the whole TLD — a future `<app>.<tld>` then needs only its own
-Cloud Run service + NEG + backend + url-map host-rule + one DNS `A` record, **no cert work**.
-(Caveat: `*.<tld>` is single-label — covers `app.<tld>` but not `x.app.<tld>`.)
-
-**DNS is registrar-gated and partly manual.** If the TLD is hosted at an external registrar
-(GoDaddy, etc.) and Cloud DNS is not enabled, gcloud **cannot** create the records — an operator
-must add them by hand. Two records per domain:
-
-1. `CNAME _acme-challenge[...] → <id>.authorize.certificatemanager.goog` — emitted by the
-   dns-authorization; the managed cert won't go `ACTIVE` until it resolves.
-2. `A @ → <LB-IP>` (apex), `CNAME www → @` (mirrors the apex). **Leave MX records alone**
-   (Workspace email).
-
-> **If the GoDaddy domain is in this workspace and the `godaddy` CLI is on your PATH, an agent can
-> add these records directly instead of doing it by hand** (it wraps the GoDaddy DNS API). It is a
-> workspace tool, not part of this template, so it won't exist everywhere — when it's present, prefer
-> it; when it isn't, add the records manually as above. `delete` refuses to run non-interactively, so
-> it's safe to hand to an agent. Read first, then write:
->
-> ```bash
-> # args are positional: <domain> <type> <name> <value>
-> godaddy dns list <domain>                                 # see current records
-> godaddy dns add  <domain> CNAME _acme-challenge <id>.authorize.certificatemanager.goog
-> godaddy dns set  <domain> A @ <LB-IP> --ttl 600           # replace the apex A
-> ```
->
-> (`add` appends, `set` replaces a type+name. Creds load from `~/.config/godaddy-cli/.env`. Source +
-> README live at `~/Snackbyte/tools/godaddy-cli`; run `godaddy dns --help` for the current surface.)
-
-Set a low **TTL (600)** on records you'll later flip (a cutover then propagates in ~10 min). A
-managed cert goes `ACTIVE` only after DNS validates (~15–60 min). A static public IP is expected —
-security is at the LB edge (managed TLS, HTTPS-only, baseline DDoS), not from hiding the IP.
-
-**Cost reality:** the LB forwarding rule is a flat **~$18/mo baseline per load balancer**,
-regardless of traffic. Because one LB fronts every app and both TLDs, the 2nd…Nth app adds
-**~$0**.
-
----
+What follows here is the half that _is_ specific to this app: the `deploy` job that consumes
+those values, and the build arguments this repo's `cloudbuild.yaml` expects.
 
 ## The `deploy` job + Cloud Build (per app)
 
@@ -326,7 +178,7 @@ image `<service>:<TAG>-<sha>`, pushes to Artifact Registry, and `gcloud run depl
 runtime env (`NODE_ENV=production`, `APP_VERSION`, commit/date). The environment identity is
 **baked at build time**, not a runtime label — a runtime `APP_ENV` is at most a pass-through of the
 same name, never the source of truth. It does **not** grant the `allUsers` invoker — that's the
-one-time manual step (§4). Its per-target knobs (`_SERVICE`, `_APP_ENV_NAME`, `_APP_IS_PUBLIC_FACE`)
+one-time manual step (`GCP-SETUP.md` §4). Its per-target knobs (`_SERVICE`, `_APP_ENV_NAME`, `_APP_IS_PUBLIC_FACE`)
 default to production, so the prod path is byte-identical to a non-staging app.
 
 Non-obvious build flags, each learned the hard way:
@@ -350,51 +202,25 @@ local submit; it's populated only by submitting from a **connected repo** with `
 
 ---
 
-## Connected-repo link (Ref column) — opt-in
-
-**Skip it unless you want the History Ref column.** A 2nd-gen Cloud Build **repo connection** lets
-you submit `--revision=vX.Y.Z` from the connected repo so History's **Ref** column shows the tag.
-It is **only** a build _source_ — **not** a trigger, and it does **not** depend on webhook
-delivery. The default local submit deploys identically without it. To use it, swap the final `.`
-in the build command for the connected-repo resource and add `--revision=<tag>`.
-
-Creating the connection needs a **one-time browser OAuth** the CLI can't do:
-
-```bash
-gcloud builds connections create github <conn-name> --region=<region> --project=<project>
-# returns a PENDING_USER_OAUTH link → open it (correct Google + GitHub identities) →
-# advance to PENDING_INSTALL_APP → SELECT THE EXISTING GitHub App installation and Continue
-# (do NOT "install in another account") → COMPLETE
-gcloud builds repositories create <repo> --connection=<conn-name> \
-  --region=<region> --project=<project> \
-  --remote-uri="https://github.com/<owner>/<repo>.git"
-```
-
-Prereq: the Cloud Build P4SA
-(`service-<project-number>@gcp-sa-cloudbuild.iam.gserviceaccount.com`) needs
-`roles/secretmanager.admin` (2nd-gen stores the OAuth token in Secret Manager).
-
----
-
 ## Adding a staging environment (per app)
 
 Staging is **a second deploy of the same app, off the `dev` branch, to a second Cloud Run service
 on the same load balancer** — production on `<app>.snackbyte.io`, staging on
 `<app>.snackbyte.dev`. The branch + the derived `-dev` tag already drive it (no template change);
-this is the per-app GCP wiring. One global LB serves **both TLDs** — the cert-map (§5) holds
+this is the per-app GCP wiring. One global LB serves **both TLDs** — the cert-map (`GCP-SETUP.md` §5) holds
 hostnames across both, host-rules route each. No second LB, no second IP, **~$0 added**.
 
 Per app, in addition to its production wiring:
 
 1. **Cloud Run** — deploy a second service `<service>-staging`. Lock ingress to
-   `internal-and-cloud-load-balancing` **and** bind `allUsers run.invoker` (§4 — both, or the LB
+   `internal-and-cloud-load-balancing` **and** bind `allUsers run.invoker` (`GCP-SETUP.md` §4 — both, or the LB
    403s). The `deploy` job passes `APP_ENV_NAME=staging` (the build resolves `isPublicFace:false`
    - `noindex:true` from `environments.json` and bakes them — chip shown, no-index); `NODE_ENV`
      stays `production` so the real version is read.
 2. **Load balancer** — add a serverless NEG → backend for `<service>-staging`, a host-rule for
    `<app>.snackbyte.dev` on the existing URL map. (The flagship is typically the url-map's
    _default_ service; sibling apps are explicit host-rules.)
-3. **TLS** — covered by the `*.snackbyte.dev` wildcard cert-map entry (§5); no per-app cert work.
+3. **TLS** — covered by the `*.snackbyte.dev` wildcard cert-map entry (`GCP-SETUP.md` §5); no per-app cert work.
 4. **DNS** — one `A` record `<app>.snackbyte.dev → <LB-IP>` (the same LB IP as prod), TTL 600.
 5. **WIF / SA** — reuse the existing pool/provider + `<deployer-SA>`; no new IAM for a public app.
 
@@ -423,34 +249,12 @@ server and frontend.
 
 ---
 
-## Adding another app to the same project (the fleet pattern)
-
-The project hosts many apps; each is its own repo → Cloud Run service → subdomain on the shared LB.
-Per new app `<app>`:
-
-1. **WIF binding** — reuse the existing pool/provider (the owner condition already allows all your
-   repos); add one `roles/iam.workloadIdentityUser` binding for `…/attribute.repository/<owner>/<app>`
-   on its deploy SA.
-2. **Cloud Run** — deploys as a separate service; lock ingress **and** bind `allUsers run.invoker`
-   (§4).
-3. **Artifact Registry** — images namespaced by service automatically.
-4. **Load balancer** — add a serverless NEG + backend + host-rule on the existing URL map; add one
-   `A` record for the sub → same `<LB-IP>`. TLS is already covered by the wildcard cert (§5). **No
-   new LB, no new IP, no cert work, ~$0 added.**
-5. **Workflow** — wire the release flow per `CONSUMING.md` as usual, then add the per-app `deploy`
-   job (above), changing `_SERVICE`, the WIF principal, and the host.
-
----
-
 ## Operational gotchas
 
 - **For a deploy that failed _after_ tagging**, re-run the `deploy` job alone (see Recovery,
-  above) — don't re-run the tag job. (Version-line questions — an unexpected "tag already
-  exists", or `main` running ahead of `dev` after a hotfix — are release-flow behavior and are
-  explained in the Action's `CONSUMING.md`.)
-- **`gcloud` auth expiry** — tokens expire ~hourly; re-auth with `gcloud auth login <account>`.
-  Pass the right `--account` for the project (a machine may own several Google identities — the
-  wrong one silently targets the wrong project).
-- **`google-github-actions/*` (in the per-app deploy job) run on Node 20** — every CI run annotates
-  the deprecation, and GitHub **forces Node 24 on 2026-06-16**. Bump `auth@` / `setup-gcloud@` to a
-  Node 24 major before then (check their releases for the current tag).
+  above) — don't re-run the tag job.
+- Version-line questions — an unexpected "tag already exists", or `main` running ahead of `dev`
+  after a hotfix — are release-flow behavior: see `CONSUMING.md` in
+  `jeff-fichtner/snackbyte-release-flow-action`.
+- `gcloud` auth expiry, the `google-github-actions` Node deprecation, and other
+  infrastructure-side gotchas are in `GCP-SETUP.md` (`project-setup` repo).

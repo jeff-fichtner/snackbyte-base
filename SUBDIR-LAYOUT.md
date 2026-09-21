@@ -57,9 +57,9 @@ per repo — so there is nothing to move; you simply create it at the root.
 
 **The subdirectory wiring belongs to the release flow, and its `CONSUMING.md` owns it:** see
 **"Consuming from a subdirectory"** in `jeff-fichtner/snackbyte-release-flow-action`. It covers
-`defaults.run.working-directory`, passing `manifest: <app>/environments.json` to the Action
-(a `uses:` step, which `working-directory` does not reach), the `cache-dependency-path` fix,
-and the `paths:` trigger trade-off.
+`defaults.run.working-directory`, passing both `manifest: <app>/environments.json` and
+`package-json: <app>/package.json` to the Action (a `uses:` step, which `working-directory`
+does not reach), the `cache-dependency-path` fix, and the `paths:` trigger trade-off.
 
 ### The `deploy` job (per app, as always)
 
@@ -73,10 +73,11 @@ too.
 ## What this does NOT change
 
 - **The release-flow Action and the tag scheme** — versioning derives from **git tags**, which
-  are repo-global, not directory-scoped. A subdirectory app shares the repo's tag namespace.
-  If the repo holds more than one releasable thing, that's a tag-collision design question
-  (prefix tags, separate repos) — out of scope here, but flag it before you wire a second
-  deployable into the same repo.
+  are repo-global, not directory-scoped; a subdirectory app's tags are the repo's tags. A
+  second releasable in the same repo therefore gets its own `tag-prefix:`
+  (`client-node-v0.1.0`), a namespace mutually blind to the bare `v…` one. The recipe is
+  **"Two releasables in one repository"** under "Consuming from a subdirectory" in the
+  Action's `CONSUMING.md`.
 - **App source, modes, render strategy** — none of the `init` choices or in-source code
   care where the app sits. `--mode`, `--render`, `src/`, tests, the dev scripts: all
   identical to a root-level app.
@@ -91,4 +92,6 @@ too.
 - [ ] Release-flow workflow created at the **repo root** and made subdirectory-aware, per
       "Consuming from a subdirectory" in the Action's `CONSUMING.md`.
 - [ ] `deploy` job copied from `DEPLOY.md`; its `gcloud builds submit` runs from `<app>/`.
-- [ ] Considered tag-namespace sharing if the repo holds another releasable.
+- [ ] If the repo holds another releasable, each has its own workflow, `manifest:`,
+      `package-json:`, and the library's `tag-prefix:`, per the Action's two-releasables
+      recipe.

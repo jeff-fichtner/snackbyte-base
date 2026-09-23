@@ -15,7 +15,10 @@ environment identity baked into the image. The two halves it does _not_ own:
 Placeholders used throughout: `<project>` (GCP project id), `<service>` (Cloud Run service
 = app name), `<owner>/<repo>` (GitHub repo), `<region>` (e.g. `us-central1`), `<LB-IP>`
 (the load balancer's static IP), `<deployer-SA>` (the build/deploy service account),
-`<project-number>` (numeric GCP project number).
+`<project-number>` (numeric GCP project number), `<runtime-SA>` (the Cloud Run **runtime**
+service account — one per app per environment, and **not** the same account as
+`<deployer-SA>`, which only builds and deploys; its id is capped at 30 characters, so use the
+short environment token: `<service>-prod-runtime`, `<service>-stg-runtime`).
 
 ## The model in one paragraph
 
@@ -67,9 +70,21 @@ below is about what happens once a tag exists.
    what's deployed. Staging additionally returns an `X-Robots-Tag: noindex` header; production
    does not.
 
-**Manual deploy** anytime (no CI): `./scripts/deploy.sh <service> <project> <region> [version]`.
-This runs `gcloud run deploy --source .`. The version is whatever you pass (or `git describe`),
-not a `package.json` patch.
+**Manual deploy** — there is exactly one deploy path, `cloudbuild.yaml`. To run it outside CI,
+submit the same build CI submits:
+
+```bash
+gcloud builds submit --config=cloudbuild.yaml \
+  --substitutions="TAG_NAME=<tag>,SHORT_SHA=$(git rev-parse --short HEAD),_SERVICE=<service>,_RUN_SA=<runtime-SA>" \
+  --service-account="projects/<project>/serviceAccounts/<deployer-SA>" \
+  --default-buckets-behavior=REGIONAL_USER_OWNED_BUCKET \
+  --project=<project> --region=<region> .
+```
+
+There is no `scripts/deploy.sh`, and a `gcloud run deploy --source .` shortcut is not a
+substitute: it sets no `--ingress`, so the service comes up reachable on `*.run.app`, bypassing
+the load balancer and Cloud Armor; it runs the build and the service under _default_ identities
+instead of `<deployer-SA>` and `<runtime-SA>`; and it bakes no version into the frontend bundle.
 
 **Recovery — tag pushed but the deploy failed** (transient GCP/GitHub error): the tag exists but
 prod wasn't updated, and re-running the whole workflow would hit the fail-loud "tag exists"
@@ -108,7 +123,7 @@ those values, and the build arguments this repo's `cloudbuild.yaml` expects.
 The template ships `cloudbuild.yaml` and the `validate` + `version-and-tag` jobs. The **`deploy`
 job is per-app** — it names your project/SA/WIF and selects the target from the branch. Paste the
 block below into `ci-cd.yml` (after `version-and-tag`) and fill the `<…>` placeholders — it is the
-one hand-assembly step, so don't change these four load-bearing lines (the **attach contract**):
+one hand-assembly step, so don't change these five load-bearing lines (the **attach contract**):
 
 1. **`needs: version-and-tag`** — chains deploy onto the tag job in the same run.
 2. **`if: github.event_name == 'push' && needs.version-and-tag.outputs.tag != ''`** — deploy only
@@ -116,11 +131,23 @@ one hand-assembly step, so don't change these four load-bearing lines (the **att
    deploy, no silent success).
 3. **`ref: ${{ needs.version-and-tag.outputs.tag }}`** — check out the _tagged_ commit, so the
    build is exactly what was versioned (not whatever `HEAD` drifted to).
-4. **the `--substitutions` set** — `TAG_NAME` / `_SERVICE` / `_APP_ENV_NAME` / `_APP_IS_PUBLIC_FACE`
-   are what `cloudbuild.yaml` reads; the `Resolve environment from manifest` step reads
-   `environments.json` by `github.ref_name` to get the environment **name** and its `isPublicFace`
-   facet (the build resolves the rest from the manifest by that name). The **service name** is the
-   one per-app bit the manifest does not carry — map it from the environment name here.
+4. **the `--substitutions` set** — `TAG_NAME` / `_SERVICE` / `_RUN_SA` / `_APP_ENV_NAME` /
+   `_APP_IS_PUBLIC_FACE` are what `cloudbuild.yaml` reads; the `Resolve environment from manifest`
+   step reads `environments.json` by `github.ref_name` to get the environment **name** and its
+   `isPublicFace` facet (the build resolves the rest from the manifest by that name). The
+   **service name** and the **runtime SA** are the two per-app coordinates the manifest does not
+   carry — map both from the environment name here.
+5. **`_RUN_SA`** — the Cloud Run **runtime** service account, mapped per environment alongside
+   the service name. `cloudbuild.yaml` has no default for it and fails the build when it is
+   empty, so a service can never quietly come up on the project's default compute SA (one
+   identity shared by every app in the project). One SA per app per environment; create it and
+   grant it per `GCP-SETUP.md` §"Runtime identity". **Map it explicitly, the way the service
+   name is mapped — do not build it from `ENV_NAME`:** a service account id is limited to
+   **30 characters**, so `<service>-production-runtime` overflows for any app name past 11
+   characters (`rehearsal-board-production-runtime` is 34). The fleet convention is the short
+   token — `<service>-prod-runtime` / `<service>-stg-runtime` — which fits up to a 19-character
+   app name. Check the length before creating the account: `gcloud` rejects an over-long id, but
+   only at create time, long after this file was wired.
 
 ```yaml
 deploy:
@@ -150,6 +177,12 @@ deploy:
         else echo "service=<service>-${ENV_NAME}" >> "$GITHUB_OUTPUT"; fi
         echo "app_env_name=${ENV_NAME}" >> "$GITHUB_OUTPUT"
         echo "is_public_face=${IS_PF}" >> "$GITHUB_OUTPUT"
+        # Runtime identity: like the service name, a per-app coordinate the manifest doesn't
+        # carry — MAP it, don't derive it from ENV_NAME. A service account id is capped at 30
+        # characters, so "<service>-production-runtime" overflows for longer app names; the
+        # fleet uses the short tokens prod/stg. No fallback: cloudbuild.yaml fails on empty.
+        if [ "$IS_PF" = "true" ]; then echo "run_sa=<service>-prod-runtime@<project>.iam.gserviceaccount.com" >> "$GITHUB_OUTPUT"
+        else echo "run_sa=<service>-stg-runtime@<project>.iam.gserviceaccount.com" >> "$GITHUB_OUTPUT"; fi
     - uses: google-github-actions/auth@v2
       with:
         {
@@ -163,7 +196,7 @@ deploy:
         SHORT_SHA="$(git rev-parse --short HEAD)"
         gcloud builds submit \
           --config=cloudbuild.yaml \
-          --substitutions="TAG_NAME=${TAG},SHORT_SHA=${SHORT_SHA},_SERVICE=${{ steps.target.outputs.service }},_APP_ENV_NAME=${{ steps.target.outputs.app_env_name }},_APP_IS_PUBLIC_FACE=${{ steps.target.outputs.is_public_face }}" \
+          --substitutions="TAG_NAME=${TAG},SHORT_SHA=${SHORT_SHA},_SERVICE=${{ steps.target.outputs.service }},_RUN_SA=${{ steps.target.outputs.run_sa }},_APP_ENV_NAME=${{ steps.target.outputs.app_env_name }},_APP_IS_PUBLIC_FACE=${{ steps.target.outputs.is_public_face }}" \
           --service-account="projects/${PROJECT_ID}/serviceAccounts/${DEPLOY_SA}" \
           --default-buckets-behavior=REGIONAL_USER_OWNED_BUCKET \
           --project="$PROJECT_ID" --region="$REGION" .
@@ -174,7 +207,8 @@ deploy:
 build-args (the build resolves the environment's facets from `environments.json` by
 `APP_ENV_NAME` and bakes the identity into the frontend bundle AND the compiled server), tags the
 image `<service>:<TAG>-<sha>`, pushes to Artifact Registry, and `gcloud run deploy`s with
-`--ingress=internal-and-cloud-load-balancing` (locks the service to the LB on every deploy) and
+`--ingress=internal-and-cloud-load-balancing` (locks the service to the LB on every deploy),
+`--service-account=${_RUN_SA}` (the runtime identity — required, no default), and
 runtime env (`NODE_ENV=production`, `APP_VERSION`, commit/date). The environment identity is
 **baked at build time**, not a runtime label — a runtime `APP_ENV` is at most a pass-through of the
 same name, never the source of truth. It does **not** grant the `allUsers` invoker — that's the
@@ -183,8 +217,11 @@ default to production, so the prod path is byte-identical to a non-staging app.
 
 Non-obvious build flags, each learned the hard way:
 
-- **`--service-account`** — `gcloud builds submit` does **not** auto-run as the calling identity;
-  without this it runs as the default compute SA. Set it to `<deployer-SA>`.
+- **`--service-account` (on `builds submit`)** — `gcloud builds submit` does **not** auto-run as
+  the calling identity; without this it runs as the default compute SA. Set it to
+  `<deployer-SA>`. Note there are **two** service accounts in play and they are not
+  interchangeable: this one is the _build_ identity, while `_RUN_SA` (passed through to
+  `gcloud run deploy --service-account`) is the _runtime_ identity the deployed service runs as.
 - **`--default-buckets-behavior=REGIONAL_USER_OWNED_BUCKET`** — **required** whenever a
   user-managed `--service-account` is set on a regional build, or the submit errors on the logs
   bucket.
@@ -222,7 +259,13 @@ Per app, in addition to its production wiring:
    _default_ service; sibling apps are explicit host-rules.)
 3. **TLS** — covered by the `*.snackbyte.dev` wildcard cert-map entry (`GCP-SETUP.md` §5); no per-app cert work.
 4. **DNS** — one `A` record `<app>.snackbyte.dev → <LB-IP>` (the same LB IP as prod), TTL 600.
-5. **WIF / SA** — reuse the existing pool/provider + `<deployer-SA>`; no new IAM for a public app.
+5. **WIF / SAs** — reuse the existing pool/provider + `<deployer-SA>` for the _deploy_ identity.
+   The _runtime_ identity is not shared: create `<service>-stg-runtime` (short token — the id is
+   capped at 30 characters) per `GCP-SETUP.md`
+   §"Runtime identity", grant it only what staging actually reads (per database, per secret, per
+   bucket — never a project-wide role beyond `roles/logging.logWriter`), and grant
+   `<deployer-SA>` `roles/iam.serviceAccountUser` on it so the deploy may run the service as it.
+   Staging and production never share a runtime SA.
 
 ### What the app reports
 

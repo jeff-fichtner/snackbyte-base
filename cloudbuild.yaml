@@ -1,7 +1,14 @@
 # Cloud Build config for the deploy. Invoked by the per-app deploy job (see DEPLOY.md) via:
 #   gcloud builds submit --config=cloudbuild.yaml \
-#     --substitutions=TAG_NAME=vX.Y.Z,SHORT_SHA=<sha>,_SERVICE=<service> \
+#     --substitutions=TAG_NAME=vX.Y.Z,SHORT_SHA=<sha>,_SERVICE=<service>,_RUN_SA=<runtime-SA> \
 #     [--substitutions=_APP_ENV=staging,_APP_IS_PUBLIC_FACE=false]   # staging only
+#
+# _RUN_SA is REQUIRED and deliberately has NO usable default: it is the Cloud Run *runtime*
+# service account this service runs as, one per app per environment (see DEPLOY.md). Leaving it
+# empty fails the deploy step rather than letting Cloud Run fall back to the project's default
+# compute service account — a single identity shared by every app in the project, which is how
+# one app ends up able to read another's data. This is NOT the same account as the build/deploy
+# identity passed to `gcloud builds submit --service-account`.
 #
 # The version, commit, and date are passed in (the version is the derived git tag, NOT a
 # package.json patch). Build tags + image tags keep this app's builds legible in the shared
@@ -9,6 +16,9 @@
 substitutions:
   _REGION: us-central1
   _SERVICE: app # overridden per app to the Cloud Run service name
+  # REQUIRED — the Cloud Run runtime service account (see the header). Empty is not a default:
+  # the deploy step below exits non-zero on it. Must be passed on every submit.
+  _RUN_SA: ''
   _REPO: cloud-run-source-deploy
   _AR_HOST: us-central1-docker.pkg.dev
   # Per-target knobs (defaults = production). A staging deploy overrides these:
@@ -69,6 +79,13 @@ steps:
     args:
       - -c
       - |
+        # Fail loud on a missing runtime identity. Without --service-account, Cloud Run silently
+        # runs the service as the project's default compute SA; exiting here turns "you forgot to
+        # pass _RUN_SA" into an obvious build failure instead of an over-privileged service.
+        if [ -z "${_RUN_SA}" ]; then
+          echo "_RUN_SA is required: the runtime service account this service runs as (see DEPLOY.md)" >&2
+          exit 1
+        fi
         ENV_VARS="NODE_ENV=production,APP_VERSION=${TAG_NAME},BUILD_GIT_COMMIT=${SHORT_SHA},BUILD_DATE=$$(cat /workspace/build_date.txt)"
         if [ -n "${_APP_ENV}" ]; then ENV_VARS="$${ENV_VARS},APP_ENV=${_APP_ENV}"; fi
         # --ingress locks the service to the load balancer (rejects direct *.run.app) on EVERY
@@ -83,6 +100,7 @@ steps:
           --project=${PROJECT_ID} \
           --region=${_REGION} \
           --ingress=internal-and-cloud-load-balancing \
+          --service-account=${_RUN_SA} \
           --set-env-vars="$${ENV_VARS}"
 
 images:

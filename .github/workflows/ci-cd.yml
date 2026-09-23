@@ -68,10 +68,12 @@ jobs:
     name: version and tag
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    # Serialize same-branch runs so two pushes can't derive the same patch concurrently.
+    # Serialize per RELEASABLE, not per branch: the build id is global across every environment
+    # branch, so a per-branch group lets main and dev race to the same number.
     concurrency:
-      group: version-${{ github.ref }}
+      group: release
       cancel-in-progress: false
+      queue: max # let runs wait their turn; without it a queued release can be thrown away
     permissions:
       contents: write # to push the TAG only (we never push a commit to the branch)
     outputs:

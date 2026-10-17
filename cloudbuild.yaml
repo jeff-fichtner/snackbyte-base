@@ -1,36 +1,49 @@
 # Cloud Build config for the deploy. Invoked by the per-app deploy job (see DEPLOY.md) via:
 #   gcloud builds submit --config=cloudbuild.yaml \
-#     --substitutions=TAG_NAME=vX.Y.Z,SHORT_SHA=<sha>,_SERVICE=<service>,_RUN_SA=<runtime-SA> \
-#     [--substitutions=_APP_ENV=staging,_APP_IS_PUBLIC_FACE=false]   # staging only
+#     --substitutions=TAG_NAME=vX.Y.Z,SHORT_SHA=<sha>,_SERVICE=<service>,_REGION=<region>,_APP_ENV_NAME=<env>,_RUN_SA=<runtime-SA>
+# (One --substitutions flag carrying every value: a second flag replaces the first, it does not
+# add to it.)
 #
-# _RUN_SA is REQUIRED and deliberately has NO usable default: it is the Cloud Run *runtime*
-# service account this service runs as, one per app per environment (see DEPLOY.md). Leaving it
-# empty fails the deploy step rather than letting Cloud Run fall back to the project's default
-# compute service account — a single identity shared by every app in the project, which is how
-# one app ends up able to read another's data. This is NOT the same account as the build/deploy
-# identity passed to `gcloud builds submit --service-account`.
+# Every one of those values is REQUIRED and has no default: each differs per deploy, per
+# environment or per app, so a guessed value would not fail — it would deploy the wrong thing,
+# quietly. An empty _APP_ENV_NAME would bake the `local` identity into a deployed image; an empty
+# _RUN_SA would leave Cloud Run on the project's default compute service account — a single
+# identity shared by every app in the project, which is how one app ends up able to read another's
+# data. A missing value fails the build before anything is built or pushed: the first step names
+# every one that is missing (an empty TAG_NAME, _SERVICE or _REGION leaves the `images:` names
+# invalid, which Cloud Build may refuse even earlier, with its own message). _RUN_SA is the Cloud
+# Run *runtime* service account, one per app per
+# environment (see DEPLOY.md), and NOT the build/deploy identity passed to
+# `gcloud builds submit --service-account`.
+#
+# The environment's facets (public face, noindex) are NOT passed in: the build resolves them from
+# environments.json by _APP_ENV_NAME, so a deploy cannot disagree with the manifest.
+#
+# The deploy names its image by the digest the push recorded, never by a tag: anything holding
+# write on the image repository can move a tag between the push and the deploy, and Cloud Run
+# resolves a tag only when the revision is created.
 #
 # The version, commit, and date are passed in (the version is the derived git tag, NOT a
 # package.json patch). Build tags + image tags keep this app's builds legible in the shared
 # Cloud Build History.
 substitutions:
-  _REGION: us-central1
-  _SERVICE: app # overridden per app to the Cloud Run service name
-  # REQUIRED — the Cloud Run runtime service account (see the header). Empty is not a default:
-  # the deploy step below exits non-zero on it. Must be passed on every submit.
-  _RUN_SA: ''
-  _REPO: cloud-run-source-deploy
-  _AR_HOST: us-central1-docker.pkg.dev
-  # Per-target knobs (defaults = production). A staging deploy overrides these:
-  #   _SERVICE=<service>-staging  _APP_ENV_NAME=staging  _APP_IS_PUBLIC_FACE=false
-  # _APP_ENV_NAME is the environment NAME; the build resolves its facets from environments.json and
-  # bakes the identity into the frontend bundle AND the compiled server (so /api/version reports it).
-  # _APP_IS_PUBLIC_FACE overrides the version chip directly ('true' = public face, chip hidden).
-  # _APP_ENV is a RUNTIME pass-through of the same name (not a source of truth). The defaults leave
-  # the prod build/deploy unchanged.
+  # REQUIRED — the Cloud Run service name. A default would deploy over whichever service shares it.
+  _SERVICE: ''
+  # REQUIRED — the region the service runs in. The image goes to that region's Artifact Registry
+  # host, and the service is deployed there: a defaulted region deploys a second copy of the
+  # service somewhere the load balancer never routes to, and reports success.
+  _REGION: ''
+  # REQUIRED — the environment NAME (e.g. production, staging). The build resolves its facets from
+  # environments.json and bakes the identity into the frontend bundle AND the compiled server (so
+  # /api/version reports it).
   _APP_ENV_NAME: ''
-  _APP_ENV: ''
-  _APP_IS_PUBLIC_FACE: 'true'
+  # REQUIRED — the Cloud Run runtime service account (see the header). Named on every deploy,
+  # never inherited: Cloud Run keeps the existing account when --service-account is omitted.
+  _RUN_SA: ''
+  # The image repository in _REGION's Artifact Registry, shared by every app and environment that
+  # deploys to that region. A wrong name — or a region with no such repository — fails the push
+  # outright, so it keeps its default.
+  _REPO: cloud-run-source-deploy
 
 # Build tags → filterable chips in Cloud Build History (which app / ref / commit). Critical when
 # many apps build in the same project. (Underscores aren't allowed in tag values.)
@@ -40,13 +53,33 @@ tags:
   - commit-${SHORT_SHA}
 
 steps:
+  # 0. Refuse to build without the required configuration. Fails in seconds, names every missing
+  #    value at once, and nothing has been built or pushed.
+  - id: require
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        missing=""
+        [ -n "${TAG_NAME}" ]       || missing="$${missing} TAG_NAME"
+        [ -n "${SHORT_SHA}" ]      || missing="$${missing} SHORT_SHA"
+        [ -n "${_SERVICE}" ]       || missing="$${missing} _SERVICE"
+        [ -n "${_REGION}" ]        || missing="$${missing} _REGION"
+        [ -n "${_APP_ENV_NAME}" ]  || missing="$${missing} _APP_ENV_NAME"
+        [ -n "${_RUN_SA}" ]        || missing="$${missing} _RUN_SA"
+        if [ -n "$${missing}" ]; then
+          echo "cloudbuild.yaml: required substitution(s) not set:$${missing} (see DEPLOY.md)" >&2
+          exit 1
+        fi
+
   # 1. Stamp a real UTC build timestamp (Cloud Build has no built-in date substitution).
   - id: stamp
     name: gcr.io/cloud-builders/docker
     entrypoint: bash
     args: ['-c', 'date -u +%Y-%m-%dT%H:%M:%SZ > /workspace/build_date.txt']
 
-  # 2. Build the image, forwarding version/commit/date/chip-flag as build-args. Tagged with both
+  # 2. Build the image, forwarding version/commit/date/environment as build-args. Tagged with both
   #    vX.Y.Z-<sha> (the at-a-glance identifier in the Images column) and :latest.
   - id: build
     name: gcr.io/cloud-builders/docker
@@ -58,45 +91,72 @@ steps:
           --build-arg=BUILD_GIT_COMMIT=${SHORT_SHA} \
           --build-arg=BUILD_DATE="$$(cat /workspace/build_date.txt)" \
           --build-arg=APP_ENV_NAME=${_APP_ENV_NAME} \
-          --build-arg=APP_IS_PUBLIC_FACE=${_APP_IS_PUBLIC_FACE} \
           --build-arg=APP_VERSION=${TAG_NAME} \
-          -t ${_AR_HOST}/${PROJECT_ID}/${_REPO}/${_SERVICE}:${TAG_NAME}-${SHORT_SHA} \
-          -t ${_AR_HOST}/${PROJECT_ID}/${_REPO}/${_SERVICE}:${TAG_NAME} \
-          -t ${_AR_HOST}/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest \
+          -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${TAG_NAME}-${SHORT_SHA} \
+          -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${TAG_NAME} \
+          -t ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest \
           .
 
-  # 3. Push all tags to Artifact Registry.
+  # 3. Push all tags to Artifact Registry, then record the digest the registry assigned to THIS
+  #    service's repository — picked by name from the image's repo digests, not taken as whichever
+  #    is listed first. The deploy uses that digest, never a tag. No such digest fails the build
+  #    here, before any deploy (`set -euo pipefail` also stops a failed push or inspect, where
+  #    without it the step's status would be its last command's).
   - id: push
     name: gcr.io/cloud-builders/docker
-    args: ['push', '--all-tags', '${_AR_HOST}/${PROJECT_ID}/${_REPO}/${_SERVICE}']
-
-  # 4. Deploy to Cloud Run from the immutable vX.Y.Z-<sha> image. Runtime env vars feed
-  #    /api/version. NODE_ENV stays 'production' in BOTH environments so the real version is read;
-  #    APP_ENV is appended ONLY when non-empty, so production is never given a stray APP_ENV=.
-  - id: deploy
-    name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: bash
     args:
       - -c
       - |
-        # Fail loud on a missing runtime identity. Without --service-account, Cloud Run silently
-        # runs the service as the project's default compute SA; exiting here turns "you forgot to
-        # pass _RUN_SA" into an obvious build failure instead of an over-privileged service.
-        if [ -z "${_RUN_SA}" ]; then
-          echo "_RUN_SA is required: the runtime service account this service runs as (see DEPLOY.md)" >&2
+        set -euo pipefail
+        IMAGE_REPO="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}"
+        docker push --all-tags "$${IMAGE_REPO}"
+        REFS="$$(docker inspect --format='{{range .RepoDigests}}{{println .}}{{end}}' "$${IMAGE_REPO}:${TAG_NAME}-${SHORT_SHA}")"
+        DIGEST=""
+        while IFS= read -r ref; do
+          case "$${ref}" in "$${IMAGE_REPO}@sha256:"*) DIGEST="$${ref}"; break ;; esac
+        done <<< "$${REFS}"
+        if ! [[ "$${DIGEST#"$${IMAGE_REPO}@sha256:"}" =~ ^[0-9a-f]{64}$$ ]]; then
+          echo "cloudbuild.yaml: the push left no digest in $${IMAGE_REPO}" >&2
+          exit 1
+        fi
+        echo "$${DIGEST}" > /workspace/image_digest.txt
+        echo "deploying $${DIGEST}"
+
+  # 4. Deploy to Cloud Run from the digest recorded at push. Runtime env vars feed
+  #    /api/version. NODE_ENV stays 'production' in BOTH environments so the real version is read.
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    # Some deploy flags (Cloud SQL, for one) make gcloud check through Service Usage that an API is
+    # enabled, and offer to enable it. The deployer holds no Service Usage permission, by design;
+    # don't make a call that is meant to fail.
+    env: ['CLOUDSDK_CORE_SHOULD_PROMPT_TO_ENABLE_API=false']
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        # Deploy only what the push recorded, and only if it is exactly one digest in this
+        # service's own repository. The assignment fails the step when the file is missing;
+        # anything else is refused here rather than handed to Cloud Run to resolve.
+        IMAGE_REPO="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}"
+        IMAGE="$$(cat /workspace/image_digest.txt)"
+        if ! [[ "$${IMAGE}" == "$${IMAGE_REPO}@sha256:"* && "$${IMAGE#"$${IMAGE_REPO}@sha256:"}" =~ ^[0-9a-f]{64}$$ ]]; then
+          echo "cloudbuild.yaml: the push step recorded no digest in $${IMAGE_REPO}" >&2
           exit 1
         fi
         ENV_VARS="NODE_ENV=production,APP_VERSION=${TAG_NAME},BUILD_GIT_COMMIT=${SHORT_SHA},BUILD_DATE=$$(cat /workspace/build_date.txt)"
-        if [ -n "${_APP_ENV}" ]; then ENV_VARS="$${ENV_VARS},APP_ENV=${_APP_ENV}"; fi
         # --ingress locks the service to the load balancer (rejects direct *.run.app) on EVERY
         # deploy, so a first deploy doesn't silently come up reachable on run.app. It is
         # idempotent and always correct for an LB-fronted service. The OTHER half — the one-time
         # `allUsers run.invoker` grant — is NOT done here (it's a per-service IAM posture, granted
-        # once at stand-up, see DEPLOY.md §"Cloud Run service — ingress AND invoker"). Without it
+        # once at stand-up, see GCP-SETUP.md §4 in the project-setup repo). Without it
         # the LB returns a Google-frontend 403; the deploy will succeed but the host 403s until
         # the grant is applied.
+        # --service-account is named on every revision rather than carried forward by Cloud Run;
+        # the `require` step has already refused an empty value.
         gcloud run deploy ${_SERVICE} \
-          --image=${_AR_HOST}/${PROJECT_ID}/${_REPO}/${_SERVICE}:${TAG_NAME}-${SHORT_SHA} \
+          --image="$${IMAGE}" \
           --project=${PROJECT_ID} \
           --region=${_REGION} \
           --ingress=internal-and-cloud-load-balancing \
@@ -104,9 +164,9 @@ steps:
           --set-env-vars="$${ENV_VARS}"
 
 images:
-  - ${_AR_HOST}/${PROJECT_ID}/${_REPO}/${_SERVICE}:${TAG_NAME}-${SHORT_SHA}
-  - ${_AR_HOST}/${PROJECT_ID}/${_REPO}/${_SERVICE}:${TAG_NAME}
-  - ${_AR_HOST}/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${TAG_NAME}-${SHORT_SHA}
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${TAG_NAME}
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest
 
 options:
   logging: CLOUD_LOGGING_ONLY

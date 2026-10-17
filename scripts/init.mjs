@@ -116,13 +116,16 @@ if (mode === 'server') {
 //
 // `environments.json` deliberately stays: it is app build input (scripts/build.mjs generates
 // src/env.generated.ts from it), not release-flow-only config. So does the app-side runtime half
-// (scripts/resolve-env.mjs, src/environments.ts) — only the CI file goes.
+// (scripts/resolve-env.mjs, src/environments.ts) — only the CI files go. `dependabot.yml` goes with
+// the workflow: it exists to move that workflow's SHA pins, and the app's own copy is set up with
+// the app's own workflow (DEPLOY.md, "Pinned actions").
 //
 // Remove the directories only once they are empty, so an app that already had its own
 // `.github/` content (issue templates, CODEOWNERS) keeps it.
 {
   rmSync(path('.github/workflows/ci-cd.yml'), { force: true });
   rmSync(path('.github/workflows/ci-cd.yml.disabled'), { force: true });
+  rmSync(path('.github/dependabot.yml'), { force: true });
   for (const rel of ['.github/workflows', '.github']) {
     const dir = path(rel);
     if (existsSync(dir) && readdirSync(dir).length === 0) rmSync(dir, { recursive: true });

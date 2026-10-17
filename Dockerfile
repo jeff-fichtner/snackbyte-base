@@ -17,15 +17,15 @@ COPY . .
 # the build resolves its facets from environments.json and bakes them into the frontend bundle
 # AND the compiled server (so both report the same environment). The version chip is keyed off
 # the resolved isPublicFace (NOT NODE_ENV): a public-face build hides the chip; a non-public-face
-# build (e.g. staging) shows it. An explicit APP_IS_PUBLIC_FACE still overrides the chip directly.
-# With no APP_ENV_NAME the build resolves the 'local' identity. Commit/date arrive the same way;
-# without --build-arg they fall back to 'unknown'. Set these only for the build step.
+# build (e.g. staging) shows it. No build-arg overrides that facet, so a deployed image cannot
+# disagree with environments.json. With no APP_ENV_NAME the build resolves the 'local' identity
+# (cloudbuild.yaml refuses to deploy without one). Commit/date arrive the same way; without
+# --build-arg they fall back to 'unknown'. Set these only for the build step.
 ARG BUILD_GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
 ARG APP_ENV_NAME=
-ARG APP_IS_PUBLIC_FACE=true
 ARG APP_VERSION=0.0.0
-RUN CI=true NODE_ENV=production APP_ENV_NAME=${APP_ENV_NAME} APP_IS_PUBLIC_FACE=${APP_IS_PUBLIC_FACE} \
+RUN CI=true NODE_ENV=production APP_ENV_NAME=${APP_ENV_NAME} \
     APP_VERSION=${APP_VERSION} BUILD_GIT_COMMIT=${BUILD_GIT_COMMIT} BUILD_DATE=${BUILD_DATE} \
     npm run build
 

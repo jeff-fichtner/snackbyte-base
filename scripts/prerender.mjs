@@ -12,21 +12,16 @@ import { fileURLToPath } from 'node:url';
 // under tsx (no Vite defines), so we set them as globals from the same env the build uses. Must
 // MIRROR vite.config.ts exactly: the version comes from the APP_VERSION build-arg (not
 // package.json), the env identity from APP_ENV_NAME resolved against environments.json, and chip
-// visibility from the resolved isPublicFace (or an explicit APP_IS_PUBLIC_FACE override).
-// Set BEFORE importing the app.
+// visibility from the resolved isPublicFace. Set BEFORE importing the app.
 import { resolveBuildEnv } from './resolve-env.mjs';
 
 const isBuildServer = process.env.CI === 'true';
 const buildEnv = resolveBuildEnv();
-const isPublicFace =
-  process.env.APP_IS_PUBLIC_FACE != null
-    ? process.env.APP_IS_PUBLIC_FACE !== 'false'
-    : buildEnv.isPublicFace;
 globalThis.__APP_VERSION__ = isBuildServer ? (process.env.APP_VERSION ?? '0.0.0') : '0.0.0-dev';
 globalThis.__GIT_COMMIT__ = process.env.BUILD_GIT_COMMIT ?? 'dev';
 globalThis.__BUILD_DATE__ = process.env.BUILD_DATE ?? 'dev';
 globalThis.__APP_ENV_NAME__ = buildEnv.name;
-globalThis.__IS_PUBLIC_FACE__ = isPublicFace;
+globalThis.__IS_PUBLIC_FACE__ = buildEnv.isPublicFace;
 
 const { entries, renderEntry } = await import('../src/web/prerender.ts');
 

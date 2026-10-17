@@ -71,15 +71,21 @@ below is about what happens once a tag exists.
    does not.
 
 **Manual deploy** — there is exactly one deploy path, `cloudbuild.yaml`. To run it outside CI,
-submit the same build CI submits:
+submit the same build CI submits. From a checkout of the tag being deployed, set `TAG` (that tag),
+`SERVICE`, `REGION`, `ENV_NAME` (the environment's `name` in `environments.json`: `production`,
+`staging`), `RUN_SA` (its runtime SA), `PROJECT` and `DEPLOY_SA` (`<deployer-SA>`) in the shell,
+then run:
 
 ```bash
 gcloud builds submit --config=cloudbuild.yaml \
-  --substitutions="TAG_NAME=<tag>,SHORT_SHA=$(git rev-parse --short HEAD),_SERVICE=<service>,_RUN_SA=<runtime-SA>" \
-  --service-account="projects/<project>/serviceAccounts/<deployer-SA>" \
+  --substitutions="TAG_NAME=${TAG:?set TAG},SHORT_SHA=$(git rev-parse --short HEAD),_SERVICE=${SERVICE:?set SERVICE},_REGION=${REGION:?set REGION},_APP_ENV_NAME=${ENV_NAME:?set ENV_NAME},_RUN_SA=${RUN_SA:?set RUN_SA}" \
+  --service-account="projects/${PROJECT:?set PROJECT}/serviceAccounts/${DEPLOY_SA:?set DEPLOY_SA}" \
   --default-buckets-behavior=REGIONAL_USER_OWNED_BUCKET \
-  --project=<project> --region=<region> .
+  --project="${PROJECT}" --region="${REGION}" .
 ```
+
+The build resolves the environment's facets from `environments.json` by that name. Every value is
+required: leave one out and the build fails before anything is built.
 
 There is no `scripts/deploy.sh`, and a `gcloud run deploy --source .` shortcut is not a
 substitute: it sets no `--ingress`, so the service comes up reachable on `*.run.app`, bypassing
@@ -120,8 +126,8 @@ those values, and the build arguments this repo's `cloudbuild.yaml` expects.
 
 ## The `deploy` job + Cloud Build (per app)
 
-The template ships `cloudbuild.yaml` and the `validate` + `version-and-tag` jobs. The **`deploy`
-job is per-app** — it names your project/SA/WIF and selects the target from the branch. Paste the
+The template ships `cloudbuild.yaml`; the `validate` + `version-and-tag` jobs come from
+`CONSUMING.md`. The **`deploy` job is per-app** — it names your project/SA/WIF and selects the target from the branch. Paste the
 block below into `ci-cd.yml` (after `version-and-tag`) and fill the `<…>` placeholders — it is the
 one hand-assembly step, so don't change these five load-bearing lines (the **attach contract**):
 
@@ -131,10 +137,12 @@ one hand-assembly step, so don't change these five load-bearing lines (the **att
    deploy, no silent success).
 3. **`ref: ${{ needs.version-and-tag.outputs.tag }}`** — check out the _tagged_ commit, so the
    build is exactly what was versioned (not whatever `HEAD` drifted to).
-4. **the `--substitutions` set** — `TAG_NAME` / `_SERVICE` / `_RUN_SA` / `_APP_ENV_NAME` /
-   `_APP_IS_PUBLIC_FACE` are what `cloudbuild.yaml` reads; the `Resolve environment from manifest`
-   step reads `environments.json` by `github.ref_name` to get the environment **name** and its
-   `isPublicFace` facet (the build resolves the rest from the manifest by that name). The
+4. **the `--substitutions` set** — `TAG_NAME` / `SHORT_SHA` / `_SERVICE` / `_REGION` /
+   `_APP_ENV_NAME` / `_RUN_SA` are all required (`cloudbuild.yaml` has no default for any of them
+   and the build fails before anything is built). The
+   `Resolve environment from manifest` step reads `environments.json` by `github.ref_name` to get
+   the environment **name** and its `isPublicFace` facet (the build resolves every facet from the
+   manifest by that name; `isPublicFace` is read here only to choose the service). The
    **service name** and the **runtime SA** are the two per-app coordinates the manifest does not
    carry — map both from the environment name here.
 5. **`_RUN_SA`** — the Cloud Run **runtime** service account, mapped per environment alongside
@@ -162,7 +170,7 @@ deploy:
     WIF_PROVIDER: projects/<project-number>/locations/global/workloadIdentityPools/github-pool/providers/github-provider
     DEPLOY_SA: <deployer-SA>
   steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with: { ref: '${{ needs.version-and-tag.outputs.tag }}', fetch-depth: 0 }
     - name: Resolve environment from manifest
       id: target
@@ -176,44 +184,54 @@ deploy:
         if [ "$IS_PF" = "true" ]; then echo "service=<service>" >> "$GITHUB_OUTPUT"
         else echo "service=<service>-${ENV_NAME}" >> "$GITHUB_OUTPUT"; fi
         echo "app_env_name=${ENV_NAME}" >> "$GITHUB_OUTPUT"
-        echo "is_public_face=${IS_PF}" >> "$GITHUB_OUTPUT"
         # Runtime identity: like the service name, a per-app coordinate the manifest doesn't
         # carry — MAP it, don't derive it from ENV_NAME. A service account id is capped at 30
         # characters, so "<service>-production-runtime" overflows for longer app names; the
         # fleet uses the short tokens prod/stg. No fallback: cloudbuild.yaml fails on empty.
         if [ "$IS_PF" = "true" ]; then echo "run_sa=<service>-prod-runtime@<project>.iam.gserviceaccount.com" >> "$GITHUB_OUTPUT"
         else echo "run_sa=<service>-stg-runtime@<project>.iam.gserviceaccount.com" >> "$GITHUB_OUTPUT"; fi
-    - uses: google-github-actions/auth@v2
+    - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
       with:
         {
           workload_identity_provider: '${{ env.WIF_PROVIDER }}',
           service_account: '${{ env.DEPLOY_SA }}',
         }
-    - uses: google-github-actions/setup-gcloud@v2
+    - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
     - name: Build & deploy via Cloud Build
       run: |
         TAG="${{ needs.version-and-tag.outputs.tag }}"
         SHORT_SHA="$(git rev-parse --short HEAD)"
         gcloud builds submit \
           --config=cloudbuild.yaml \
-          --substitutions="TAG_NAME=${TAG},SHORT_SHA=${SHORT_SHA},_SERVICE=${{ steps.target.outputs.service }},_RUN_SA=${{ steps.target.outputs.run_sa }},_APP_ENV_NAME=${{ steps.target.outputs.app_env_name }},_APP_IS_PUBLIC_FACE=${{ steps.target.outputs.is_public_face }}" \
+          --substitutions="TAG_NAME=${TAG},SHORT_SHA=${SHORT_SHA},_SERVICE=${{ steps.target.outputs.service }},_REGION=${REGION},_APP_ENV_NAME=${{ steps.target.outputs.app_env_name }},_RUN_SA=${{ steps.target.outputs.run_sa }}" \
           --service-account="projects/${PROJECT_ID}/serviceAccounts/${DEPLOY_SA}" \
           --default-buckets-behavior=REGIONAL_USER_OWNED_BUCKET \
           --project="$PROJECT_ID" --region="$REGION" .
 ```
 
-`cloudbuild.yaml` (shipped) stamps a UTC build date, builds the `Dockerfile` forwarding
-`APP_VERSION` / `APP_ENV_NAME` / `APP_IS_PUBLIC_FACE` / `BUILD_GIT_COMMIT` / `BUILD_DATE` as
-build-args (the build resolves the environment's facets from `environments.json` by
+`cloudbuild.yaml` (shipped) first refuses to build unless `TAG_NAME`, `SHORT_SHA`, `_SERVICE`,
+`_REGION`, `_APP_ENV_NAME` and `_RUN_SA` are all set, naming every one that is missing (an empty
+`TAG_NAME`, `_SERVICE` or `_REGION` also leaves the `images:` names invalid, which Cloud Build may
+reject before the first step runs, with its own message); none has a
+default, because each differs per deploy, per environment or per app, and a guessed value would
+deploy the wrong thing without an error. It then stamps a UTC build date, builds the `Dockerfile`
+forwarding `APP_VERSION` / `APP_ENV_NAME` / `BUILD_GIT_COMMIT` / `BUILD_DATE` as build-args (the build resolves the environment's facets from `environments.json` by
 `APP_ENV_NAME` and bakes the identity into the frontend bundle AND the compiled server), tags the
-image `<service>:<TAG>-<sha>`, pushes to Artifact Registry, and `gcloud run deploy`s with
+image `<service>:<TAG>-<sha>`, pushes to Artifact Registry and records the **digest** the registry
+assigned, and `gcloud run deploy`s that digest with
 `--ingress=internal-and-cloud-load-balancing` (locks the service to the LB on every deploy),
-`--service-account=${_RUN_SA}` (the runtime identity — required, no default), and
+`--service-account=${_RUN_SA}` (the runtime identity, named on every revision), and
 runtime env (`NODE_ENV=production`, `APP_VERSION`, commit/date). The environment identity is
-**baked at build time**, not a runtime label — a runtime `APP_ENV` is at most a pass-through of the
-same name, never the source of truth. It does **not** grant the `allUsers` invoker — that's the
-one-time manual step (`GCP-SETUP.md` §4). Its per-target knobs (`_SERVICE`, `_APP_ENV_NAME`, `_APP_IS_PUBLIC_FACE`)
-default to production, so the prod path is byte-identical to a non-staging app.
+**baked at build time**, not a runtime label, and no build-arg overrides a facet: the chip, the
+noindex header and `/api/version` all follow `environments.json`. It does **not** grant the
+`allUsers` invoker — that's the one-time manual step (`GCP-SETUP.md` §4).
+
+**Deploy by digest, never by tag.** Anything holding write on the Artifact Registry repository
+can re-point a tag between the push and the deploy, and Cloud Run resolves a tag only when the
+revision is created. So the push step reads back the digest this service's repository assigned
+(`docker inspect`), fails the build if there is none, and the deploy step refuses anything that is
+not `<that repository>@sha256:…`. The tags stay on
+the image for legibility (History, rollback lookups); they are never what gets deployed.
 
 Non-obvious build flags, each learned the hard way:
 
@@ -227,6 +245,33 @@ Non-obvious build flags, each learned the hard way:
   bucket.
 - The plain `.` submit builds from the uploaded **working tree**, not the tagged commit — the
   `deploy` job checks out the tag first (`ref: <tag>`), so the tree IS the tagged commit.
+
+### Pinned actions
+
+Every `uses:` in the deploy job is pinned to a full commit SHA, with the release it tracks in a
+comment. A tag such as `@v3` can be moved by whoever controls that action's repository, and in
+this job a moved tag would be arbitrary code running with the federated deploy credential. The
+pins are the releases current when this document was last revised. Dependabot
+(`package-ecosystem: github-actions`) edits workflow files, not this document, so once the job is
+in an app's workflow, the app's own Dependabot moves its pins from there.
+
+### If the app uses Cloud SQL
+
+The template uses no database connector, so `cloudbuild.yaml` names none. An app that reaches a
+Cloud SQL instance through Cloud Run's built-in connector adds it as one more required value, set
+(not added) on every deploy so each revision declares exactly the instances it can reach rather
+than inheriting the last one's:
+
+1. Under `substitutions:`, add `_CLOUDSQL_INSTANCE: ''` (format `project:region:instance`).
+2. In the `require` step, add
+   `[ -n "${_CLOUDSQL_INSTANCE}" ] || missing="$${missing} _CLOUDSQL_INSTANCE"`.
+3. On `gcloud run deploy`, add `--set-cloudsql-instances=${_CLOUDSQL_INSTANCE}`.
+4. In the deploy job, pass `_CLOUDSQL_INSTANCE=<project>:<region>:<instance>` in
+   `--substitutions`.
+
+The deploy step already sets `CLOUDSDK_CORE_SHOULD_PROMPT_TO_ENABLE_API=false`: the Cloud SQL
+flag makes `gcloud` check through Service Usage that the Cloud SQL APIs are on, a call the
+deployer has no permission for and should not be made to attempt.
 
 ### Cloud Build History legibility
 

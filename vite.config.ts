@@ -20,16 +20,11 @@ const distDir = fileURLToPath(new URL('./dist', import.meta.url));
 // APP_ENV_NAME (the single build-arg the deploy flow sets). Chip visibility is keyed on the
 // resolved isPublicFace, NOT NODE_ENV (the build always runs NODE_ENV=production): a public-face
 // build hides the chip (prod); a non-public-face build (e.g. staging, or local dev's `local`
-// identity) shows it. An explicit APP_IS_PUBLIC_FACE still wins when set, so a build can override
-// the chip directly. The resolved isPublicFace is the single source — it agrees with the server
-// accessor and the baked identity, so frontend and server never disagree. scripts/prerender.mjs
-// MUST read these identically or prerender and hydration disagree.
+// identity) shows it. Nothing overrides it: the resolved isPublicFace is the single source — it
+// agrees with the server accessor and the baked identity, so frontend and server never disagree.
+// scripts/prerender.mjs MUST read these identically or prerender and hydration disagree.
 const isBuildServer = process.env.CI === 'true';
 const buildEnv = resolveBuildEnv();
-const isPublicFace =
-  process.env.APP_IS_PUBLIC_FACE != null
-    ? process.env.APP_IS_PUBLIC_FACE !== 'false'
-    : buildEnv.isPublicFace;
 const versionDefines = {
   'globalThis.__APP_VERSION__': JSON.stringify(
     isBuildServer ? (process.env.APP_VERSION ?? '0.0.0') : '0.0.0-dev',
@@ -37,7 +32,7 @@ const versionDefines = {
   'globalThis.__GIT_COMMIT__': JSON.stringify(process.env.BUILD_GIT_COMMIT ?? 'dev'),
   'globalThis.__BUILD_DATE__': JSON.stringify(process.env.BUILD_DATE ?? 'dev'),
   'globalThis.__APP_ENV_NAME__': JSON.stringify(buildEnv.name),
-  'globalThis.__IS_PUBLIC_FACE__': JSON.stringify(isPublicFace),
+  'globalThis.__IS_PUBLIC_FACE__': JSON.stringify(buildEnv.isPublicFace),
 };
 
 export default defineConfig({

@@ -179,6 +179,8 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     // .github/ directory goes with it.
     expect(existsSync(join(dir, '.github/workflows/ci-cd.yml'))).toBe(false);
     expect(existsSync(join(dir, '.github/workflows/ci-cd.yml.disabled'))).toBe(false);
+    // dependabot.yml moves the template workflow's pins, so it leaves with that workflow
+    expect(existsSync(join(dir, '.github/dependabot.yml'))).toBe(false);
     expect(existsSync(join(dir, '.github'))).toBe(false);
     // environments.json is NOT release-flow-only config — it is app build input
     // (scripts/build.mjs generates src/env.generated.ts from it), so it stays.

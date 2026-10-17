@@ -1,0 +1,21 @@
+# Keeps the SHA-pinned actions in .github/workflows/ current: Dependabot rewrites each pin and the
+# release comment beside it when a new release lands. Weekly, against dev, the branch work lands
+# on; the merge gate runs on it like any other change. Minor and patch bumps arrive grouped in one
+# pull request; a major arrives on its own and waits for review, because a major release can change
+# what an action does with the job's token. (Security updates ignore target-branch: GitHub opens
+# them against the default branch.)
+#
+# THIS REPO'S OWN CONFIG, like ci-cd.yml beside it: the spin-up resolver deletes it, because an
+# app's workflow — and the Dependabot config that keeps its pins moving — is installed per repo
+# (see DEPLOY.md, "Pinned actions").
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-and-patch:
+        patterns: ['*']
+        update-types: ['minor', 'patch']

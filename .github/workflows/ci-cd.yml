@@ -8,7 +8,7 @@
 # Which branches are environments is not hard-coded here; adding one is a one-row edit to
 # environments.json and this file needs no change.
 #
-# THE RELEASE FLOW IS DELEGATED to `snackbyte-release-flow-action` (pinned `@v1`), which resolves
+# THE RELEASE FLOW IS DELEGATED to `snackbyte-release-flow-action` (tracked at v1), which resolves
 # whether the pushed branch is an environment and, if so, derives and pushes the tag — a tag only,
 # never a commit. A push to a non-environment branch short-circuits (is-env=false, no tag). The
 # derivation rules, the repo settings the flow needs, and the app-vs-library version-strategy
@@ -19,6 +19,10 @@
 # Action runs, so a tag is created only if it passes.
 #
 # This workflow DELIBERATELY has no `deploy` job — this repo is a template, and deploys nowhere.
+#
+# Every `uses:` is pinned to a full commit SHA, with the release it tracks in a comment, and the
+# repository's Actions settings require that pin: a moved tag would otherwise be arbitrary code
+# running with this workflow's token, which can push tags. .github/dependabot.yml moves the pins.
 name: ci-cd
 
 on:
@@ -46,8 +50,8 @@ jobs:
     permissions:
       contents: read # the gate only reads code — least privilege
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -81,7 +85,7 @@ jobs:
       version: ${{ steps.release.outputs.version }} # plain number, e.g. 1.5.4 (env pushes only)
       tag: ${{ steps.release.outputs.tag }} # git tag, e.g. v1.5.4-dev (staging) or v1.5.4 (prod)
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # A GITHUB_TOKEN-pushed tag does NOT trigger another workflow (GitHub's recursion guard),
           # which is fine: the deploy is a chained `needs:` job in THIS run, so no second event is
@@ -89,7 +93,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0 # full history + tags — the Action's derivation refuses a shallow clone
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -107,4 +111,4 @@ jobs:
       # configures a git identity itself when the runner has none, so no separate git-config is needed.
       - name: Resolve environment and derive version tag
         id: release
-        uses: jeff-fichtner/snackbyte-release-flow-action@v1
+        uses: jeff-fichtner/snackbyte-release-flow-action@c954bf30e67c3419d8694904cf9c4dbc61addf77 # v1.2.0

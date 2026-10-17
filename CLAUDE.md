@@ -31,7 +31,7 @@ plug, not a template asset, so its source now lives in the `snackbyte-speckit-en
 (which is `snackbyte-clickup-sync` renamed). The in-tree copy the template used to own was
 deleted.
 
-What is under `.specify/extensions/` now — `engine`, `git`, `specify`, `analyze`, `clickup`,
+What is under `.specify/extensions/` now — `engine`, `git`, `specify`, `analyze`,
 `agent-context` — is the template *consuming* that engine, the same way any project does. It
 is installed tooling, not template source: fix a bug in the engine repo and reinstall, never
 by editing the copy here. **Every spun-up app gets none of it** — the resolver deletes

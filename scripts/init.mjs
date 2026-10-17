@@ -288,8 +288,9 @@ rmSync(path('CLAUDE.md'), { force: true });
 // be visible in an app that has no idea what it is.
 const unstripped = [];
 for (const [rel, pattern] of [
-  // the generated HTML spec views + the ClickUp plug's local target (no specs/, no plug left)
-  ['.gitignore', /\n# Spec-workflow scaffolding[\s\S]*?config\.local\.yml\n/],
+  // the spec-workflow block, header to end marker, whatever rules sit between — so a rule added
+  // inside the block leaves with it, and one appended after it stays
+  ['.gitignore', /\n# Spec-workflow scaffolding[\s\S]*?\n# End of spec-workflow scaffolding\n?/],
   ['.dockerignore', /\nspecs\/\n\.specify\/\n\.claude\/\n/],
   [
     'config/.prettierignore',

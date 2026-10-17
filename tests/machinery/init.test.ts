@@ -20,14 +20,29 @@ const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 type Mode = 'static' | 'server';
 type Render = 'prerender' | 'dynamic';
 
-function setupApp(mode: Mode, render: Render): string {
+function setupApp(mode: Mode, render: Render): { dir: string; buildLog: string } {
   const dir = mkdtempSync(join(tmpdir(), `snackbyte-${mode}-${render}-`));
+  try {
+    return { dir, buildLog: resolveAndBuild(dir, mode, render) };
+  } catch (error) {
+    // The copy carries a full node_modules; don't strand it when init or the build fails.
+    rmSync(dir, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function resolveAndBuild(dir: string, mode: Mode, render: Render): string {
   cpSync(repoRoot, dir, {
     recursive: true,
     // Exclude .git as a path segment, not a substring — otherwise `/.github` (which
-    // contains `/.git`) would be skipped and the workflow file would never be copied.
+    // contains `/.git`) would be skipped and the workflow file would never be copied. Leave out
+    // local .env files too (a fresh clone has none): the build loads one, and it could carry
+    // settings this test must not inherit.
     filter: (src) =>
-      !src.includes('/node_modules') && !src.includes('/dist') && !/\/\.git(\/|$)/.test(src),
+      !src.includes('/node_modules') &&
+      !src.includes('/dist') &&
+      !/\/\.git(\/|$)/.test(src) &&
+      !/\/\.env(\.(?!example$)[^/]*)?$/.test(src),
   });
   cpSync(join(repoRoot, 'node_modules'), join(dir, 'node_modules'), { recursive: true });
 
@@ -39,8 +54,19 @@ function setupApp(mode: Mode, render: Render): string {
       stdio: 'ignore',
     },
   );
-  execFileSync('node', ['scripts/build.mjs'], { cwd: dir, stdio: 'ignore' });
-  return dir;
+  // Never let an inherited opt-out hide the config-loader warning the build is checked for.
+  const build = spawnSync('node', ['scripts/build.mjs'], {
+    cwd: dir,
+    env: { ...process.env, VITE_CONFIG_NATIVE_IGNORE_WARNING: '' },
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  if (build.status !== 0) {
+    throw new Error(
+      `build failed (${build.error ?? build.signal ?? build.status}):\n${build.stdout}\n${build.stderr}`,
+    );
+  }
+  return `${build.stdout}\n${build.stderr}`;
 }
 
 async function start(dir: string, port: number): Promise<ChildProcess> {
@@ -78,15 +104,45 @@ const COMBOS: Combo[] = [
 
 describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) => {
   let dir: string;
+  let buildLog: string;
   let child: ChildProcess;
 
   beforeAll(async () => {
-    dir = setupApp(mode, render);
+    ({ dir, buildLog } = setupApp(mode, render));
     child = await start(dir, port);
   }, 60_000);
   afterAll(() => {
     child?.kill();
     if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+
+  // Vite plans to make its native config loader the default; under it, Node itself imports
+  // vite.config.ts, and an extensionless relative import fails outright. Vite warns about that
+  // today, so a clean build log and a native load together prove the config is ready for it.
+  it('builds with no Vite config-loader warning', () => {
+    expect(buildLog).not.toMatch(/configLoader/);
+  });
+
+  it('loads its Vite config with the native loader', () => {
+    // In its own process, with the app's own Vite, as `vite` itself would load it. It prints the
+    // dev proxy, which a server app builds from the PORT that src/config.ts exports — so the
+    // load evaluated that import — and a static app does not have.
+    const load = spawnSync(
+      'node',
+      [
+        '--input-type=module',
+        '-e',
+        `const { loadConfigFromFile } = await import('vite');
+         const r = await loadConfigFromFile({ command: 'build', mode: 'production' },
+           'vite.config.ts', process.cwd(), 'silent', undefined, 'native');
+         console.log(JSON.stringify(r.config.server?.proxy ?? null));`,
+      ],
+      { cwd: dir, encoding: 'utf8' },
+    );
+    expect(load.status, load.stderr).toBe(0);
+    const proxy = JSON.parse(load.stdout) as Record<string, string> | null;
+    if (mode === 'server') expect(proxy?.['/api']).toMatch(/^http:\/\/localhost:\d+$/);
+    else expect(proxy).toBeNull();
   });
 
   it('serves the frontend', async () => {

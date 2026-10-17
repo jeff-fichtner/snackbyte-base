@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 import { resolveBuildEnv } from './scripts/resolve-env.mjs';
 // SPINUP:server-only:start
-import { PORT } from './src/config';
+import { PORT } from './src/config.ts';
 // SPINUP:server-only:end
 
 const webRoot = fileURLToPath(new URL('./src/web', import.meta.url));

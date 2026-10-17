@@ -136,19 +136,28 @@ config flag. It is reversible and shows up in version control.
    }
    ```
 
-2. In `src/server.ts`, import and call it before the static middleware:
+2. In `src/server.ts`, add the import at the top:
 
    ```ts
    import { registerRoutes } from './routes/index.js';
-   // ...inside createApp():
+   ```
+
+   and call it inside `createApp()`, before the static middleware:
+
+   ```ts
    registerRoutes(app);
    ```
 
-3. In `vite.config.ts`, add the dev API proxy and import `PORT`:
+3. In `vite.config.ts`, import `PORT` at the top (with its `.ts` extension — Vite's native
+   config loader resolves no extensionless import):
 
    ```ts
-   import { PORT } from './src/config';
-   // ...in the config:
+   import { PORT } from './src/config.ts';
+   ```
+
+   and add the dev API proxy as a property of the object passed to `defineConfig`:
+
+   ```ts
    server: { proxy: { '/api': `http://localhost:${PORT}` } },
    ```
 

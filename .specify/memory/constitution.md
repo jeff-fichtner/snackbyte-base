@@ -1,6 +1,26 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 2.0.0 → 2.1.0 (2026-10-19)
+Bump rationale: MINOR — Principle VII's version-control rule materially changed. It required
+  local environment files to be excluded from version control; the fleet now commits the local
+  `.env` as 1Password `op://` references plus declared plain config (Jeff's rulings, 2026-10-18
+  and 2026-10-19), and the template ships that file in place of `.env.example`. The intent (no
+  secret value in version control) is unchanged and now enforced by a check-gate step
+  (`npm run check:env`), so the Quality gate and Principle VII's gate list name it.
+Modified principles: VII. Pinned, Linted, Type-Safe, Tested (version-control and gate sentences)
+Modified sections: Development Workflow & Quality Gates (Quality gate bullet)
+Propagated to: `.env` (replaces `.env.example`), `.gitignore`, `.dockerignore`,
+  `scripts/load-env.mjs` (startup guard), `scripts/check-env-files.mjs` and
+  `scripts/lib/env-guard.mjs` (gate), `package.json` (`check:env` in `check:all`),
+  `scripts/init.mjs` (names the app's 1Password item in `.env`), `SPIN-UP.md`, `README.app.md`,
+  `DEPLOY.md`. Not propagated: `specs/001-template-skeleton/` names `.env.example` in its plan,
+  data model, quickstart and two completed tasks; those record the skeleton as it was built and
+  are left as written.
+Follow-up TODOs: none.
+
+Previous report (1.1.1 → 2.0.0) follows.
+
 Version change: 1.1.1 → 2.0.0
 Bump rationale: MAJOR — Principle I redefined. Deploy mode moves from a runtime
   configuration value (DEPLOY_MODE, "switching MUST NOT require source rewrites") to a
@@ -139,9 +159,12 @@ which prerenders cleanly at this scale.
 
 Every app MUST agree on its runtime and quality gates. The template MUST pin Node 24
 LTS, use TypeScript throughout, and ship runnable ESLint + Prettier and Vitest
-configurations. Lint, format, type-check, and test scripts MUST all run successfully
-on a fresh, unmodified copy. The repository MUST exclude build artifacts,
-dependencies, and local environment files from version control.
+configurations. Lint, format, type-check, env-file check, and test scripts MUST all run
+successfully on a fresh, unmodified copy. The repository MUST exclude build artifacts and
+dependencies from version control, and MUST NOT carry a secret value: the committed local
+environment file (`.env`) holds only plain config declared on its `# config:` line and
+1Password `op://` references, the env-file check fails on anything else, and every other
+local environment file stays out of version control.
 
 **Rationale**: A pinned runtime and pre-wired quality gates are what make every
 spun-up app behave the same in development and production, and what stop quality from
@@ -203,9 +226,9 @@ the new, unproven work this template establishes.
 - **Constitution gate**: every plan MUST pass a Constitution Check; any violation of
   a principle MUST be justified in writing or the design changed. Unjustified
   complexity is rejected.
-- **Quality gate**: lint, format, type-check, and Vitest MUST pass on a fresh copy
-  before the skeleton is considered green. These are the same gates every spun-up app
-  inherits.
+- **Quality gate**: lint, format, type-check, the env-file check, and Vitest MUST pass
+  on a fresh copy before the skeleton is considered green. These are the same gates
+  every spun-up app inherits.
 - **Durable decision record**: architecture decisions and their rationale live in the
   feature's spec artifacts (`spec.md`, `research.md`) within `specs/`, never in the
   shipped `docs/` tree (per Principle VIII). Cross-feature platform context lives in
@@ -229,4 +252,4 @@ conflicts, the constitution wins.
   justification. The stack in Technology Stack is fixed — changing it is an amendment,
   not a per-app decision.
 
-**Version**: 2.0.0 | **Ratified**: 2026-05-31 | **Last Amended**: 2026-06-01
+**Version**: 2.1.0 | **Ratified**: 2026-05-31 | **Last Amended**: 2026-10-19

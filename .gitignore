@@ -8,10 +8,12 @@ dist/
 build/
 *.tsbuildinfo
 
-# Environment
-.env
-.env.local
-.env.*.local
+# Environment. Every env file is ignored by default; the committed .env is un-ignored by
+# negation. It holds only declared config and 1Password op:// references — `npm run check:env`
+# (part of check:all) fails on anything else. Any other env file (scratch copies, .env.local, …)
+# stays out.
+.env*
+!.env
 
 # Logs
 *.log

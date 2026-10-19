@@ -3,9 +3,10 @@ dist/
 .git/
 .gitignore
 coverage/
-.env
-.env.*
-!.env.example
+# No env file reaches the image. The committed .env is local-development config: the build
+# stage would load it (scripts/build.mjs imports scripts/load-env.mjs), and the service runs on
+# the configuration Cloud Run holds for it, never a file.
+.env*
 *.log
 .DS_Store
 .vscode/

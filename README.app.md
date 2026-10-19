@@ -9,13 +9,12 @@ This app runs on Node 24 (see `.nvmrc`); confirm `node --version` prints `v24.x`
 
 ```bash
 node --version   # expect v24.x
-cp .env.example .env   # local environment values (PORT, etc.)
 npm install
 npm run dev      # dev server at the URL Vite prints
 ```
 
-Create the `.env` from `.env.example` as part of setup — the defaults run without it,
-but this app expects a `.env` for its local config, so set it up now rather than later.
+The local environment is the committed `.env`, which documents every variable. While it holds
+only plain config, `npm run dev` needs no `op run` (see [App secrets](#app-secrets)).
 
 ## Scripts
 
@@ -27,8 +26,29 @@ npm run lint         # ESLint
 npm run format       # Prettier (write)
 npm run typecheck    # tsc, frontend + backend
 npm test             # Vitest
-npm run check:all    # format check + lint + typecheck + test
+npm run check:env    # tracked env files hold only declared config and op:// references
+npm run check:all    # format check + lint + typecheck + check:env + test
 ```
+
+## App secrets
+
+Every variable in the committed `.env` is plain config, listed on the file's `# config:` line.
+`npm run check:env` (part of `check:all`) fails if a tracked env file holds a raw value for any
+other key, so a secret pasted into `.env` never gets past the gate. It names the file, line and
+key, never the value.
+
+A secret lives in 1Password: vault `app-secrets`, item `APP_NAME.local`, one field named after
+the variable. `.env` holds only its reference (`KEY=op://app-secrets/APP_NAME.local/KEY`), and
+from then on the dev server runs as `op run --env-file=.env -- npm run dev`. Started without
+`op run`, the dev and build scripts stop at startup and name the unresolved variable.
+
+Under `op run --env-file`, the file's values win over variables already set in the shell, so
+`PORT=8095 op run --env-file=.env -- npm run dev` still uses the file's `PORT`. Put an override
+after the `--` instead: `op run --env-file=.env -- env PORT=8095 npm run dev`.
+
+Production never reads an env file. The server does not load `.env` (only the dev and build
+scripts do), `.dockerignore` keeps every `.env*` out of the image build, and the image's runtime
+stage copies only `dist/`. The Cloud Run service runs on the environment its deploy sets.
 
 ## Rendering
 

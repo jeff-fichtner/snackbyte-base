@@ -13,12 +13,16 @@ shell function and won't be on the PATH).
 
 ```bash
 node --version   # expect v24.x
-cp .env.example .env   # local environment values (PORT, etc.)
 npm install
 ```
 
-Create the `.env` from `.env.example` as part of setup — the defaults run without it,
-but this app expects a `.env` for its local config, so set it up now rather than later.
+There is no `.env` to create. The local environment is the committed `.env`, which documents
+every variable: plain config is listed on its `# config:` line, and a secret never appears in it
+as a value. The resolver (step 2) writes the app's name into its header. When the app needs its
+first secret, create the 1Password item `<repo-slug>.local` in the vault `app-secrets` (one field
+per variable, named after it), add `KEY=op://app-secrets/<repo-slug>.local/KEY` to `.env`, and
+run the dev server as `op run --env-file=.env -- npm run dev`. Until then `npm run dev` needs no
+`op run`.
 
 > **Not putting this app at the repo root?** This template assumes it _is_ the repo. If
 > you're nesting it in a subdirectory of an existing repo (e.g. a `web/` folder beside
@@ -61,7 +65,8 @@ prettify the title later by editing `src/web/index.html`.
 
 This bakes both choices into the source, deletes the unchosen paths and all template
 scaffolding (this file, the init script, the template README, the machinery tests),
-points the test suite at `tests/app/`, and replaces this README with the app's own.
+points the test suite at `tests/app/`, replaces this README with the app's own, and names the
+app's 1Password item (`<repo-slug>.local`) in the committed `.env`.
 After it runs there is no "mode"/"render" concept and no template fingerprint left —
 the repo is your app.
 
@@ -83,7 +88,7 @@ constitution — is a later step in your project setup checklist, not part of th
 ## 3. Verify
 
 ```bash
-npm run check:all   # format + lint + typecheck + tests
+npm run check:all   # format + lint + typecheck + env files + tests
 npm run dev         # bring it up
 ```
 

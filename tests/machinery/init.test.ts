@@ -5,6 +5,7 @@ import { mkdtempSync, rmSync, cpSync, existsSync, readFileSync, readdirSync } fr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { findRawValues } from '../../scripts/lib/env-guard.mjs';
 
 /**
  * Validates the spin-up resolver across all four mode × render combinations,
@@ -35,14 +36,15 @@ function resolveAndBuild(dir: string, mode: Mode, render: Render): string {
   cpSync(repoRoot, dir, {
     recursive: true,
     // Exclude .git as a path segment, not a substring — otherwise `/.github` (which
-    // contains `/.git`) would be skipped and the workflow file would never be copied. Leave out
-    // local .env files too (a fresh clone has none): the build loads one, and it could carry
-    // settings this test must not inherit.
+    // contains `/.git`) would be skipped and the workflow file would never be copied. The
+    // committed .env is copied (a fresh clone has it); any other local .env.* file is left out
+    // (a fresh clone has none): the build loads env files, and one could carry settings this
+    // test must not inherit.
     filter: (src) =>
       !src.includes('/node_modules') &&
       !src.includes('/dist') &&
       !/\/\.git(\/|$)/.test(src) &&
-      !/\/\.env(\.(?!example$)[^/]*)?$/.test(src),
+      !/\/\.env\.[^/]*$/.test(src),
   });
   cpSync(join(repoRoot, 'node_modules'), join(dir, 'node_modules'), { recursive: true });
 
@@ -250,6 +252,34 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     }
   });
 
+  it("keeps the committed .env as the app's local config, naming its own 1Password item", () => {
+    // The committed .env is the local configuration and its documentation: plain config on its
+    // `# config:` line, and the reference form a secret takes, with the app's item name filled in.
+    const env = readFileSync(join(dir, '.env'), 'utf8');
+    expect(findRawValues(env)).toEqual([]);
+    expect(env).toMatch(/^# config: PORT$/m);
+    expect(env).toMatch(/^PORT=8080$/m);
+    expect(env).toContain('op://app-secrets/demo.local/KEY');
+    expect(env).toContain('item demo.local in the vault app-secrets');
+    expect(env).toContain('op run --env-file=.env -- npm run dev');
+    expect(env).not.toMatch(/snackbyte-base/);
+    expect(existsSync(join(dir, '.env.example'))).toBe(false);
+    // git keeps .env and ignores every other env file; the image build sees none of them
+    const gitignore = readFileSync(join(dir, '.gitignore'), 'utf8').split('\n');
+    expect(gitignore).toEqual(expect.arrayContaining(['.env*', '!.env']));
+    expect(gitignore.filter((line) => line.startsWith('!.env'))).toEqual(['!.env']);
+    const dockerignore = readFileSync(join(dir, '.dockerignore'), 'utf8').split('\n');
+    expect(dockerignore).toContain('.env*');
+    expect(dockerignore.filter((line) => line.startsWith('!.env'))).toEqual([]);
+    // the gate and the guard ship with the app, and so does the guard's test
+    const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+    expect(pkg.scripts['check:env']).toBe('node scripts/check-env-files.mjs');
+    expect(pkg.scripts['check:all']).toContain('npm run check:env');
+    expect(existsSync(join(dir, 'scripts/check-env-files.mjs'))).toBe(true);
+    expect(existsSync(join(dir, 'scripts/lib/env-guard.mjs'))).toBe(true);
+    expect(existsSync(join(dir, 'tests/app/env-guard.test.ts'))).toBe(true);
+  });
+
   it('resolved source passes prettier (no stray whitespace from marker removal)', () => {
     const result = spawnSync(
       'npx',
@@ -289,7 +319,13 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
 
   it('leaves no "snackbyte-base" / template-word fingerprint in resolved metadata + key files', () => {
     // The files most likely to carry a leftover template name/word after resolution.
-    for (const rel of ['package.json', 'package-lock.json', 'README.md', 'src/web/index.html']) {
+    for (const rel of [
+      'package.json',
+      'package-lock.json',
+      'README.md',
+      'src/web/index.html',
+      '.env',
+    ]) {
       const text = readFileSync(join(dir, rel), 'utf8');
       expect(text, `${rel} still references snackbyte-base`).not.toMatch(/snackbyte-base/);
     }

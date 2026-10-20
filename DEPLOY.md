@@ -344,5 +344,10 @@ server and frontend.
 - Version-line questions — an unexpected "tag already exists", or `main` running ahead of `dev`
   after a hotfix — are release-flow behavior: see `CONSUMING.md` in
   `jeff-fichtner/snackbyte-release-flow-action`.
+- **The committed `.env` stays out of the image.** It is local-development config, and its
+  secrets are 1Password references that only `op run` resolves. `.dockerignore` excludes every
+  `.env*`, so the build stage's `scripts/load-env.mjs` finds no file. Drop that line and a build
+  whose `.env` holds a reference stops at the env guard. The running service reads only the
+  environment its deploy sets.
 - `gcloud` auth expiry, the `google-github-actions` Node deprecation, and other
   infrastructure-side gotchas are in `GCP-SETUP.md` (`project-setup` repo).

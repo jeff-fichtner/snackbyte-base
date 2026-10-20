@@ -21,7 +21,8 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:all": "npm run format:check && npm run lint && npm run typecheck && npm test"
+    "check:env": "node scripts/check-env-files.mjs",
+    "check:all": "npm run format:check && npm run lint && npm run typecheck && npm run check:env && npm test"
   },
   "dependencies": {
     "express": "^5.2.1",

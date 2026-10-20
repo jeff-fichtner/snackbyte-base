@@ -21,7 +21,15 @@
  * After it runs there is no "mode"/"render" concept left: the app simply is what it
  * is. Switching later is a documented code edit (see the template's docs), not a flag.
  */
-import { readFileSync, readdirSync, writeFileSync, rmSync, existsSync, unlinkSync } from 'node:fs';
+import {
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+  rmSync,
+  existsSync,
+  unlinkSync,
+  renameSync,
+} from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -94,6 +102,11 @@ if (render === 'dynamic') {
 // The template proves its own plumbing in tests/machinery (deleted now). The app
 // keeps tests/app: an example plus the smoke test matching its mode. Vitest is
 // pointed at tests/app.
+//
+// One machinery test moves instead of going: the env guard (scripts/load-env.mjs,
+// scripts/check-env-files.mjs) ships with the app, so its test does too. Same depth, so its
+// relative imports still resolve.
+renameSync(path('tests/machinery/env-guard.test.ts'), path('tests/app/env-guard.test.ts'));
 rmSync(path('tests/machinery'), { recursive: true, force: true });
 if (mode === 'server') {
   rmSync(path('tests/app/static-smoke.test.ts'), { force: true });
@@ -249,6 +262,26 @@ for (const rel of ['SPIN-UP.md', 'SUBDIR-LAYOUT.md']) {
   writeFileSync(htmlPath, html);
 }
 
+// Name the app's 1Password item in the committed .env. Its header says where a secret goes (the
+// item `<app>.local` in the vault app-secrets, referenced as op://app-secrets/<app>.local/KEY),
+// and the template ships that with its own name. Only the name changes: the file stays the app's
+// committed local config. Reported rather than thrown, like the ignore-file strips below, because
+// by now the resolve is too far along to abort cleanly.
+{
+  const envPath = path('.env');
+  const before = existsSync(envPath) ? readFileSync(envPath, 'utf8') : '';
+  const after = before.replaceAll('snackbyte-base', appName);
+  if (after === before) {
+    const why = existsSync(envPath) ? 'it holds no template name' : 'it is missing';
+    console.warn(
+      `Note: could not name the 1Password item in .env (${why}).\n` +
+        `      Its header should read op://app-secrets/${appName}.local/KEY — fix it by hand.`,
+    );
+  } else {
+    writeFileSync(envPath, after);
+  }
+}
+
 // ---- remove the spec-driven-development scaffolding ------------------------
 // The template develops itself with Spec Kit, but it does not install Spec Kit into the
 // apps it spins up — that tooling is set up per repo on its own, so shipping a copy would
@@ -365,6 +398,8 @@ console.log('Removed template scaffolding. This repo is now your app.');
   console.log('  2. Commit this spin-up.');
   console.log('  3. This app ships no CI workflow. To add the release flow, follow');
   console.log('     CONSUMING.md in jeff-fichtner/snackbyte-release-flow-action.');
+  console.log(`  4. A secret goes in 1Password (vault app-secrets, item ${appName}.local) and`);
+  console.log('     .env holds only its reference: the header of .env says how.');
 }
 
 // ---- self-delete (last) ----------------------------------------------------

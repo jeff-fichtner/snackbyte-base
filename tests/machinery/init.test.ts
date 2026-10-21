@@ -230,6 +230,8 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     // tests re-tiered: machinery gone, app tests kept, vite config points at tests/app
     expect(existsSync(join(dir, 'tests/machinery'))).toBe(false);
     expect(existsSync(join(dir, 'tests/app'))).toBe(true);
+    expect(existsSync(join(dir, 'tests/app/env-guard.test.ts'))).toBe(true);
+    expect(existsSync(join(dir, 'tests/app/config.test.ts'))).toBe(true);
     expect(readFileSync(join(dir, 'vite.config.ts'), 'utf8')).not.toMatch(/tests\/machinery/);
     // the app inherits NO CI: the template runs its own release workflow, but does not hand
     // it to spun-up apps. CI is installed per repo from the release-flow Action's CONSUMING.md,

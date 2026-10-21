@@ -103,10 +103,11 @@ if (render === 'dynamic') {
 // keeps tests/app: an example plus the smoke test matching its mode. Vitest is
 // pointed at tests/app.
 //
-// One machinery test moves instead of going: the env guard (scripts/load-env.mjs,
-// scripts/check-env-files.mjs) ships with the app, so its test does too. Same depth, so its
-// relative imports still resolve.
+// Two machinery tests move instead of going: the env guard (scripts/load-env.mjs,
+// scripts/check-env-files.mjs) and the runtime config (src/config.ts) ship with the app, so their
+// tests do too. Same depth, so their relative imports still resolve.
 renameSync(path('tests/machinery/env-guard.test.ts'), path('tests/app/env-guard.test.ts'));
+renameSync(path('tests/machinery/config.test.ts'), path('tests/app/config.test.ts'));
 rmSync(path('tests/machinery'), { recursive: true, force: true });
 if (mode === 'server') {
   rmSync(path('tests/app/static-smoke.test.ts'), { force: true });

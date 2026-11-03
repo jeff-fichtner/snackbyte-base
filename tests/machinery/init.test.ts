@@ -1,7 +1,16 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, rmSync, cpSync, existsSync, readFileSync, readdirSync } from 'node:fs';
+import {
+  mkdtempSync,
+  rmSync,
+  cpSync,
+  existsSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+  symlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -254,6 +263,15 @@ describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) =
     }
   });
 
+  it('stamps the template it came from, with no version outside git', () => {
+    // This copy is not a git repository, so there is nothing to find the version from: the stamp
+    // records the format's unknown rather than a guess. The version paths are tested below.
+    expect(JSON.parse(readFileSync(join(dir, '.template.json'), 'utf8'))).toEqual({
+      template: 'snackbyte-base',
+      version: null,
+    });
+  });
+
   it("keeps the committed .env as the app's local config, naming its own 1Password item", () => {
     // The committed .env is the local configuration and its documentation: plain config on its
     // `# config:` line, and the reference form a secret takes, with the app's item name filled in.
@@ -432,4 +450,135 @@ describe('CI/CD is active in the template repo', () => {
       }
     },
   );
+});
+
+describe('init stamps the template version in .template.json', () => {
+  const TEMPLATE_URL = 'https://github.com/jeff-fichtner/snackbyte-base.git';
+  const ident = ['-c', 'user.email=t@t', '-c', 'user.name=t'];
+
+  // A fresh copy of the template, at `app` inside the repository `dir` (the root unless the app is
+  // nested), whose first commit holds the template's tree. Same filter as resolveAndBuild: no
+  // local .env.* file. node_modules is linked after the commit, outside the tree being matched;
+  // init only reads it (prettier, and a lockfile-only npm install).
+  function copyAsRepo(dir: string, app = dir): (...a: string[]) => string {
+    cpSync(repoRoot, app, {
+      recursive: true,
+      filter: (src) =>
+        !src.includes('/node_modules') &&
+        !src.includes('/dist') &&
+        !/\/\.git(\/|$)/.test(src) &&
+        !/\/\.env\.[^/]*$/.test(src),
+    });
+    const git = (...a: string[]) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
+    git('init', '-q');
+    git('add', '-A');
+    git(...ident, 'commit', '-qm', 'seed');
+    symlinkSync(join(repoRoot, 'node_modules'), join(app, 'node_modules'));
+    return git;
+  }
+
+  // "Create from template": a release of the template (a bare repository standing in for GitHub,
+  // reached through a URL rewrite), and the app's own first commit with the same tree.
+  function createFromTemplate(dir: string, tags: string[]): NodeJS.ProcessEnv {
+    const git = copyAsRepo(dir);
+    const template = `${dir}-template.git`;
+    execFileSync('git', ['clone', '-q', '--bare', dir, template]);
+    for (const t of tags) execFileSync('git', ['tag', t], { cwd: template });
+    git(...ident, 'commit', '-q', '--amend', '-m', 'Initial commit');
+    return rewriteTo(template);
+  }
+
+  function rewriteTo(target: string): NodeJS.ProcessEnv {
+    return {
+      ...process.env,
+      GIT_CONFIG_COUNT: '1',
+      GIT_CONFIG_KEY_0: `url.${target}.insteadOf`,
+      GIT_CONFIG_VALUE_0: TEMPLATE_URL,
+    };
+  }
+
+  function init(dir: string, env: NodeJS.ProcessEnv = process.env) {
+    const run = spawnSync(
+      'node',
+      ['scripts/init.mjs', '--mode=static', '--render=dynamic', '--name=demo'],
+      { cwd: dir, env, encoding: 'utf8' },
+    );
+    expect(run.status, run.stderr).toBe(0);
+    return { stamp: JSON.parse(readFileSync(join(dir, '.template.json'), 'utf8')), run };
+  }
+
+  function inTempDir(name: string, body: (dir: string) => void): void {
+    const dir = mkdtempSync(join(tmpdir(), `snackbyte-stamp-${name}-`));
+    try {
+      body(dir);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(`${dir}-template.git`, { recursive: true, force: true });
+    }
+  }
+
+  it('is absent from the template’s own repo', () => {
+    // Only a repo made from the template is stamped; the template is not made from itself.
+    expect(existsSync(join(repoRoot, '.template.json'))).toBe(false);
+  });
+
+  it('takes a clone’s version from the newest release tag on HEAD', { timeout: 30000 }, () => {
+    inTempDir('clone', (dir) => {
+      const git = copyAsRepo(dir);
+      for (const t of ['v1.2.0', 'v1.2.10-dev', 'v1.2.5', 'not-a-release']) git('tag', t);
+      const { stamp } = init(dir, rewriteTo(join(dir, 'unreachable.git')));
+      expect(stamp).toEqual({ template: 'snackbyte-base', version: '1.2.10' });
+    });
+  });
+
+  it(
+    'takes a template-created repo’s version from the template tag with the same tree',
+    { timeout: 30000 },
+    () => {
+      inTempDir('created', (dir) => {
+        const env = createFromTemplate(dir, ['v1.5.29', 'v1.5.30-dev', 'v1.5.30']);
+        const { stamp } = init(dir, env);
+        expect(stamp).toEqual({ template: 'snackbyte-base', version: '1.5.30' });
+        // the template's tags were read elsewhere: none of them, and no shallow history, land here
+        expect(execFileSync('git', ['tag', '-l'], { cwd: dir, encoding: 'utf8' })).toBe('');
+        expect(existsSync(join(dir, '.git/shallow'))).toBe(false);
+      });
+    },
+  );
+
+  it('records null, and says so, when HEAD no longer matches a release', { timeout: 30000 }, () => {
+    inTempDir('changed', (dir) => {
+      const env = createFromTemplate(dir, ['v1.5.30']);
+      writeFileSync(join(dir, 'README.md'), 'edited after creation\n');
+      execFileSync('git', [...ident, 'commit', '-qam', 'edit README'], { cwd: dir });
+      const { stamp, run } = init(dir, env);
+      expect(stamp).toEqual({ template: 'snackbyte-base', version: null });
+      expect(run.stderr).toMatch(/matches no snackbyte-base release/);
+    });
+  });
+
+  it(
+    'matches a nested app on its own directory, not the enclosing repo',
+    { timeout: 30000 },
+    () => {
+      inTempDir('nested', (dir) => {
+        // The enclosing repo's own release tag sits on HEAD; it says nothing about the app in web/.
+        const app = join(dir, 'web');
+        const git = copyAsRepo(dir, app);
+        git('tag', 'v2.3.0');
+        const { stamp, run } = init(app, rewriteTo(join(dir, 'unreachable.git')));
+        expect(stamp).toEqual({ template: 'snackbyte-base', version: null });
+        expect(run.stderr).toMatch(/could not fetch snackbyte-base's tags/);
+      });
+    },
+  );
+
+  it('records null, and says so, when the template cannot be reached', { timeout: 30000 }, () => {
+    inTempDir('offline', (dir) => {
+      copyAsRepo(dir);
+      const { stamp, run } = init(dir, rewriteTo(join(dir, 'unreachable.git')));
+      expect(stamp).toEqual({ template: 'snackbyte-base', version: null });
+      expect(run.stderr).toMatch(/could not fetch snackbyte-base's tags/);
+    });
+  });
 });

@@ -65,10 +65,30 @@ prettify the title later by editing `src/web/index.html`.
 
 This bakes both choices into the source, deletes the unchosen paths and all template
 scaffolding (this file, the init script, the template README, the machinery tests),
-points the test suite at `tests/app/`, replaces this README with the app's own, and names the
-app's 1Password item (`<repo-slug>.local`) in the committed `.env`.
-After it runs there is no "mode"/"render" concept and no template fingerprint left —
-the repo is your app.
+points the test suite at `tests/app/`, replaces this README with the app's own, names the
+app's 1Password item (`<repo-slug>.local`) in the committed `.env`, and writes the template
+stamp (below).
+After it runs there is no "mode"/"render" concept and no template fingerprint left besides
+that stamp — the repo is your app.
+
+### The template stamp
+
+The resolver writes `.template.json` at the repo root, recording the template and the version
+the app was made from (the format is `docs/template-stamp.md` in `jeff-fichtner/snackbyte-ops`,
+which reads it):
+
+```json
+{ "template": "snackbyte-base", "version": "1.5.27" }
+```
+
+It finds the version rather than guessing it: from the release tag on `HEAD` in a clone of the
+template, or, in a repo made with "Use this template", from the template tag whose tree matches
+the repo's first commit (this reads the template's tags from GitHub). If neither finds one (no
+network, or `HEAD` already changed), it writes `"version": null` and says so; set it by hand if
+you know the version. Commit the file with the spin-up.
+
+**When the app later ports changes from a newer template version, bump `version` in the same
+change.** The stamp is how the fleet sees which template version each app matches.
 
 This step is **intentionally not autonomous**: because the resolver refuses to default
 the mode/render choice, an unattended/automated spin-up can't proceed past here without a

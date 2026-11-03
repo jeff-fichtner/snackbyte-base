@@ -29,7 +29,9 @@ import {
   existsSync,
   unlinkSync,
   renameSync,
+  mkdtempSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -210,6 +212,98 @@ writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
     console.warn(
       'Note: could not re-resolve package-lock.json; it keeps a few unused entries.\n' +
         '      Harmless — run `npm install --package-lock-only` to tidy them.',
+    );
+  }
+}
+
+// ---- stamp the template version --------------------------------------------
+// `.template.json` records which template this repo came from and at which version, so the
+// fleet's map can show how far behind the template it is (format: snackbyte-ops
+// docs/template-stamp.md). The version is found, never guessed: it is the template release whose
+// tree is exactly the app's committed tree.
+//   - A clone of the template carries the template's tags, so they are checked first.
+//   - A "Create from template" repo carries none, but its first commit holds exactly the
+//     template's tree at that moment, so the template's own tags are read from GitHub.
+// A `-dev` tag counts as the release it is promoted to, since release-flow reuses the number.
+// The app's tree is its own directory's, so an app nested in a larger repo is matched on itself.
+// When nothing matches (no git, no network, the app already changed, an untagged template
+// commit), the stamp records `null`, the format's recorded unknown, and says why. This runs
+// before the tag strip below, which removes a clone's tags.
+{
+  const TEMPLATE = 'snackbyte-base';
+  const TEMPLATE_URL = 'https://github.com/jeff-fichtner/snackbyte-base.git';
+  const RELEASE_TAG = /^v(\d+\.\d+\.\d+)(?:-dev)?$/;
+  // A credential prompt would wait unseen behind the piped output; fail at once instead.
+  const git = (argv, cwd = root) =>
+    spawnSync('git', argv, {
+      cwd,
+      encoding: 'utf8',
+      timeout: 60_000,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    });
+  // The newest release among `repo`'s tags whose tree is `tree`, and how many releases it read.
+  const releaseWithTree = (repo, tree) => {
+    const tags = (git(['tag', '-l', 'v*'], repo).stdout ?? '')
+      .split('\n')
+      .filter((t) => RELEASE_TAG.test(t));
+    const trees = tags.length
+      ? (git(['rev-parse', ...tags.map((t) => `${t}^{tree}`)], repo).stdout ?? '').split('\n')
+      : [];
+    const matching = tags
+      .filter((_, i) => trees[i] === tree)
+      .map((t) => RELEASE_TAG.exec(t)[1])
+      .sort((a, b) => b.localeCompare(a, 'en', { numeric: true }));
+    return { read: tags.length, version: matching[0] ?? null };
+  };
+
+  let version = null;
+  let why = 'this directory is not a git repository';
+  if (git(['rev-parse', '--is-inside-work-tree']).stdout?.trim() === 'true') {
+    const prefix = git(['rev-parse', '--show-prefix']).stdout?.trim() ?? '';
+    const tree = git(['rev-parse', '--verify', '-q', `HEAD:${prefix}`]).stdout?.trim();
+    if (!tree) why = 'the app has no commit yet';
+    else {
+      version = releaseWithTree(root, tree).version;
+      if (version === null) {
+        // A throwaway repository holds the template's tags, so none of its objects land here.
+        // Only commits are fetched: a commit names its tree, which is all the match needs.
+        const scratch = mkdtempSync(resolve(tmpdir(), 'template-stamp-'));
+        try {
+          git(['init', '-q', '--bare'], scratch);
+          const fetched = git(
+            [
+              'fetch',
+              '-q',
+              '--depth=1',
+              '--filter=tree:0',
+              TEMPLATE_URL,
+              '+refs/tags/v*:refs/tags/v*',
+            ],
+            scratch,
+          );
+          if (fetched.status !== 0) why = `could not fetch ${TEMPLATE}'s tags`;
+          else {
+            const found = releaseWithTree(scratch, tree);
+            version = found.version;
+            why =
+              found.read === 0
+                ? `${TEMPLATE} has no release tags`
+                : `the app matches no ${TEMPLATE} release (changed since it was created?)`;
+          }
+        } finally {
+          rmSync(scratch, { recursive: true, force: true });
+        }
+      }
+    }
+  }
+  writeFileSync(
+    path('.template.json'),
+    JSON.stringify({ template: TEMPLATE, version }, null, 2) + '\n',
+  );
+  if (version === null) {
+    console.warn(
+      `Note: could not tell which ${TEMPLATE} version this repo was made from (${why}).\n` +
+        '      .template.json records "version": null; set it if you know it (no leading v).',
     );
   }
 }

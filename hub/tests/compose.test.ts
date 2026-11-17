@@ -268,13 +268,18 @@ describe.each(COMBOS)('--api=$api --render=$render', ({ api, render, port, check
     }
   });
 
-  it.runIf(checkAll)('passes its root check: the env files, then every part’s gate', () => {
-    execFileSync('git', ['init', '-q'], { cwd: dir });
-    execFileSync('git', ['add', '-A'], { cwd: dir });
-    const check = npm(dir, ['run', 'check:all']);
-    expect(check.status, check.stdout.slice(-4000) + check.stderr.slice(-4000)).toBe(0);
-    expect(check.stdout).toContain('check:env OK: 1 tracked env file(s)');
-  });
+  // Every part's whole gate (a C# part builds and tests a solution), so it gets minutes, not seconds.
+  it.runIf(checkAll)(
+    'passes its root check: the env files, then every part’s gate',
+    () => {
+      execFileSync('git', ['init', '-q'], { cwd: dir });
+      execFileSync('git', ['add', '-A'], { cwd: dir });
+      const check = npm(dir, ['run', 'check:all']);
+      expect(check.status, check.stdout.slice(-4000) + check.stderr.slice(-4000)).toBe(0);
+      expect(check.stdout).toContain('check:env OK: 1 tracked env file(s)');
+    },
+    300_000,
+  );
 });
 
 describe.each([

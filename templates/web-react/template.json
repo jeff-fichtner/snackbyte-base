@@ -1,0 +1,15 @@
+{
+  "id": "web-react",
+  "role": "web",
+  "folder": "web",
+  "resolve": "node scripts/init.mjs",
+  "choices": { "render": ["prerender", "dynamic"] },
+  "hasApi": true,
+  "setup": "npm ci --prefix {dir}",
+  "dev": "npm --prefix {dir} run dev",
+  "check": "npm --prefix {dir} run check:all",
+  "build": "npm --prefix {dir} run build",
+  "output": "{dir}/dist",
+  "appReadme": "README.app.md",
+  "scaffolding": ["scripts/init.mjs", "tests/machinery"]
+}

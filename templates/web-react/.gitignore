@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment. Every env file is ignored by default; the committed .env is un-ignored by
+# negation. It holds only declared config and 1Password op:// references — `npm run check:env`
+# (part of check:all) fails on anything else.
+.env*
+!.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing / coverage
+coverage/
+.vitest/
+
+# Editor / OS
+.DS_Store
+.idea/
+*.swp
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Vite / cache
+.vite/
+.cache/

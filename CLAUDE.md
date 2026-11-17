@@ -54,29 +54,32 @@ Project setup is owned by the machine-level checklist at
 `~/snackbyte/tools/project-setup/SETUP-CHECKLIST.md` (repo
 `jeff-fichtner/project-setup`). The checklist supersedes this template for setup
 concerns; the template predates it and bootstrapped everything only because nothing
-else existed yet. **This template's job is the app skeleton** — Vite/React/TS source,
-the mode/render resolver, the Cloud Run packaging — not project setup.
+else existed yet. **This repo's job is the app skeleton** — the templates under
+`templates/`, the hub that composes them (`hub/`), the image recipes and the Cloud Run
+deploy template — not project setup.
 
 The rule, and it is absolute: **anything setup-shaped that the checklist covers does
 not ship from here.** It is installed fresh, per project, via the checklist. There is
 no "but this one is thin" exemption — a half-applied rule is what produced the
 contradictory notes this replaced.
 
-The template keeps all of it **for its own use** and the resolver (`scripts/init.mjs`)
-deletes it on spin-up. Nothing was removed from this repo; the delete list grew:
+The hub keeps all of it **for its own use** and the resolver (`hub/init.mjs`, its
+`hub/lib/compose.mjs`) deletes it on spin-up. Nothing was removed from this repo; the delete
+list grew:
 
 - `.specify/`, the `speckit-*` skill mirrors, `specs/`, and the stub `CLAUDE.md` — a
   shipped copy would be a spec-kit fork pinned at whatever version built the template.
 - The `spec:html`/`spec:html:watch` scripts and the `@snackbyte/spec-render`
-  devDependency (plus its lockfile entries — `npm ci` fails if they disagree).
+  devDependency: they live in the hub's own `package.json`, which a composed app's root
+  `package.json` replaces outright.
 - `.github/workflows/ci-cd.yml`, and `.github/` once empty. CI is installed per repo
   from `CONSUMING.md` in `jeff-fichtner/snackbyte-release-flow-action`, which is the
   authoritative source for the wiring, the `@v1` pin, the version-strategy choice, and
   the repo settings a tag-pushing workflow needs.
 
-`environments.json` is deliberately NOT on that list — it is app build input
-(`scripts/build.mjs` generates `src/env.generated.ts` from it), not release-flow
-config. Nor is the app-runtime half (`scripts/resolve-env.mjs`, `src/environments.ts`).
+`environments.json` is deliberately NOT on that list — it is app build input (each part's
+build reads it: `web/scripts/resolve-env.mjs`, and the server's build, which bakes it into
+the server), not release-flow config. Nor is the app-runtime half of any template.
 
 `MIGRATION.md` is gone from the repo outright — it documented the ClickUp extension,
 which moved to `snackbyte-speckit-engine`. It left with its subject, not under this rule.
@@ -93,8 +96,8 @@ Three repos, no overlap, each the single source for its half:
 - **`snackbyte-release-flow-action` → `CONSUMING.md`** — everything about the release flow:
   the recipes, version derivation, promotion, subdirectory wiring, and the two repo settings
   it needs (the Actions write permission and branch protection).
-- **this repo** — the app skeleton, and `DEPLOY.md` for what happens *after* a tag exists:
-  GCP, Cloud Run, Workload Identity, the per-app deploy job.
+- **this repo** — the app skeleton, and the Cloud Run deploy template's `DEPLOY.md` for what
+  happens *after* a tag exists: GCP, Cloud Run, Workload Identity, the per-app deploy job.
 
 The test to apply before adding anything here: **could this be said by the checklist or by
 CONSUMING.md?** If yes, it belongs there and this repo links to it.

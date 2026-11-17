@@ -21,7 +21,8 @@
     "check:hub": "npm run format:check && npm run lint && npm run typecheck && npm run check:env && npm test",
     "check:templates": "node hub/templates.mjs check",
     "check:all": "npm run check:hub && npm run check:templates",
-    "e2e:image": "node hub/image-e2e.mjs"
+    "e2e:image": "node hub/image-e2e.mjs",
+    "check:standalone": "node hub/standalone-check.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

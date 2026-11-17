@@ -127,9 +127,11 @@ rather than continuing the template's.
 **No CI ships with the app.** The template runs its own release workflow, but it does not hand that
 workflow to the apps it composes — CI is installed per repo, from the release flow's own
 documentation, so an app never carries a second, staler copy of that wiring. The resolver removed
-`.github/` on the way out. Adding it is a separate, deliberate step: follow **CONSUMING.md** in
-`jeff-fichtner/snackbyte-release-flow-action`, which owns the workflow wiring, the action pin, the
-app-vs-library version-strategy choice, and the repo settings a tag-pushing workflow needs. The
+`.github/` on the way out. Adding it is a separate, deliberate step, the release-flow step of your
+project setup checklist (`SETUP-CHECKLIST.md` in `project-setup`). Its mechanics belong to
+**CONSUMING.md** in `jeff-fichtner/snackbyte-release-flow-action`, which owns the workflow wiring,
+the commit-SHA pin, the recipes (Recipe A plus "Build once" for an app), and the repo settings a
+tag-pushing workflow needs. The
 app's README gives the install order the workflow needs (root `npm ci`, `npm run setup`, then
 `npm run check:all`).
 

@@ -55,9 +55,11 @@ the Cloud Run service runs on the environment its deploy sets.
 
 ## CI
 
-**This repo ships no CI workflow yet.** Adding one is a deliberate, one-time step: follow
-**`CONSUMING.md`** in `jeff-fichtner/snackbyte-release-flow-action`, which owns the workflow
-wiring and the repo settings it needs. Until then a push runs nothing and tags nothing.
+**This repo ships no CI workflow yet.** Adding one is a deliberate, one-time step: the
+release-flow step of `SETUP-CHECKLIST.md` in `project-setup`. **`CONSUMING.md`** in
+`jeff-fichtner/snackbyte-release-flow-action` owns its wiring: the recipes (Recipe A plus "Build
+once" for an app), the commit-SHA pin, and the repo settings it needs. Until then a push runs
+nothing and tags nothing.
 
 An app with parts installs in three steps, in this order: `npm ci` (the root), `npm run setup`
 (every part), then `npm run check:all`. A part in another language needs its toolchain installed in

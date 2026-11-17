@@ -20,11 +20,16 @@ is removed and the resulting repo is a normal app you can edit freely.
 
 <!-- SPECKIT START -->
 For foundational context (technologies, project structure, shell commands), read the
-skeleton plan: `specs/001-template-skeleton/plan.md`
+hub plan: `specs/006-template-hub/plan.md`. The original single-template skeleton is
+`specs/001-template-skeleton/plan.md` (history: its layout is what the hub split into templates).
 
-Active feature — consume the release-flow GitHub Action (delegate the CI-side release flow —
-resolve-env + version derivation — to `snackbyte-release-flow-action@v1`; the app-runtime
-manifest readers stay): `specs/005-release-flow-action/spec.md`
+Active feature — the template hub (snackbyte-base composes an app from standalone templates under
+`templates/`: `web-react`, `server-node`, `server-dotnet`, `deploy-cloud-run`; the hub resolver
+lives in `hub/`): `specs/006-template-hub/plan.md`
+
+Prior feature — consume the release-flow GitHub Action (the CI-side release flow is delegated to
+`snackbyte-release-flow-action@v1`; the app-runtime manifest readers stay):
+`specs/005-release-flow-action/spec.md`
 
 Moved out — the ClickUp task-sync extension is no longer *authored* here. It is a Spec Kit
 plug, not a template asset, so its source now lives in the `snackbyte-speckit-engine` repo

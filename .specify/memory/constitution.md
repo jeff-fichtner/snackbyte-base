@@ -1,6 +1,23 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 2.1.0 → 3.0.0 (2026-11-16)
+Bump rationale: MAJOR — Principle I redefined. snackbyte-base is no longer one mode-neutral
+  template; it is a hub that composes an app from standalone templates (Jeff's direction on request
+  #925778, 2026-11-14/15, option B). The rule that every choice is resolved into source once at
+  spin-up, with no runtime switch, is kept. Principle VII loses "TypeScript throughout" (the C#
+  server template is C#) and becomes per-template: each template pins its runtime and ships its own
+  gate. The Technology Stack gains C#/.NET 8 for the C# server. Principle V's wording moves the deploy
+  path into a deploy template.
+Modified principles: I (redefined: Templates Composed at Spin-Up), V (wording), VII (per template)
+Modified sections: Technology Stack, Development Workflow & Quality Gates (Quality gate bullet)
+Propagated to: specs/006-template-hub/ (spec, plan, research). The shipped docs (README.md,
+  SPIN-UP.md, SUBDIR-LAYOUT.md) and the layout itself change with the build PRs that implement the
+  hub; until they land, the repo still has the single-template layout this amendment supersedes.
+Follow-up TODOs: none.
+
+Previous report (2.0.0 → 2.1.0) follows.
+
 Version change: 2.0.0 → 2.1.0 (2026-10-19)
 Bump rationale: MINOR — Principle VII's version-control rule materially changed. It required
   local environment files to be excluded from version control; the fleet now commits the local
@@ -63,35 +80,38 @@ Follow-up TODOs: none. RATIFICATION_DATE unchanged (2026-05-31).
 
 # snackbyte-base Constitution
 
-snackbyte-base is the reusable technical skeleton for the snackbyte.io family of
-one-off applications. Each app is spun up from this template (GitHub "Use this
-template"), then deployed independently to its own subdomain. This constitution
-governs what the template guarantees to every app spun up from it. It supersedes
-ad-hoc convention; spec, plan, and task artifacts MUST conform to it.
+snackbyte-base is the hub for the snackbyte.io family of applications: it composes a
+new app from standalone templates (a web front end, a server, a deploy target). Each app
+is spun up from it (GitHub "Use this template" or a copy), then deployed independently.
+This constitution governs what the hub and its templates guarantee to every app composed
+from them. It supersedes ad-hoc convention; spec, plan, and task artifacts MUST conform
+to it.
 
 ## Core Principles
 
-### I. Single Template, Mode Resolved at Spin-Up
+### I. Templates Composed at Spin-Up
 
-There is exactly ONE template skeleton, not a family of forks. The template itself is
-mode-neutral: it carries both `static` and `server` capability, marked, until a
-one-time spin-up step resolves it to exactly one. After resolution the app simply IS
-that mode — there is no runtime mode flag, no mode configuration value, and no trace
-of the other mode. Deploy mode is a build-time identity baked into the source, not a
-setting read at boot.
+snackbyte-base holds a small set of templates, each a standalone project of one part
+(a web front end, a server, a deploy target), and a hub that composes an app from them
+in a one-time spin-up step. A template MUST stand on its own: its own dependencies, its
+own gate, its own resolver for its own choices, and no reference to a sibling template
+or to the hub, so it can move into a repository of its own unchanged.
 
-Switching mode later is a deliberate, documented source edit (reversible, visible in
-version control) — NOT a config toggle. This is intentional: mode is a property of
-the app, not an environment knob.
+Every choice — which templates, and each template's own choices (whether the server has
+an API, the render strategy) — is resolved into source once, at spin-up. After
+resolution the app simply IS that combination: there is no runtime switch, no
+configuration value naming a choice, and no trace of the templates not chosen.
 
-**Rationale**: Two templates double the maintenance surface for a solo maintainer and
-let the two paths drift. One mode-neutral template, resolved once at spin-up, gives
-every app the same proven base AND a clean single-mode identity that doesn't read as
-"generated from a template." Modeling mode as runtime config was rejected: it left the
-app's fundamental nature in an environment value and made every app carry both code
-paths forever. (The per-mode wiring is sprawled across a few files today; it is slated
-to consolidate into a versioned runtime package once the interface is proven, which
-will shrink the switch surface to a single call site — see the build order.)
+Switching a choice later is a deliberate, documented source edit (reversible, visible in
+version control) — NOT a config toggle. A choice is a property of the app, not an
+environment knob.
+
+**Rationale**: A single merged template cannot hold a C# server beside a Node one, and a
+fork per combination would multiply the maintenance surface for a solo maintainer.
+Standalone templates composed once keep each stack in one place, keep every app's
+identity clean, and let a template move into its own repository without rework.
+Modeling choices as runtime config stays rejected: it leaves an app's nature in an
+environment value and makes every app carry every code path forever.
 
 ### II. Convention Over Configuration
 
@@ -119,8 +139,8 @@ clean starting point.
 ### IV. Two-Tier Propagation (Template vs Package)
 
 Change propagation has exactly two tiers, and each kind of change uses the correct
-one. Skeleton concerns — toolchain, configs, folder conventions, the mode switch,
-deploy artifacts — live in this template and propagate by manual backport (rare,
+one. Skeleton concerns — toolchain, configs, folder conventions, the spin-up choices,
+deploy artifacts — live in the templates and propagate by manual backport (rare,
 accepted, because the skeleton stabilizes). Shared visual identity — theme, Header/
 Footer, shared components — does NOT live here; it belongs to the future
 `@snackbyte/ui` versioned npm package and propagates by version bump.
@@ -131,16 +151,19 @@ for exactly that. The skeleton stabilizes, so a one-time copy is fine for it.
 
 ### V. Uniform Deploy Path (Cloud Run Default)
 
-Both deploy modes target Google Cloud Run by default. A static-mode app is a
-container that serves built files and exposes no API routes; a server-mode app is the
-same container plus API routes. The template MUST ship the artifacts for this single
-path: a `Dockerfile`, a `.dockerignore`, and a documented deploy path (`gcloud run
-deploy` and/or a Cloud Build config). Cloud Storage + Cloud CDN is a documented
-performance-only opt-in for static apps (instant response, global edge) — never the
-default and never chosen on cost grounds.
+Every composed app builds into one container image and targets Google Cloud Run by
+default. An app with no API is a container that serves built files and exposes no API
+routes; an app with an API is the same container plus API routes, whichever server
+stack it has. The hub MUST give every app the image recipe for its combination (a
+`Dockerfile` and a `.dockerignore`), and the deploy target MUST be a deploy template
+that consumes that image with a documented deploy path (`gcloud run deploy` and/or a
+Cloud Build config). Further targets are further deploy templates consuming the same
+image. Cloud Storage + Cloud CDN is a documented performance-only opt-in for static
+apps (instant response, global edge) — never the default and never chosen on cost
+grounds.
 
 **Rationale**: One deploy path for every app maximizes uniformity for a solo
-maintainer and gives a static app a free promotion to server mode. Cost is a tie at
+maintainer and gives an app with no API a free promotion to one with an API. Cost is a tie at
 ~$0 (scale-to-zero, per-request-ms billing), so cost cannot decide the default;
 uniformity does.
 
@@ -157,14 +180,17 @@ which prerenders cleanly at this scale.
 
 ### VII. Pinned, Linted, Type-Safe, Tested
 
-Every app MUST agree on its runtime and quality gates. The template MUST pin Node 24
-LTS, use TypeScript throughout, and ship runnable ESLint + Prettier and Vitest
-configurations. Lint, format, type-check, env-file check, and test scripts MUST all run
-successfully on a fresh, unmodified copy. The repository MUST exclude build artifacts and
-dependencies from version control, and MUST NOT carry a secret value: the committed local
-environment file (`.env`) holds only plain config declared on its `# config:` line and
-1Password `op://` references, the env-file check fails on anything else, and every other
-local environment file stays out of version control.
+Every app MUST agree on its runtimes and quality gates. Each template MUST pin its
+runtime and ship a runnable gate for its stack: the TypeScript templates pin Node 24
+LTS, are TypeScript throughout, and ship ESLint + Prettier and Vitest; the C# template
+pins the .NET SDK and ships format verification, a build that treats warnings as errors,
+and xUnit. Every template's gate MUST pass on a fresh, unmodified copy, and a composed
+app's root gate runs the env-file check and every part's gate. The repository MUST
+exclude build artifacts and dependencies from version control, and MUST NOT carry a
+secret value: the committed local environment file (`.env`) holds only plain config
+declared on its `# config:` line and 1Password `op://` references, the env-file check
+fails on anything else, and every other local environment file stays out of version
+control.
 
 **Rationale**: A pinned runtime and pre-wired quality gates are what make every
 spun-up app behave the same in development and production, and what stop quality from
@@ -199,23 +225,22 @@ how it was built, not part of what ships.
 
 ## Technology Stack
 
-The skeleton's stack is fixed (deviation requires a constitution amendment):
+The templates' stacks are fixed (deviation requires a constitution amendment):
 
-- **Language**: TypeScript (non-negotiable).
-- **Build/dev server**: Vite.
-- **UI framework**: React (chosen because the shared `@snackbyte/ui` layer is a
-  component-library problem best-trodden in React; React does not force server mode).
-- **Backend**: Express, present in the skeleton, deployed only in `server` mode.
-- **Tests**: Vitest (reuses `vite.config`, ESM-native).
-- **Runtime**: Node 24 LTS, pinned.
-- **Lint/format**: ESLint (typescript-eslint) + Prettier.
-- **Host**: Google Cloud Platform — Cloud Run (default deploy path for both modes),
-  Artifact Registry for images.
+- **Web template**: TypeScript, Vite, React (chosen because the shared `@snackbyte/ui`
+  layer is a component-library problem best-trodden in React), Vitest, ESLint
+  (typescript-eslint) + Prettier, Node 24 LTS.
+- **Node server template**: TypeScript, Express, Vitest, ESLint + Prettier, Node 24 LTS.
+  Also serves an app with no API (its API removed at spin-up).
+- **C# server template**: C# on .NET 8, ASP.NET Core minimal API, xUnit, `dotnet format`.
+- **The hub and composed apps' root scripts**: Node (`.mjs`, built-ins only).
+- **Host**: Google Cloud Platform — Cloud Run (the default deploy template), Artifact
+  Registry for images.
 
 Conventions are adapted from the existing `tonic` app, with Jest replaced by Vitest
 and React adopted as the UI layer. `tonic` proved the toolchain; it did NOT prove the
-static/server mode switch, the stripped skeleton, or the shared-UI layer — those are
-the new, unproven work this template establishes.
+spin-up choices, the stripped skeleton, or the shared-UI layer — those are the new,
+unproven work this hub and its templates establish.
 
 ## Development Workflow & Quality Gates
 
@@ -226,9 +251,9 @@ the new, unproven work this template establishes.
 - **Constitution gate**: every plan MUST pass a Constitution Check; any violation of
   a principle MUST be justified in writing or the design changed. Unjustified
   complexity is rejected.
-- **Quality gate**: lint, format, type-check, the env-file check, and Vitest MUST pass
-  on a fresh copy before the skeleton is considered green. These are the same gates
-  every spun-up app inherits.
+- **Quality gate**: snackbyte-base's gate runs the hub's own checks and tests and every
+  template's gate, and MUST pass on a fresh copy before the hub is considered green.
+  Each template's gate is the gate its part carries into every composed app.
 - **Durable decision record**: architecture decisions and their rationale live in the
   feature's spec artifacts (`spec.md`, `research.md`) within `specs/`, never in the
   shipped `docs/` tree (per Principle VIII). Cross-feature platform context lives in
@@ -252,4 +277,4 @@ conflicts, the constitution wins.
   justification. The stack in Technology Stack is fixed — changing it is an amendment,
   not a per-app decision.
 
-**Version**: 2.1.0 | **Ratified**: 2026-05-31 | **Last Amended**: 2026-10-19
+**Version**: 3.0.0 | **Ratified**: 2026-05-31 | **Last Amended**: 2026-11-16

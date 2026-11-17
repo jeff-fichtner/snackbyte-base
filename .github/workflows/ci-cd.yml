@@ -4,19 +4,26 @@
 # from CONSUMING.md in jeff-fichtner/snackbyte-release-flow-action, which owns the wiring — a copy
 # shipped from here would be a second, staler copy of it.
 #
-# Validate, version, and tag — the pushed branch selects the environment (via environments.json).
-# Which branches are environments is not hard-coded here; adding one is a one-row edit to
-# environments.json and this file needs no change.
+# Validate on pull requests; version and tag on pushes to the environment branches. Which branches
+# are environments lives in environments.json, which the release-flow Action reads; the push trigger
+# below lists the same branches, so a push to a work branch runs nothing (its checks run on its pull
+# request) and adding an environment means adding its branch here too.
 #
-# THE RELEASE FLOW IS DELEGATED to `snackbyte-release-flow-action` (tracked at v1), which resolves
-# whether the pushed branch is an environment and, if so, derives and pushes the tag — a tag only,
-# never a commit. A push to a non-environment branch short-circuits (is-env=false, no tag). The
-# derivation rules, the repo settings the flow needs, and the app-vs-library version-strategy
-# choice all live in the Action's CONSUMING.md; nothing here restates them.
+# THE RELEASE FLOW IS DELEGATED to `snackbyte-release-flow-action`, which resolves whether the
+# pushed branch is an environment and, if so, derives and pushes the tag — a tag only, never a
+# commit. The derivation rules, the repo settings the flow needs, and the app-vs-library
+# version-strategy choice all live in the Action's CONSUMING.md; nothing here restates them.
 #
-# Two independent gates protect a release: a PR is blocked until `check:all` passes (enforced by
-# branch protection — repo config, not this file), AND `check:all` is re-run on the push before the
-# Action runs, so a tag is created only if it passes.
+# Every job bills at least a whole minute, so there are as few as possible: one check job for pull
+# requests (`validate (merge gate)`, the check branch protection requires), and on push the checks
+# run inside the tag-writing job, before the tag, so a failed check leaves no tag. A promotion
+# (dev → main) of a tree already released skips those checks: the look-up finds the tag the tree
+# was released as, and a tag made in this job means the tree passed them.
+#
+# Path filters belong to releases, never to merge gates: a merge gate that skips on a path filter
+# reports nothing, and branch protection waits on it forever. A repository holding a second
+# releasable gives each its own release workflow, filtered to its paths, beside one merge gate that
+# checks everything — the aggregator shape in snackbyte-npm-base's SUBDIR-LAYOUT.md.
 #
 # This workflow DELIBERATELY has no `deploy` job — this repo is a template, and deploys nowhere.
 #
@@ -28,14 +35,10 @@ name: ci-cd
 on:
   pull_request:
   push:
-    # Trigger on any branch except obvious non-environment noise; resolve-env then confirms the
-    # branch is actually an environment (in environments.json) before any tag/deploy work runs.
-    branches-ignore:
-      - 'feature/**'
-      - 'fix/**'
-      - 'chore/**'
-      - 'dependabot/**'
-      - 'renovate/**'
+    branches: [main, dev] # the environment branches in environments.json
+
+permissions:
+  contents: read # each job raises only what it needs
 
 env:
   NODE_VERSION: '24' # Node major for the gate (keep aligned with .nvmrc)
@@ -47,8 +50,10 @@ jobs:
     name: validate (merge gate)
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read # the gate only reads code — least privilege
+    # A new push to the pull request replaces the run in flight.
+    concurrency:
+      group: ci-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -67,22 +72,16 @@ jobs:
       - run: npm run setup
       - run: npm run check:all
 
-  # Push-side gate + derive the version + create the tag. The quality gate is mandatory and runs
-  # first; only if it passes does the release-flow Action run. The Action performs BOTH steps of the
-  # release flow — resolve-env ("is this branch an environment?") and, if so, derive+push the version
-  # tag. A push to a non-environment branch is short-circuited by the Action itself (is-env=false,
-  # no tag), so this job needs no separate resolve-env pre-gate. The Action creates a tag only —
-  # never a commit or branch push — so environment branches never diverge.
-  #
-  # Adding an environment is a one-row edit to environments.json (the Action reads it); this job
-  # needs no change. What version number a push gets, and which branches are environments, live
-  # entirely in the Action + the manifest — not here.
+  # Look up the push, run the checks unless this tree is already released, then derive and push the
+  # tag. The Action resolves whether the branch is an environment; a push that is not one tags
+  # nothing. Adding an environment is a row in environments.json plus its branch in the trigger.
   version-and-tag:
     name: version and tag
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     # Serialize per RELEASABLE, not per branch: the build id is global across every environment
-    # branch, so a per-branch group lets main and dev race to the same number.
+    # branch, so a per-branch group lets main and dev race to the same number. It also keeps the
+    # look-up and the tag in step.
     concurrency:
       group: release
       cancel-in-progress: false
@@ -90,42 +89,56 @@ jobs:
     permissions:
       contents: write # to push the TAG only (we never push a commit to the branch)
     outputs:
-      is-env: ${{ steps.release.outputs.is-env }} # "true"/"false" — gate a deploy job on this
+      is-env: ${{ steps.release.outputs.is-env }} # "true"/"false"
       version: ${{ steps.release.outputs.version }} # plain number, e.g. 1.5.4 (env pushes only)
       tag: ${{ steps.release.outputs.tag }} # git tag, e.g. v1.5.4-dev (staging) or v1.5.4 (prod)
+      released-as: ${{ steps.lookup.outputs.released-as }} # the tag this tree already had, if any
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # A GITHUB_TOKEN-pushed tag does NOT trigger another workflow (GitHub's recursion guard),
-          # which is fine: the deploy is a chained `needs:` job in THIS run, so no second event is
-          # needed and no personal access token is required.
+          # which is fine: nothing here needs a second event, and no personal access token is
+          # required.
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0 # full history + tags — the Action's derivation refuses a shallow clone
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      # Derive and report, creating nothing: `released-as` names the tag this exact tree was already
+      # released as (a promotion), or is empty for new code. Every refusal the derivation makes
+      # happens here, before the checks.
+      - name: Look up this push
+        id: lookup
+        uses: jeff-fichtner/snackbyte-release-flow-action@01d5fa53356ad4b04b2388a43eda867cc947b670 # v1.2.7
+        with:
+          mode: lookup
+
+      # Push-side gate: new code must be green before anything is tagged. On failure the job stops
+      # here and no tag is created. Every check step carries the same condition, so a promotion of
+      # an already-released tree skips them all.
+      - if: steps.lookup.outputs.released-as == ''
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
             templates/*/package-lock.json
-
-      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+      - if: steps.lookup.outputs.released-as == ''
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '8.0.x'
+      - if: steps.lookup.outputs.released-as == ''
+        run: npm ci
+      - if: steps.lookup.outputs.released-as == ''
+        run: npm run setup
+      - if: steps.lookup.outputs.released-as == ''
+        run: npm run check:all
 
-      - run: npm ci
-      - run: npm run setup
-
-      # Push-side gate (mandatory): app code must be green before anything is tagged. On failure the
-      # job stops here, the Action never runs, and no tag is created.
-      - run: npm run check:all
-
-      # Resolve the environment and derive+push the version tag. All inputs default: branch =
-      # github.ref_name, manifest = ./environments.json, major-minor read from package.json's version.
-      # No version-strategy → the build-id default, for a deployable app (a published library would
-      # instead set version-strategy: package-json). See the Action's CONSUMING.md. The Action
-      # configures a git identity itself when the runner has none, so no separate git-config is needed.
+      # Derive and push the version tag, refusing any tag the look-up did not report. All inputs
+      # default: branch = github.ref_name, manifest = ./environments.json, major-minor from
+      # package.json's version, version-strategy = build-id (a deployable app's; a published library
+      # would set package-json).
       - name: Resolve environment and derive version tag
         id: release
-        uses: jeff-fichtner/snackbyte-release-flow-action@c954bf30e67c3419d8694904cf9c4dbc61addf77 # v1.2.0
+        uses: jeff-fichtner/snackbyte-release-flow-action@01d5fa53356ad4b04b2388a43eda867cc947b670 # v1.2.7
+        with:
+          expect-tag: ${{ steps.lookup.outputs.tag }}

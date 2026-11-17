@@ -44,8 +44,10 @@ console.log('Next:');
 console.log('  1. Install every part:  npm ci && npm run setup');
 console.log('  2. Verify:              npm run check:all  &&  npm run dev');
 console.log('  3. Commit this spin-up.');
-console.log('  4. This app ships no CI workflow. To add the release flow, follow');
-console.log('     CONSUMING.md in jeff-fichtner/snackbyte-release-flow-action.');
+console.log('  4. This app ships no CI workflow. Add the release flow at the release-flow step of');
+console.log("     project-setup's SETUP-CHECKLIST.md; CONSUMING.md in");
+console.log('     jeff-fichtner/snackbyte-release-flow-action owns its wiring (Recipe A plus');
+console.log('     "Build once" for an app, the SHA pin, the repo settings).');
 console.log(`  5. A secret goes in 1Password (vault app-secrets, item ${name}.local) and`);
 console.log('     .env holds only its reference: the header of .env says how.');
 if (server && !server.hasApi) {

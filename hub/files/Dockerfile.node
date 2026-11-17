@@ -1,6 +1,6 @@
 # The app's image: the web part built to static files, served by the Node server in server/ (which
 # also serves the API, when the app has one). The deploy builds it from the app root.
-FROM node:24.22.1-slim AS build
+FROM node:26.13.0-slim AS build
 WORKDIR /app
 
 # Install each part's dependencies (the build toolchain included) first, so a source-only change
@@ -30,7 +30,7 @@ ENV CI=true NODE_ENV=production APP_ENV_NAME=${APP_ENV_NAME} APP_VERSION=${APP_V
     BUILD_GIT_COMMIT=${BUILD_GIT_COMMIT} BUILD_DATE=${BUILD_DATE}
 RUN npm --prefix web run build && npm --prefix server run build
 
-FROM node:24.22.1-slim AS runtime
+FROM node:26.13.0-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 

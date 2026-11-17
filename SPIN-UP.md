@@ -11,12 +11,12 @@ together.
 
 ## 1. Check the tools
 
-The resolver needs only Node 24 (see `.nvmrc`): `node --version` should print `v24.x`. With nvm in
+The resolver needs only Node 26 (see `.nvmrc`): `node --version` should print `v26.x`. With nvm in
 an interactive shell, `nvm use` switches to it; an agent or non-interactive shell should just
 confirm `node --version` instead (`nvm` is a shell function and won't be on the PATH).
 
 ```bash
-node --version   # expect v24.x
+node --version   # expect v26.x
 ```
 
 There is nothing to install before resolving. A C# server also needs the .NET 8 SDK

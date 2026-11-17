@@ -1,7 +1,7 @@
 # web-react
 
 A web front end template: Vite + React + TypeScript, built to static files, with Vitest, ESLint and
-Prettier, on Node 24. It is one of the templates the snackbyte-base hub composes an app from; in an
+Prettier, on Node 26. It is one of the templates the snackbyte-base hub composes an app from; in an
 app it becomes the `web/` folder.
 
 It stands on its own: it installs, runs and passes its own gate without the hub or any other

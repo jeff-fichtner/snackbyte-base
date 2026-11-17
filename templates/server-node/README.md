@@ -1,6 +1,6 @@
 # server-node
 
-A server template: Node 24 + Express + TypeScript, with Vitest, ESLint and Prettier. It serves a
+A server template: Node 26 + Express + TypeScript, with Vitest, ESLint and Prettier. It serves a
 built web app and, when the app has one, an API under `/api`. It is one of the templates the
 snackbyte-base hub composes an app from; in an app it becomes the `server/` folder, serving the
 `web/` part's build. An app with no API gets this server with its API removed.

@@ -57,7 +57,12 @@ describe.each(COMBOS)('--api=$api --render=$render', ({ api, render, port, check
     });
     if (build.status !== 0) throw new Error(`build failed:\n${build.stdout}\n${build.stderr}`);
     expect(build.stdout + build.stderr).not.toMatch(/configLoader/);
-    server = startGroup(dir, 'npm', ['start'], { ...process.env, PORT: String(port) });
+    // Run as a local start, not a deployed one: without the CI and NODE_ENV a build server sets,
+    // which would make the Node server report the deploy's version instead of the dev one.
+    const local = Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => key !== 'CI' && key !== 'NODE_ENV'),
+    );
+    server = startGroup(dir, 'npm', ['start'], { ...local, PORT: String(port) });
     await waitFor(`http://localhost:${port}/`);
   });
   afterAll(() => {

@@ -7,7 +7,7 @@ dependencies and checks, and a root that runs them together:
 
 ## Develop
 
-This app runs on Node 24 (see `.nvmrc`); confirm `node --version` prints `v24.x` (`nvm use`
+This app runs on Node 26 (see `.nvmrc`); confirm `node --version` prints `v26.x` (`nvm use`
 switches to it in an interactive shell). A part written in another language says what it needs in
 its own README.
 

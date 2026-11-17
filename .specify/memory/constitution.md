@@ -1,6 +1,18 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 3.0.0 → 3.0.1 (2026-11-17)
+Bump rationale: PATCH — the runtime pin moves from Node 24 LTS to Node 26 LTS (Jeff, 2026-10-31,
+  request #575d6a; Node 26.13.0 became LTS on 2026-10-28). No principle changes meaning.
+Modified principles: VII (the pinned Node version)
+Modified sections: Technology Stack (Node version)
+Propagated to: .nvmrc and package.json engines (the hub and every Node template), the image
+  recipes' node base image, CI's NODE_VERSION, SPIN-UP.md, the templates' READMEs, the composed
+  app's README. Not propagated: specs 001–006 record the version they were built on.
+Follow-up TODOs: none.
+
+Previous report (2.1.0 → 3.0.0) follows.
+
 Version change: 2.1.0 → 3.0.0 (2026-11-16)
 Bump rationale: MAJOR — Principle I redefined. snackbyte-base is no longer one mode-neutral
   template; it is a hub that composes an app from standalone templates (Jeff's direction on request
@@ -181,7 +193,7 @@ which prerenders cleanly at this scale.
 ### VII. Pinned, Linted, Type-Safe, Tested
 
 Every app MUST agree on its runtimes and quality gates. Each template MUST pin its
-runtime and ship a runnable gate for its stack: the TypeScript templates pin Node 24
+runtime and ship a runnable gate for its stack: the TypeScript templates pin Node 26
 LTS, are TypeScript throughout, and ship ESLint + Prettier and Vitest; the C# template
 pins the .NET SDK and ships format verification, a build that treats warnings as errors,
 and xUnit. Every template's gate MUST pass on a fresh, unmodified copy, and a composed
@@ -229,8 +241,8 @@ The templates' stacks are fixed (deviation requires a constitution amendment):
 
 - **Web template**: TypeScript, Vite, React (chosen because the shared `@snackbyte/ui`
   layer is a component-library problem best-trodden in React), Vitest, ESLint
-  (typescript-eslint) + Prettier, Node 24 LTS.
-- **Node server template**: TypeScript, Express, Vitest, ESLint + Prettier, Node 24 LTS.
+  (typescript-eslint) + Prettier, Node 26 LTS.
+- **Node server template**: TypeScript, Express, Vitest, ESLint + Prettier, Node 26 LTS.
   Also serves an app with no API (its API removed at spin-up).
 - **C# server template**: C# on .NET 8, ASP.NET Core minimal API, xUnit, `dotnet format`.
 - **The hub and composed apps' root scripts**: Node (`.mjs`, built-ins only).
@@ -277,4 +289,4 @@ conflicts, the constitution wins.
   justification. The stack in Technology Stack is fixed — changing it is an amendment,
   not a per-app decision.
 
-**Version**: 3.0.0 | **Ratified**: 2026-05-31 | **Last Amended**: 2026-11-16
+**Version**: 3.0.1 | **Ratified**: 2026-05-31 | **Last Amended**: 2026-11-17

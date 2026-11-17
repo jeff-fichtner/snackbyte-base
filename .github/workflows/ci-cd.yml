@@ -41,7 +41,7 @@ permissions:
   contents: read # each job raises only what it needs
 
 env:
-  NODE_VERSION: '24' # Node major for the gate (keep aligned with .nvmrc)
+  NODE_VERSION: '26' # Node major for the gate (keep aligned with .nvmrc)
 
 jobs:
   # Merge gate: PRs must pass the quality gate before they can merge. (The merge is *enforced* by

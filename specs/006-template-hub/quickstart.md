@@ -6,7 +6,7 @@ Runnable checks that prove the feature, in the order the work lands. Contracts:
 
 ## Prerequisites
 
-Node 24 (`.nvmrc`), the .NET 8 SDK (`dotnet --list-sdks` shows an `8.0.` line), and Docker for the
+Node 26 (`.nvmrc`), the .NET 8 SDK (`dotnet --list-sdks` shows an `8.0.` line), and Docker for the
 opt-in image check only.
 
 ## 1. snackbyte-base's own gate

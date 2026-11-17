@@ -5,7 +5,7 @@
   "type": "module",
   "description": "A Node + Express + TypeScript server: serves a built web app and, optionally, an API under /api.",
   "engines": {
-    "node": ">=24 <25"
+    "node": ">=26 <27"
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",

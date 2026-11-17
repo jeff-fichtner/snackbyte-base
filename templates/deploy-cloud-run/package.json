@@ -5,7 +5,7 @@
   "type": "module",
   "description": "The Cloud Run deploy for an app built from one container image: the Cloud Build config and the per-app deploy job.",
   "engines": {
-    "node": ">=24 <25"
+    "node": ">=26 <27"
   },
   "scripts": {
     "format": "prettier --config config/.prettierrc.json --ignore-path config/.prettierignore --write \"**/*.{ts,mjs,json,md,yaml}\"",

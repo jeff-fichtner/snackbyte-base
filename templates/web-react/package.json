@@ -5,7 +5,7 @@
   "type": "module",
   "description": "A Vite + React + TypeScript web front end, built to static files.",
   "engines": {
-    "node": ">=24 <25"
+    "node": ">=26 <27"
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",

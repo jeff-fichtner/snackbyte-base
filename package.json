@@ -5,7 +5,7 @@
   "type": "module",
   "description": "The hub that composes a snackbyte app from standalone templates: a web front end, a server, a deploy target.",
   "engines": {
-    "node": ">=24 <25"
+    "node": ">=26 <27"
   },
   "scripts": {
     "init": "node hub/init.mjs",

@@ -1,48 +1,53 @@
-# Container that builds the app and serves it. What the app is (static or server) is
-# baked into its source, so no build-time mode flag is needed.
+# The app's image: the web part built to static files, served by the Node server in server/ (which
+# also serves the API, when the app has one). The deploy builds it from the app root.
 FROM node:24.22.1-slim AS build
 WORKDIR /app
 
-# Install ALL deps (incl. the build toolchain) first. NODE_ENV must NOT be production
-# here, or npm ci would skip devDependencies and the build tools would be missing.
-COPY package*.json ./
-RUN npm ci
+# Install each part's dependencies (the build toolchain included) first, so a source-only change
+# reuses this layer. NODE_ENV must NOT be production here, or npm ci would skip devDependencies and
+# the build tools would be missing.
+COPY web/package*.json web/
+COPY server/package*.json server/
+RUN npm ci --prefix web && npm ci --prefix server
 
-COPY . .
+COPY environments.json ./
+COPY web/ web/
+COPY server/ server/
 
-# Now bake the production build. NODE_ENV stays 'production' so the build reads the real
-# version (the version gate keys on it). The version itself is NOT taken from package.json
-# (which holds only MAJOR.MINOR) — it arrives as the APP_VERSION build-arg and is baked into
-# the frontend bundle. The environment identity arrives as APP_ENV_NAME (a single build-arg):
-# the build resolves its facets from environments.json and bakes them into the frontend bundle
-# AND the compiled server (so both report the same environment). The version chip is keyed off
-# the resolved isPublicFace (NOT NODE_ENV): a public-face build hides the chip; a non-public-face
-# build (e.g. staging) shows it. No build-arg overrides that facet, so a deployed image cannot
-# disagree with environments.json. With no APP_ENV_NAME the build resolves the 'local' identity
-# (cloudbuild.yaml refuses to deploy without one). Commit/date arrive the same way; without
-# --build-arg they fall back to 'unknown'. Set these only for the build step.
+# Bake the production build. The version is NOT taken from package.json (which holds only
+# MAJOR.MINOR): it arrives as the APP_VERSION build-arg and is baked into the web build. The
+# environment arrives as APP_ENV_NAME (a single build-arg): each part resolves its facets from the
+# app's environments.json and bakes them, so the web build and the server report the same
+# environment. The version chip is keyed off the resolved isPublicFace (NOT NODE_ENV); no build-arg
+# overrides a facet, so a deployed image cannot disagree with environments.json. With no
+# APP_ENV_NAME the build resolves the 'local' identity (cloudbuild.yaml refuses to deploy without
+# one). Commit/date arrive the same way; without --build-arg they fall back to 'unknown'.
 ARG BUILD_GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
 ARG APP_ENV_NAME=
 ARG APP_VERSION=0.0.0
-RUN CI=true NODE_ENV=production APP_ENV_NAME=${APP_ENV_NAME} \
-    APP_VERSION=${APP_VERSION} BUILD_GIT_COMMIT=${BUILD_GIT_COMMIT} BUILD_DATE=${BUILD_DATE} \
-    npm run build
+ENV CI=true NODE_ENV=production APP_ENV_NAME=${APP_ENV_NAME} APP_VERSION=${APP_VERSION} \
+    BUILD_GIT_COMMIT=${BUILD_GIT_COMMIT} BUILD_DATE=${BUILD_DATE}
+RUN npm --prefix web run build && npm --prefix server run build
 
 FROM node:24.22.1-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Runtime needs only production dependencies (express, react, react-dom); the build
-# toolchain stays in the build stage.
-COPY package*.json ./
+# The runtime needs only the server's production dependencies; the build toolchain stays in the
+# build stage.
+COPY server/package*.json ./
 RUN npm ci --omit=dev
 
-# Ship only the built artifact — compiled server + built frontend — never source.
-COPY --from=build /app/dist ./dist
+# Ship only built output — the compiled server and the web build it serves from public/ — never
+# source.
+COPY --from=build /app/server/dist ./dist
+COPY --from=build /app/web/dist ./public
 
-# Cloud Run provides PORT; default to 8080 locally.
+# Cloud Run provides PORT; 8080 when run anywhere else.
 ENV PORT=8080
 EXPOSE 8080
 
-CMD ["npm", "run", "start"]
+# Nothing in the app writes to its own files, so it runs without root.
+USER node
+CMD ["node", "dist/server.js"]

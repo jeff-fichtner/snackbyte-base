@@ -1,17 +1,19 @@
-node_modules/
-dist/
+# What the image build never sees. Patterns start with **/ so they cover every part's folder, not
+# only the app root.
+**/node_modules/
+**/dist/
+**/coverage/
+**/bin/
+**/obj/
+server/out/
+server/public/
 .git/
-.gitignore
-coverage/
-# No env file reaches the image. The committed .env is local-development config: the build
-# stage would load it (scripts/build.mjs imports scripts/load-env.mjs), and the service runs on
-# the configuration Cloud Run holds for it, never a file.
-.env*
-*.log
-.DS_Store
+**/*.log
+**/.DS_Store
 .vscode/
 .idea/
-specs/
-.specify/
-.claude/
 README.md
+
+# No env file reaches the image. The committed .env is local-development config: the build would
+# load it, and the service runs on the configuration Cloud Run holds for it, never a file.
+**/.env*

@@ -1,0 +1,38 @@
+{
+  "$comment": "The templates the hub composes an app from, by role. A role with one option is filled without a flag; a role with several names the flag that chooses, and that flag is required. The option names here are what a person types at spin-up; each summary is the line the app's README gives that part.",
+  "roles": {
+    "web": {
+      "flag": null,
+      "options": {
+        "react": {
+          "template": "web-react",
+          "summary": "the front end: Vite + React + TypeScript, built to static files"
+        }
+      }
+    },
+    "server": {
+      "flag": "api",
+      "options": {
+        "node": {
+          "template": "server-node",
+          "hasApi": true,
+          "summary": "the server: Node + Express + TypeScript; serves the web build and the API under /api"
+        },
+        "none": {
+          "template": "server-node",
+          "hasApi": false,
+          "summary": "the server: Node + Express + TypeScript; serves the web build (the app has no API)"
+        }
+      }
+    },
+    "deploy": {
+      "flag": null,
+      "options": {
+        "cloud-run": {
+          "template": "deploy-cloud-run",
+          "summary": "deploys the app's image to Google Cloud Run (cloudbuild.yaml, DEPLOY.md)"
+        }
+      }
+    }
+  }
+}

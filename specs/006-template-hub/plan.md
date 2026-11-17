@@ -145,7 +145,7 @@ templates/
 │   └── tests/      app/  machinery/
 ├── server-dotnet/                # standalone .NET 8 solution
 │   ├── template.json  README.md  README.app.md  Api.sln  global.json  Directory.Build.props
-│   ├── .editorconfig  .env  .gitignore  environments.json
+│   ├── .editorconfig  .gitignore  environments.json
 │   ├── src/Api/    Api.csproj Program.cs AppEnvironment.cs Port.cs VersionInfo.cs Health.cs
 │   │               Properties/launchSettings.json
 │   └── tests/Api.Tests/  Api.Tests.csproj  *Tests.cs

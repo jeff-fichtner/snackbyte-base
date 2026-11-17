@@ -65,8 +65,8 @@ on a build arg; a second image recipe to maintain); a static host (a new deploy 
 **Decision**: Each Node template resolves `<part>/.env` then `<part>/../.env` for dotenv, and
 `<part>/environments.json` then `<part>/../environments.json` for the manifest, via one small helper
 (`scripts/lib/find-up-one.mjs`). The C# template does the same for the manifest in MSBuild
-(`Directory.Build.props`), and reads no `.env` (the root dev command passes the environment, and
-`op run --env-file=.env -- dotnet run` covers standalone use). The hub writes the root `.env` and copies
+(`Directory.Build.props`), and reads no `.env` and carries none (the root dev command passes the environment; run alone,
+`PORT` defaults and a secret comes through `op run --env-file=<file> -- dotnet run`). The hub writes the root `.env` and copies
 the root manifest, and deletes the parts' copies.
 
 **Rationale**: Standalone templates work with their own copies; composed parts read the app's single

@@ -20,11 +20,14 @@ One per template. Full field contract: [contracts/template-manifest.md](contract
 | `image` | string, server only | which hub container recipe the app gets (`node`, `dotnet`) |
 | `ships` | string[], deploy only | files placed at the app root |
 | `env` | object, optional | config keys (with values) the part needs in the app's root `.env` |
-| `scaffolding` | string[] | paths removed after its resolver runs (always includes `template.json` and `README.md`) |
+| `scaffolding` | string[], optional | paths removed after its resolver runs; `template.json` and `README.md` are always removed, listed or not |
 | `appReadme` | string, optional | the README the part keeps, renamed to `README.md` |
 
-Validation (hub test): every field above follows its rule; every command that uses a folder uses
-`{dir}`; no command names another template.
+Validation (hub test): every field above follows its rule; every command except `resolve` (which runs
+inside the folder) uses `{dir}`; no command names another template.
+
+`API_URL` is a combination-level key: the hub writes it into the root `.env` when the composed server
+has an API, rather than the web manifest declaring it, because its value is the server's port.
 
 ## Hub registry (`hub/registry.json`)
 

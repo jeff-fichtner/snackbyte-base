@@ -43,10 +43,11 @@ that no hub scaffolding remains. It runs inside step 1.
 
 ## 5. The image (US3, SC-004)
 
-`npm run e2e:image` (opt-in, needs Docker): composes a React + C# app in a scratch directory, builds
-its image twice (`APP_ENV_NAME=staging` and `production`, with `APP_VERSION`, `BUILD_GIT_COMMIT`,
+`npm run e2e:image` (opt-in, needs Docker): for each API choice (`node`, `dotnet`, `none`), composes
+an app in a scratch directory, builds its image twice (`APP_ENV_NAME=staging` and `production`, with `APP_VERSION`, `BUILD_GIT_COMMIT`,
 `BUILD_DATE`), runs each with `PORT` set, and checks: the page; the chip present for staging and
-absent for production; `/api/version` reporting the version and environment; `X-Robots-Tag: noindex`
+absent for production; `/api/version` reporting the version and environment (or, with no API, `/api/`
+falling through to the page); `X-Robots-Tag: noindex`
 for staging only; the container user is not root.
 
 ## 6. The one step left: deploy (US3, SC-005)

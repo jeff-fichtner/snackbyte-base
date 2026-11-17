@@ -139,8 +139,8 @@ clean starting point.
 ### IV. Two-Tier Propagation (Template vs Package)
 
 Change propagation has exactly two tiers, and each kind of change uses the correct
-one. Skeleton concerns — toolchain, configs, folder conventions, the mode switch,
-deploy artifacts — live in this template and propagate by manual backport (rare,
+one. Skeleton concerns — toolchain, configs, folder conventions, the spin-up choices,
+deploy artifacts — live in the templates and propagate by manual backport (rare,
 accepted, because the skeleton stabilizes). Shared visual identity — theme, Header/
 Footer, shared components — does NOT live here; it belongs to the future
 `@snackbyte/ui` versioned npm package and propagates by version bump.
@@ -163,7 +163,7 @@ apps (instant response, global edge) — never the default and never chosen on c
 grounds.
 
 **Rationale**: One deploy path for every app maximizes uniformity for a solo
-maintainer and gives a static app a free promotion to server mode. Cost is a tie at
+maintainer and gives an app with no API a free promotion to one with an API. Cost is a tie at
 ~$0 (scale-to-zero, per-request-ms billing), so cost cannot decide the default;
 uniformity does.
 
@@ -239,8 +239,8 @@ The templates' stacks are fixed (deviation requires a constitution amendment):
 
 Conventions are adapted from the existing `tonic` app, with Jest replaced by Vitest
 and React adopted as the UI layer. `tonic` proved the toolchain; it did NOT prove the
-static/server mode switch, the stripped skeleton, or the shared-UI layer — those are
-the new, unproven work this template establishes.
+spin-up choices, the stripped skeleton, or the shared-UI layer — those are the new,
+unproven work this hub and its templates establish.
 
 ## Development Workflow & Quality Gates
 

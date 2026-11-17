@@ -290,15 +290,20 @@ runs as written; the resolver refuses to run without each required choice and na
   template: a React web template, a Node server template, a C# server template, and a Cloud Run
   deploy template.
 - **FR-002**: Each template MUST be a standalone project: its own dependency manifest and lockfile (or
-  the .NET equivalent), its own check gate, its own README, its own committed `.env` and environments
-  manifest where it reads them, and its own resolver for any choice it has. A template copied alone
-  into an empty directory MUST install and pass its own gate.
+  the .NET equivalent), its own check gate, its own README, its own environments manifest where it
+  reads one, its own committed `.env` where it reads one (the Node templates; the C# server reads
+  none), and its own resolver for any choice it has. A template copied alone into an empty directory
+  (made a git repository, since the env-file check reads tracked files) MUST install and pass its own
+  gate.
 - **FR-003**: No template MAY refer to a sibling template's folder or to the hub's files. Files that
   are intentionally duplicated across templates (the environments manifest, the env-file guard, the
   Node version pin) MUST be kept identical by a check in snackbyte-base's gate.
 - **FR-004**: Each template MUST carry a manifest the hub reads, stating its role (web, server or
   deploy), the folder it occupies in a composed app, and the commands to set it up, run it in
-  development, check it, build it and start it, written relative to that folder.
+  development, check it, build it and start it. The commands are written from the root of whatever
+  holds the template, with a placeholder for the template's folder, so the same manifest drives
+  snackbyte-base's gate and a composed app's root scripts. The resolver command is the exception: it
+  runs from inside the template's folder.
 - **FR-005**: snackbyte-base's own check gate MUST run the hub's checks and tests and every template's
   own gate, and fail when any of them fails. A single command MUST install every template's
   dependencies. snackbyte-base's CI MUST install the .NET 8 SDK (through a SHA-pinned action, like
@@ -316,7 +321,8 @@ runs as written; the resolver refuses to run without each required choice and na
   `--api=none` the Node server without its API.
 - **FR-009**: The hub resolver MUST run each composed template's own resolver with the choices that
   template owns (the web template: render strategy and whether the app has an API; the Node server:
-  whether it has an API; every template: the app name), and delete every unused template. Each
+  whether it has an API; every template with a resolver: the app name), and delete every unused
+  template. Each
   template's resolver removes that template's own scaffolding (its resolver, its template-only tests,
   its template-facing README and manifest) and leaves the part an app owns.
 - **FR-009a**: A composed app's README MUST give its CI install order: a root `npm ci`, then the root
@@ -337,10 +343,12 @@ runs as written; the resolver refuses to run without each required choice and na
 - **FR-013**: The composed app's root `.env` MUST carry the config keys every composed part needs (the
   server's `PORT`; the web dev server's `API_URL` when the app has an API) declared on its `# config:`
   line, and name the app's 1Password item `<name>.local`, as today.
-- **FR-013a**: Each part MUST look for `.env` and `environments.json` in its own folder first and its
-  parent folder second, so it reads its own copies when standalone and the app's root copies when
-  composed. The manifest missing from both MUST stop the build with an error naming both paths; a
-  missing `.env` is not an error (required values fail where they are required).
+- **FR-013a**: Each part MUST look for `environments.json`, and each Node part for `.env`, in its own
+  folder first and its parent folder second, so it reads its own copies when standalone and the app's
+  root copies when composed. The manifest missing from both MUST stop the build with an error naming
+  both paths; a missing `.env` is not an error (required values fail where they are required). The C#
+  part reads no `.env`: the root dev command passes it the environment, and run alone it is started
+  under `op run --env-file=<file>` when it needs a secret.
 - **FR-014**: The hub resolver MUST remove all hub scaffolding from the app: the templates directory,
   the hub resolver and its tests, `SPIN-UP.md`, `SUBDIR-LAYOUT.md`, the spec workflow (`.specify/`,
   `specs/`, the `speckit-*` skills, `CLAUDE.md`), the CI workflow and its Dependabot config, the hub's
@@ -382,9 +390,9 @@ runs as written; the resolver refuses to run without each required choice and na
   listens on `PORT`, serves the web build and (with an API) the API, carries no source, no env file
   and no build toolchain in its runtime stage, and runs as a non-root user.
 - **FR-021a**: Building the image MUST NOT be part of snackbyte-base's check gate. An opt-in hub
-  command MUST compose an app, build its image with the Cloud Run build arguments, run it and check
-  `/`, `/api/health`, `/api/version` and the noindex header, so the image path can be verified on any
-  machine with Docker.
+  command MUST, for each API choice (`node`, `dotnet`, `none`), compose an app, build its image with
+  the Cloud Run build arguments, run it and check `/`, the API (or its absence), `/api/version` and the
+  noindex header, so every image recipe can be verified on any machine with Docker.
 
 **Docs and governance**
 
@@ -417,14 +425,15 @@ runs as written; the resolver refuses to run without each required choice and na
 ### Measurable Outcomes
 
 - **SC-001**: A React + C# app composed through the hub passes its root check (both parts' gates and
-  the env-file check) on the first run after installing, with zero manual edits.
+  the env-file check) on the first run after installing, with zero manual edits, and its root dev
+  command serves the C# API's `/api/health` through the web dev server (an automated test).
 - **SC-002**: All six combinations (three API choices × two render strategies) compose, build, start
   and pass their behavioral checks in snackbyte-base's own test suite.
 - **SC-003**: Each of the four templates, copied alone into an empty directory, installs and passes
   its own gate.
-- **SC-004**: The composed React + C# app's image builds locally with the Cloud Run build arguments and
-  serves the page, `/api/health` and `/api/version` with the right environment and noindex behavior,
-  for both a staging and a production build.
+- **SC-004**: Each API choice's composed image builds locally with the Cloud Run build arguments and
+  serves the page and (with an API) `/api/health` and `/api/version` with the right environment and
+  noindex behavior, for both a staging and a production build.
 - **SC-005**: After this feature, deploying a composed React + C# app to Cloud Run takes one documented
   command and no change to any file in the app or the deploy template.
 - **SC-006**: snackbyte-base's own check gate is green locally and in CI.
@@ -535,3 +544,11 @@ chosen, what was passed over, and what switching would take. The PR carries the 
 21. **Dev in an app with no API.** Chosen: only the web dev server runs, as today. Passed over:
     starting the Node static server too (it would serve nothing useful in development). Switching: give
     the static server a dev command.
+22. **The C# template carries no `.env`.** Chosen: none (it reads none; `PORT` defaults locally and
+    the composed app's root `.env` holds the app's values). Passed over: a committed `.env` like the
+    Node templates', which nothing in a standalone C# repo would check. Switching: add one plus an
+    env-file check to its gate.
+23. **The spec PR merged without Jeff's review.** It carries the constitution's MAJOR amendment
+    (3.0.0). The week's brief lets specs, plans and the record merge once green; the amendment is a
+    doc and reverts cleanly. Revisit: if the hub's direction changes on review, the constitution
+    changes with it.

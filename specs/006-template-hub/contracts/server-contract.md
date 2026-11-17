@@ -14,7 +14,11 @@ server-node and server-dotnet both meet it; their tests assert it.
 | every response, when the baked environment has `noindex: true` | header `X-Robots-Tag: noindex` |
 
 `/api/version` fields: `number` is `APP_VERSION` (or `0.0.0` when unset) in a production run and
-`0.0.0-dev` otherwise; `commit` is `BUILD_GIT_COMMIT` or `dev`; `buildDate` is `BUILD_DATE` or `dev`;
+`0.0.0-dev` otherwise, where "a production run" is each stack's own notion: for the Node server,
+`NODE_ENV=production` or `CI=true` (both set in the image and by the Cloud Run deploy); for the C#
+server, ASP.NET Core's Production host environment (the default outside a Development launch
+profile). In the image both report `APP_VERSION`; a local root `start` reports `0.0.0-dev` (Node) or
+`0.0.0` (C#), and the composition tests assert each; `commit` is `BUILD_GIT_COMMIT` or `dev`; `buildDate` is `BUILD_DATE` or `dev`;
 `environment` is the baked environment name.
 
 With no API (server-node `--api=no`), `/api/...` is not special: it falls through to `index.html`.

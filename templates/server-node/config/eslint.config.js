@@ -5,7 +5,8 @@ import globals from 'globals';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', '*.tsbuildinfo'],
+    // public/ holds the built web app this server serves, placed there for production.
+    ignores: ['dist/**', 'public/**', 'node_modules/**', 'coverage/**', '*.tsbuildinfo'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

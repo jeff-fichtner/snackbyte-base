@@ -6,7 +6,7 @@ import globals from 'globals';
 export default tseslint.config(
   {
     // Each template lints itself with its own config (its gate runs from check:templates).
-    ignores: ['templates/**', 'node_modules/**', 'coverage/**', '*.tsbuildinfo'],
+    ignores: ['templates/**', 'node_modules/**', 'dist/**', 'coverage/**', '*.tsbuildinfo'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

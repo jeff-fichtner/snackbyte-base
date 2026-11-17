@@ -37,7 +37,8 @@ export function manifestProblems(manifest, folderName) {
     problems.push(`${where}: folder is required`);
   }
   for (const key of REQUIRED_BY_ROLE[manifest.role] ?? []) {
-    if (manifest[key] === undefined) problems.push(`${where}: ${key} is required for a ${manifest.role}`);
+    if (manifest[key] === undefined)
+      problems.push(`${where}: ${key} is required for a ${manifest.role}`);
   }
   for (const key of DIR_COMMANDS) {
     const command = manifest[key];

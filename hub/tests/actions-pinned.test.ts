@@ -1,6 +1,7 @@
 // @vitest-environment node
 //
-// Every GitHub Action this repo runs, and every one the DEPLOY.md deploy job tells an app to run,
+// Every GitHub Action this repo runs, and every one the Cloud Run deploy template's DEPLOY.md
+// deploy job tells an app to run,
 // is pinned to a full commit SHA with the release it tracks in a comment. A tag can be moved by
 // whoever controls the action's repository; a SHA cannot. The comment is what lets Dependabot
 // (.github/dependabot.yml) move the pin when a new release lands.
@@ -23,7 +24,7 @@ const sources: [string, string][] = [
       `.github/workflows/${f}`,
       readFileSync(join(workflowsDir, f), 'utf8'),
     ]),
-  ['DEPLOY.md', readFileSync(join(repoRoot, 'DEPLOY.md'), 'utf8')],
+  ['DEPLOY.md', readFileSync(join(repoRoot, 'templates/deploy-cloud-run/DEPLOY.md'), 'utf8')],
 ];
 
 describe.each(sources)('%s', (_name, text) => {

@@ -5,9 +5,10 @@
 # what an action does with the job's token. (Security updates ignore target-branch: GitHub opens
 # them against the default branch.)
 #
-# THIS REPO'S OWN CONFIG, like ci-cd.yml beside it: the spin-up resolver deletes it, because an
-# app's workflow — and the Dependabot config that keeps its pins moving — is installed per repo
-# (see DEPLOY.md, "Pinned actions").
+# THIS REPO'S OWN CONFIG, like ci-cd.yml beside it: the hub resolver deletes it, because an app's
+# workflow — and the Dependabot config that keeps its pins moving — is installed per repo (see the
+# Cloud Run deploy template's DEPLOY.md, "Pinned actions"). Security updates need no entry here:
+# GitHub opens them for every lockfile in the repo, each template's included.
 version: 2
 updates:
   - package-ecosystem: github-actions

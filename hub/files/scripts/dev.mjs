@@ -21,7 +21,11 @@ const parts = Object.keys(scripts).filter((name) => name.startsWith('dev:'));
 const passThrough = process.argv.slice(2);
 
 const children = parts.map((script) => {
-  const args = ['run', script, ...(script === 'dev:web' && passThrough.length ? ['--', ...passThrough] : [])];
+  const args = [
+    'run',
+    script,
+    ...(script === 'dev:web' && passThrough.length ? ['--', ...passThrough] : []),
+  ];
   // npm is a .cmd shim on Windows, which only a shell can start.
   const child = spawn('npm', args, { stdio: 'inherit', shell: process.platform === 'win32' });
   child.on('exit', (code) => {

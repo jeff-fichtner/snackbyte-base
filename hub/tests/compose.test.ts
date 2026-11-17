@@ -1,584 +1,281 @@
-// @vitest-environment node
+// Composes every combination the hub offers, end to end. For each: copy the repo, run the hub
+// resolver, build the production layout with the app's root `build`, start it with the root `start`,
+// and check the app behaves as its choices say and carries nothing of the hub. This is how the hub
+// proves every combination without a runtime switch: the choice is resolved into files, then the
+// real result is exercised.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import {
-  mkdtempSync,
-  rmSync,
-  cpSync,
-  existsSync,
-  readFileSync,
-  readdirSync,
-  writeFileSync,
-  symlinkSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { execFileSync, type ChildProcess } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { findRawValues } from '../../scripts/lib/env-guard.mjs';
+import { findRawValues } from '../../templates/web-react/scripts/lib/env-guard.mjs';
+import {
+  freshCopy,
+  linkInstalls,
+  npm,
+  remove,
+  repoRoot,
+  runInit,
+  startGroup,
+  stop,
+  waitFor,
+} from './helpers';
 
-/**
- * Validates the spin-up resolver across all four mode × render combinations,
- * end-to-end. For each, it copies the template to a temp dir, runs `init`, builds,
- * runs the compiled server, and asserts the resolved app behaves correctly and that
- * all template scaffolding (init script, markers, machinery tests) is gone.
- *
- * This is how the template proves every variant without a runtime switch: the choice
- * is resolved into code, then the real artifact is exercised.
- */
-const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
-
-type Mode = 'static' | 'server';
+type Api = 'node' | 'none';
 type Render = 'prerender' | 'dynamic';
-
-function setupApp(mode: Mode, render: Render): { dir: string; buildLog: string } {
-  const dir = mkdtempSync(join(tmpdir(), `snackbyte-${mode}-${render}-`));
-  try {
-    return { dir, buildLog: resolveAndBuild(dir, mode, render) };
-  } catch (error) {
-    // The copy carries a full node_modules; don't strand it when init or the build fails.
-    rmSync(dir, { recursive: true, force: true });
-    throw error;
-  }
-}
-
-function resolveAndBuild(dir: string, mode: Mode, render: Render): string {
-  cpSync(repoRoot, dir, {
-    recursive: true,
-    // Exclude .git as a path segment, not a substring — otherwise `/.github` (which
-    // contains `/.git`) would be skipped and the workflow file would never be copied. The
-    // committed .env is copied (a fresh clone has it); any other local .env.* file is left out
-    // (a fresh clone has none): the build loads env files, and one could carry settings this
-    // test must not inherit.
-    filter: (src) =>
-      !src.includes('/node_modules') &&
-      !src.includes('/dist') &&
-      !/\/\.git(\/|$)/.test(src) &&
-      !/\/\.env\.[^/]*$/.test(src),
-  });
-  cpSync(join(repoRoot, 'node_modules'), join(dir, 'node_modules'), { recursive: true });
-
-  execFileSync(
-    'node',
-    ['scripts/init.mjs', `--mode=${mode}`, `--render=${render}`, '--name=demo'],
-    {
-      cwd: dir,
-      stdio: 'ignore',
-    },
-  );
-  // Never let an inherited opt-out hide the config-loader warning the build is checked for.
-  const build = spawnSync('node', ['scripts/build.mjs'], {
-    cwd: dir,
-    env: { ...process.env, VITE_CONFIG_NATIVE_IGNORE_WARNING: '' },
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  if (build.status !== 0) {
-    throw new Error(
-      `build failed (${build.error ?? build.signal ?? build.status}):\n${build.stdout}\n${build.stderr}`,
-    );
-  }
-  return `${build.stdout}\n${build.stderr}`;
-}
-
-async function start(dir: string, port: number): Promise<ChildProcess> {
-  const child = spawn('npm', ['run', 'start'], {
-    cwd: dir,
-    env: { ...process.env, PORT: String(port) },
-    stdio: 'ignore',
-  });
-  const deadline = Date.now() + 10_000;
-  for (;;) {
-    if (Date.now() > deadline) {
-      child.kill();
-      throw new Error('server did not start');
-    }
-    try {
-      if ((await fetch(`http://localhost:${port}/`)).ok) return child;
-    } catch {
-      /* not up yet */
-    }
-    await new Promise((r) => setTimeout(r, 150));
-  }
-}
-
 interface Combo {
-  mode: Mode;
+  api: Api;
   render: Render;
   port: number;
+  checkAll: boolean;
 }
+
+// The root check runs once per API choice; it runs every part's whole gate, so not for every combo.
 const COMBOS: Combo[] = [
-  { mode: 'server', render: 'prerender', port: 8160 },
-  { mode: 'static', render: 'prerender', port: 8161 },
-  { mode: 'server', render: 'dynamic', port: 8162 },
-  { mode: 'static', render: 'dynamic', port: 8163 },
+  { api: 'node', render: 'prerender', port: 8260, checkAll: true },
+  { api: 'node', render: 'dynamic', port: 8261, checkAll: false },
+  { api: 'none', render: 'prerender', port: 8262, checkAll: false },
+  { api: 'none', render: 'dynamic', port: 8263, checkAll: true },
 ];
 
-describe.each(COMBOS)('init → $mode / $render app', ({ mode, render, port }) => {
+const read = (dir: string, rel: string) => readFileSync(join(dir, rel), 'utf8');
+const json = (dir: string, rel: string) => JSON.parse(read(dir, rel));
+
+describe.each(COMBOS)('--api=$api --render=$render', ({ api, render, port, checkAll }) => {
+  const hasApi = api !== 'none';
   let dir: string;
-  let buildLog: string;
-  let child: ChildProcess;
+  let server: ChildProcess;
 
   beforeAll(async () => {
-    ({ dir, buildLog } = setupApp(mode, render));
-    child = await start(dir, port);
-  }, 60_000);
+    dir = freshCopy(`hub-${api}-${render}`);
+    const init = runInit(dir, [`--api=${api}`, `--render=${render}`, '--name=demo']);
+    if (init.status !== 0) throw new Error(`init failed:\n${init.stdout}\n${init.stderr}`);
+    linkInstalls(dir, { web: 'web-react', server: 'server-node' });
+    // Never let an inherited opt-out hide the config-loader warning the build is checked for.
+    const build = npm(dir, ['run', 'build'], {
+      ...process.env,
+      VITE_CONFIG_NATIVE_IGNORE_WARNING: '',
+    });
+    if (build.status !== 0) throw new Error(`build failed:\n${build.stdout}\n${build.stderr}`);
+    expect(build.stdout + build.stderr).not.toMatch(/configLoader/);
+    server = startGroup(dir, 'npm', ['start'], { ...process.env, PORT: String(port) });
+    await waitFor(`http://localhost:${port}/`);
+  });
   afterAll(() => {
-    child?.kill();
-    if (dir) rmSync(dir, { recursive: true, force: true });
+    stop(server);
+    remove(dir);
   });
 
-  // Vite plans to make its native config loader the default; under it, Node itself imports
-  // vite.config.ts, and an extensionless relative import fails outright. Vite warns about that
-  // today, so a clean build log and a native load together prove the config is ready for it.
-  it('builds with no Vite config-loader warning', () => {
-    expect(buildLog).not.toMatch(/configLoader/);
-  });
-
-  it('loads its Vite config with the native loader', () => {
-    // In its own process, with the app's own Vite, as `vite` itself would load it. It prints the
-    // dev proxy, which a server app builds from the PORT that src/config.ts exports — so the
-    // load evaluated that import — and a static app does not have.
-    const load = spawnSync(
-      'node',
-      [
-        '--input-type=module',
-        '-e',
-        `const { loadConfigFromFile } = await import('vite');
-         const r = await loadConfigFromFile({ command: 'build', mode: 'production' },
-           'vite.config.ts', process.cwd(), 'silent', undefined, 'native');
-         console.log(JSON.stringify(r.config.server?.proxy ?? null));`,
-      ],
-      { cwd: dir, encoding: 'utf8' },
-    );
-    expect(load.status, load.stderr).toBe(0);
-    const proxy = JSON.parse(load.stdout) as Record<string, string> | null;
-    if (mode === 'server') expect(proxy?.['/api']).toMatch(/^http:\/\/localhost:\d+$/);
-    else expect(proxy).toBeNull();
-  });
-
-  it('serves the frontend', async () => {
-    expect((await fetch(`http://localhost:${port}/`)).status).toBe(200);
-  });
-
-  it(`${mode === 'server' ? 'exposes' : 'does not expose'} the API`, async () => {
-    const api = await fetch(`http://localhost:${port}/api/health`);
-    expect(api.status).toBe(200);
-    if (mode === 'server') {
-      expect(api.headers.get('content-type')).toContain('application/json');
-    } else {
-      // static: no API route → SPA fallthrough to HTML
-      expect(api.headers.get('content-type')).toContain('text/html');
+  it('serves the web app, and any client-side route', async () => {
+    for (const path of ['/', '/some/client/route']) {
+      const res = await fetch(`http://localhost:${port}${path}`);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toContain('<div id="root"');
     }
   });
 
   it(`is ${render}`, () => {
-    const html = readFileSync(join(dir, 'dist/index.html'), 'utf8');
+    const html = read(dir, 'server/public/index.html');
     const root = html.match(/<div id="root">(.*?)<\/div>/s)?.[1] ?? '';
-    if (render === 'prerender') {
-      // prerendered: root contains real rendered markup (an element)
-      expect(root).toContain('<main');
-      expect(existsSync(join(dir, 'src/web/prerender.ts'))).toBe(true);
-    } else {
-      // dynamic: no prerender step or entry; root is an empty shell (no rendered
-      // element — only the leftover comment placeholder, mounted on the client).
-      expect(root).not.toContain('<main');
-      expect(existsSync(join(dir, 'src/web/prerender.ts'))).toBe(false);
-      expect(existsSync(join(dir, 'scripts/prerender.mjs'))).toBe(false);
+    if (render === 'prerender') expect(root).toContain('<main');
+    else expect(root).not.toContain('<main');
+    expect(existsSync(join(dir, 'web/src/prerender.ts'))).toBe(render === 'prerender');
+  });
+
+  it(`${hasApi ? 'exposes' : 'does not expose'} the API`, async () => {
+    const res = await fetch(`http://localhost:${port}/api/health`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain(hasApi ? 'application/json' : 'text/html');
+    if (hasApi) {
+      const version = await (await fetch(`http://localhost:${port}/api/version`)).json();
+      expect(version).toEqual({
+        number: '0.0.0-dev',
+        commit: 'dev',
+        buildDate: 'dev',
+        environment: 'local',
+      });
     }
   });
 
-  it('removed scaffolding, swapped README, no fingerprints', () => {
-    expect(existsSync(join(dir, 'scripts/init.mjs'))).toBe(false);
-    expect(existsSync(join(dir, 'SPIN-UP.md'))).toBe(false);
-    expect(existsSync(join(dir, 'README.app.md'))).toBe(false);
-    // Template-only guidance docs (getting FROM the template TO an app) don't reach
-    // the resolved app — they'd be dead weight in its root.
-    expect(existsSync(join(dir, 'SUBDIR-LAYOUT.md'))).toBe(false);
-    expect(existsSync(join(dir, 'src/routes'))).toBe(mode === 'server');
-    // The spec-driven-development workflow does not transfer: the app installs it itself
-    // (`specify init`) if it wants it, rather than inheriting the template's copy.
-    expect(existsSync(join(dir, '.specify'))).toBe(false);
-    expect(existsSync(join(dir, 'specs'))).toBe(false);
-    // The resolver takes out the `speckit-*` skills by name and drops `.claude/` only once
-    // it is empty — it must never delete an agent config the person wrote before spinning up.
-    // So assert the promise (no speckit mirrors), not the stronger claim that `.claude` is
-    // always gone: a checkout carrying e.g. `.claude/settings.local.json` keeps the directory,
-    // and that is correct behavior rather than a failure.
-    expect(existsSync(join(dir, '.claude/skills'))).toBe(false);
-    if (existsSync(join(dir, '.claude'))) {
-      expect(readdirSync(join(dir, '.claude')).some((e) => e.startsWith('speckit-'))).toBe(false);
+  it('marks the local build noindex, as every non-public environment is', async () => {
+    const res = await fetch(`http://localhost:${port}/`);
+    expect(res.headers.get('x-robots-tag')).toBe('noindex');
+  });
+
+  it('has a web part and a server part, and nothing of the hub', () => {
+    for (const rel of ['web', 'server', 'scripts/dev.mjs', 'scripts/copy-web.mjs']) {
+      expect(existsSync(join(dir, rel)), rel).toBe(true);
     }
-    expect(existsSync(join(dir, 'CLAUDE.md'))).toBe(false);
-    expect(readFileSync(join(dir, '.gitignore'), 'utf8')).not.toMatch(/specs\//);
-    const readme = readFileSync(join(dir, 'README.md'), 'utf8');
-    expect(readme).not.toMatch(/template|skeleton|Use this template/i);
-    const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
-    expect(pkg.scripts.init).toBeUndefined();
-    // spec-render only renders specs/*.md, which the app has none of — scripts and the
-    // dependency both go, and package.json/package-lock.json stay in sync so `npm ci`
-    // (used by CI and the Dockerfile) still installs.
-    expect(pkg.scripts['spec:html']).toBeUndefined();
-    expect(pkg.scripts['spec:html:watch']).toBeUndefined();
-    expect(pkg.devDependencies['@snackbyte/spec-render']).toBeUndefined();
-    // app starts its own version line at MAJOR.MINOR 0.1 (the patch is derived from tags by CI,
-    // not stored in package.json), not the template's version
-    expect(pkg.version).toBe('0.1');
-    // package renamed to the app; description is a name-derived placeholder, not the
-    // template's description and not blank
+    for (const rel of [
+      'templates',
+      'hub',
+      'specs',
+      '.specify',
+      'CLAUDE.md',
+      'SPIN-UP.md',
+      'SUBDIR-LAYOUT.md',
+      '.github',
+      '.claude/skills',
+      'config',
+      'eslint.config.js',
+      'tsconfig.json',
+      'vitest.config.ts',
+    ]) {
+      expect(existsSync(join(dir, rel)), rel).toBe(false);
+    }
+    for (const part of ['web', 'server']) {
+      for (const rel of [
+        'template.json',
+        'README.app.md',
+        '.env',
+        'environments.json',
+        'scripts/init.mjs',
+        'tests/machinery',
+        'tests/no-api',
+      ]) {
+        expect(existsSync(join(dir, part, rel)), `${part}/${rel}`).toBe(false);
+      }
+      expect(existsSync(join(dir, part, 'README.md')), `${part}/README.md`).toBe(true);
+    }
+    expect(existsSync(join(dir, 'server/src/routes'))).toBe(hasApi);
+  });
+
+  it('roots the app: version 0.1, no dependencies, a script per part', () => {
+    const pkg = json(dir, 'package.json');
     expect(pkg.name).toBe('demo');
-    expect(pkg.description).toContain('demo');
-    expect(pkg.description).not.toMatch(/template|skeleton/i);
-    // package-lock.json is synced — no surviving template name/version fingerprint
-    const lock = JSON.parse(readFileSync(join(dir, 'package-lock.json'), 'utf8'));
-    expect(lock.name).toBe('demo');
-    expect(lock.version).toBe('0.1');
-    expect(lock.packages['']?.name).toBe('demo');
-    expect(JSON.stringify(lock)).not.toMatch(/snackbyte-base/);
-    expect(lock.packages['']?.devDependencies?.['@snackbyte/spec-render']).toBeUndefined();
-    expect(lock.packages['node_modules/@snackbyte/spec-render']).toBeUndefined();
-    // tests re-tiered: machinery gone, app tests kept, vite config points at tests/app
-    expect(existsSync(join(dir, 'tests/machinery'))).toBe(false);
-    expect(existsSync(join(dir, 'tests/app'))).toBe(true);
-    expect(existsSync(join(dir, 'tests/app/env-guard.test.ts'))).toBe(true);
-    expect(existsSync(join(dir, 'tests/app/config.test.ts'))).toBe(true);
-    expect(readFileSync(join(dir, 'vite.config.ts'), 'utf8')).not.toMatch(/tests\/machinery/);
-    // the app inherits NO CI: the template runs its own release workflow, but does not hand
-    // it to spun-up apps. CI is installed per repo from the release-flow Action's CONSUMING.md,
-    // so a shipped copy would just be a staler second copy of that wiring. The now-empty
-    // .github/ directory goes with it.
-    expect(existsSync(join(dir, '.github/workflows/ci-cd.yml'))).toBe(false);
-    expect(existsSync(join(dir, '.github/workflows/ci-cd.yml.disabled'))).toBe(false);
-    // dependabot.yml moves the template workflow's pins, so it leaves with that workflow
-    expect(existsSync(join(dir, '.github/dependabot.yml'))).toBe(false);
-    expect(existsSync(join(dir, '.github'))).toBe(false);
-    // environments.json is NOT release-flow-only config — it is app build input
-    // (scripts/build.mjs generates src/env.generated.ts from it), so it stays.
-    expect(existsSync(join(dir, 'environments.json'))).toBe(true);
-    // the page <title> is set to the app name, not the template placeholder
-    const html = readFileSync(join(dir, 'src/web/index.html'), 'utf8');
-    expect(html).toContain('<title>demo</title>');
-    expect(html).not.toContain('<title>App</title>');
-    for (const f of ['vite.config.ts', 'src/server.ts', 'scripts/dev.mjs', 'scripts/build.mjs']) {
-      expect(readFileSync(join(dir, f), 'utf8')).not.toMatch(/SPINUP/);
-    }
+    expect(pkg.version).toBe('0.1');
+    expect(pkg.dependencies).toBeUndefined();
+    expect(pkg.devDependencies).toBeUndefined();
+    expect(Object.keys(pkg.scripts)).toEqual(
+      expect.arrayContaining(['setup', 'dev', 'build', 'start', 'check:env', 'check:all']),
+    );
+    expect('dev:web' in pkg.scripts).toBe(true);
+    expect('dev:server' in pkg.scripts).toBe(hasApi);
+    const lock = json(dir, 'package-lock.json');
+    expect(lock.packages['']).toMatchObject({ name: 'demo', version: '0.1' });
+    expect(Object.keys(lock.packages)).toEqual(['']);
+    expect(json(dir, 'web/package.json').name).toBe('demo-web');
+    expect(json(dir, 'web/package-lock.json').name).toBe('demo-web');
+    expect(json(dir, 'server/package.json').name).toBe('demo-server');
   });
 
-  it('stamps the template it came from, with no version outside git', () => {
-    // This copy is not a git repository, so there is nothing to find the version from: the stamp
-    // records the format's unknown rather than a guess. The version paths are tested below.
-    expect(JSON.parse(readFileSync(join(dir, '.template.json'), 'utf8'))).toEqual({
-      template: 'snackbyte-base',
-      version: null,
-    });
-  });
-
-  it("keeps the committed .env as the app's local config, naming its own 1Password item", () => {
-    // The committed .env is the local configuration and its documentation: plain config on its
-    // `# config:` line, and the reference form a secret takes, with the app's item name filled in.
-    const env = readFileSync(join(dir, '.env'), 'utf8');
+  it("holds the app's one .env, naming its own 1Password item", () => {
+    const env = read(dir, '.env');
     expect(findRawValues(env)).toEqual([]);
-    expect(env).toMatch(/^# config: PORT$/m);
+    expect(env).toMatch(hasApi ? /^# config: PORT API_URL$/m : /^# config: PORT$/m);
     expect(env).toMatch(/^PORT=8080$/m);
+    if (hasApi) expect(env).toMatch(/^API_URL=http:\/\/localhost:8080$/m);
+    else expect(env).not.toContain('API_URL');
     expect(env).toContain('op://app-secrets/demo.local/KEY');
     expect(env).toContain('item demo.local in the vault app-secrets');
     expect(env).toContain('op run --env-file=.env -- npm run dev');
-    expect(env).not.toMatch(/snackbyte-base/);
-    expect(existsSync(join(dir, '.env.example'))).toBe(false);
-    // git keeps .env and ignores every other env file; the image build sees none of them
-    const gitignore = readFileSync(join(dir, '.gitignore'), 'utf8').split('\n');
+    expect(read(dir, 'environments.json')).toBe(read(repoRoot, 'environments.json'));
+    const gitignore = read(dir, '.gitignore').split('\n');
     expect(gitignore).toEqual(expect.arrayContaining(['.env*', '!.env']));
-    expect(gitignore.filter((line) => line.startsWith('!.env'))).toEqual(['!.env']);
-    const dockerignore = readFileSync(join(dir, '.dockerignore'), 'utf8').split('\n');
-    expect(dockerignore).toContain('.env*');
-    expect(dockerignore.filter((line) => line.startsWith('!.env'))).toEqual([]);
-    // the gate and the guard ship with the app, and so does the guard's test
-    const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
-    expect(pkg.scripts['check:env']).toBe('node scripts/check-env-files.mjs');
-    expect(pkg.scripts['check:all']).toContain('npm run check:env');
-    expect(existsSync(join(dir, 'scripts/check-env-files.mjs'))).toBe(true);
-    expect(existsSync(join(dir, 'scripts/lib/env-guard.mjs'))).toBe(true);
-    expect(existsSync(join(dir, 'tests/app/env-guard.test.ts'))).toBe(true);
+    expect(read(dir, '.dockerignore').split('\n')).toContain('**/.env*');
   });
 
-  it('resolved source passes prettier (no stray whitespace from marker removal)', () => {
-    const result = spawnSync(
-      'npx',
-      [
-        'prettier',
-        '--config',
-        'config/.prettierrc.json',
-        '--ignore-path',
-        'config/.prettierignore',
-        '--check',
-        'src/**/*.{ts,tsx}',
-        'scripts/**/*.mjs',
-        'vite.config.ts',
-      ],
-      { cwd: dir, encoding: 'utf8' },
-    );
-    expect(result.status).toBe(0);
+  it('stamps the template it came from, with no version outside git', () => {
+    expect(json(dir, '.template.json')).toEqual({ template: 'snackbyte-base', version: null });
   });
 
-  it('resolved docs point at no file the app does not have', () => {
-    // A doc reference that survives the transfer but whose target does not is a dangling
-    // pointer in the app's own README — worse than saying nothing, because it reads as a
-    // file the owner has misplaced. Only the markdown-link form is checked: a relative link
-    // is unambiguously a file in THIS repo, whereas a backticked name may well be a doc in
-    // another repo (`CONSUMING.md` in the release-flow Action, say). So the convention is:
-    // link a local doc, backtick a foreign one — which is what makes this guard decidable.
-    for (const doc of ['README.md']) {
-      const text = readFileSync(join(dir, doc), 'utf8');
-      const refs = new Set(
-        [...text.matchAll(/\[[^\]]*\]\(([A-Za-z0-9_-]+\.md)\)/g)].map((m) => m[1]),
-      );
-      for (const ref of refs) {
-        expect(existsSync(join(dir, ref)), `${doc} points at missing ${ref}`).toBe(true);
-      }
+  it('gets the image recipe for its server, and the Cloud Run deploy files', () => {
+    expect(read(dir, 'Dockerfile')).toBe(read(repoRoot, 'hub/files/Dockerfile.node'));
+    for (const file of ['cloudbuild.yaml', 'DEPLOY.md']) {
+      expect(read(dir, file)).toBe(read(repoRoot, `templates/deploy-cloud-run/${file}`));
     }
   });
 
-  it('leaves no "snackbyte-base" / template-word fingerprint in resolved metadata + key files', () => {
-    // The files most likely to carry a leftover template name/word after resolution.
+  it('carries no template name, template wording, marker or spec-workflow reference', () => {
+    const readme = read(dir, 'README.md');
+    expect(readme).not.toMatch(/template|skeleton|spin-?up/i);
+    expect(readme).toContain('[`web/`](web/README.md)');
     for (const rel of [
       'package.json',
       'package-lock.json',
       'README.md',
-      'src/web/index.html',
+      'web/index.html',
+      'web/package.json',
+      'server/package.json',
       '.env',
     ]) {
-      const text = readFileSync(join(dir, rel), 'utf8');
-      expect(text, `${rel} still references snackbyte-base`).not.toMatch(/snackbyte-base/);
+      expect(read(dir, rel), rel).not.toMatch(/snackbyte-base|web-react|server-node/);
     }
-    // The resolved README must not carry template/skeleton/spin-up wording.
-    expect(readFileSync(join(dir, 'README.md'), 'utf8')).not.toMatch(/skeleton|spin-?up/i);
-  });
-
-  it('leaves no spec-driven-development references in the resolved app', () => {
-    // The workflow is gone, so nothing shipped may point at it — a `/speckit-*` command or
-    // a `.specify/` path in the app's own docs would be an instruction it cannot follow.
     for (const rel of [
       'README.md',
       'DEPLOY.md',
       'package.json',
       '.gitignore',
       '.dockerignore',
-      'config/.prettierignore',
+      'web/README.md',
+      'server/README.md',
     ]) {
-      const file = join(dir, rel);
-      if (!existsSync(file)) continue;
-      expect(readFileSync(file, 'utf8'), `${rel} still references Spec Kit`).not.toMatch(
-        /speckit|spec[- ]kit|\.specify|spec-render/i,
-      );
+      expect(read(dir, rel), rel).not.toMatch(/speckit|spec[- ]kit|\.specify|spec-render/i);
+    }
+    for (const rel of ['web/vite.config.ts', 'web/scripts/build.mjs', 'server/src/server.ts']) {
+      expect(read(dir, rel), rel).not.toMatch(/SPINUP/);
     }
   });
-});
 
-describe('init requires --name', () => {
-  it('exits non-zero and changes nothing when --name is omitted', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'snackbyte-noname-'));
-    cpSync(repoRoot, dir, {
-      recursive: true,
-      filter: (src) =>
-        !src.includes('/node_modules') && !src.includes('/dist') && !/\/\.git(\/|$)/.test(src),
-    });
-    try {
-      const result = spawnSync(
-        'node',
-        ['scripts/init.mjs', '--mode=server', '--render=prerender'],
-        { cwd: dir, encoding: 'utf8' },
-      );
-      expect(result.status).not.toBe(0);
-      // init must NOT have run: its script is still present and the package is untouched.
-      expect(existsSync(join(dir, 'scripts/init.mjs'))).toBe(true);
-      expect(JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).name).toBe(
-        'snackbyte-base',
-      );
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
+  it('points at no local doc the app does not have', () => {
+    // Only the markdown-link form is checked: a relative link is unambiguously a file in this repo,
+    // whereas a backticked name may be a doc in another repo. Link a local doc, backtick a foreign one.
+    for (const doc of ['README.md', 'web/README.md', 'server/README.md']) {
+      const base = join(dir, doc, '..');
+      const refs = [...read(dir, doc).matchAll(/\]\(([A-Za-z0-9_./-]+\.md)\)/g)].map((m) => m[1]);
+      for (const ref of refs) expect(existsSync(join(base, ref)), `${doc} → ${ref}`).toBe(true);
     }
   });
+
+  it.runIf(checkAll)('passes its root check: the env files, then every part’s gate', () => {
+    execFileSync('git', ['init', '-q'], { cwd: dir });
+    execFileSync('git', ['add', '-A'], { cwd: dir });
+    const check = npm(dir, ['run', 'check:all']);
+    expect(check.status, check.stdout.slice(-4000) + check.stderr.slice(-4000)).toBe(0);
+    expect(check.stdout).toContain('check:env OK: 1 tracked env file(s)');
+  });
 });
 
-describe('CI/CD is active in the template repo', () => {
-  // The snackbyte-base repo runs its own CI: it ships the workflow live as ci-cd.yml (no
-  // .disabled). It validates, versions, and tags itself — but ships NO deploy job (deploy is
-  // per-app, copied in from DEPLOY.md at wire-up time).
-  it('ships the workflow active in the template source (live *.yml, no .disabled)', () => {
-    expect(existsSync(join(repoRoot, '.github/workflows/ci-cd.yml'))).toBe(true);
-    expect(existsSync(join(repoRoot, '.github/workflows/ci-cd.yml.disabled'))).toBe(false);
-    const workflow = readFileSync(join(repoRoot, '.github/workflows/ci-cd.yml'), 'utf8');
-    expect(workflow).toContain('name: ci-cd');
-    // no deploy job / deploy provider wiring in the template's own workflow
-    expect(workflow).not.toMatch(/^\s*deploy:/m);
-    expect(workflow).not.toMatch(/gcloud|run\.googleapis|workload_identity/i);
+describe('the root dev command', () => {
+  let dir: string;
+  let dev: ChildProcess;
+  const vitePort = 8270;
+  const apiPort = 8271;
+
+  beforeAll(() => {
+    dir = freshCopy('hub-dev');
+    const init = runInit(dir, ['--api=node', '--render=dynamic', '--name=demo']);
+    if (init.status !== 0) throw new Error(init.stderr);
+    linkInstalls(dir, { web: 'web-react', server: 'server-node' });
+  });
+  afterAll(() => {
+    stop(dev);
+    remove(dir);
   });
 
-  // Copies the whole repo incl. node_modules (~150MB), which can exceed the 5s default under
-  // load — give it room so the cpSync isn't a flaky timeout.
-  it(
-    'strips the template’s inherited git tags so the app’s first release mints v0.1.0',
-    { timeout: 30000 },
-    () => {
-      const dir = mkdtempSync(join(tmpdir(), 'snackbyte-tags-'));
-      cpSync(repoRoot, dir, {
-        recursive: true,
-        filter: (src) =>
-          !src.includes('/node_modules') && !src.includes('/dist') && !/\/\.git(\/|$)/.test(src),
-      });
-      cpSync(join(repoRoot, 'node_modules'), join(dir, 'node_modules'), { recursive: true });
-      const git = (...a: string[]) => execFileSync('git', a, { cwd: dir, stdio: 'ignore' });
-      try {
-        // A clone/fork inherits the template's release tags; reproduce that, then assert init clears
-        // them (a "Create from template" repo has none, which is the no-op path also exercised here).
-        git('init', '-q');
-        git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '--allow-empty', '-qm', 'seed');
-        git('tag', 'v1.2.0');
-        git('tag', 'v1.2.5');
-        expect(execFileSync('git', ['tag', '-l'], { cwd: dir, encoding: 'utf8' }).trim()).not.toBe(
-          '',
-        );
-
-        execFileSync(
-          'node',
-          ['scripts/init.mjs', '--mode=static', '--render=dynamic', '--name=demo'],
-          { cwd: dir, stdio: 'ignore' },
-        );
-
-        expect(execFileSync('git', ['tag', '-l'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('');
-      } finally {
-        rmSync(dir, { recursive: true, force: true });
-      }
-    },
-  );
-});
-
-describe('init stamps the template version in .template.json', () => {
-  const TEMPLATE_URL = 'https://github.com/jeff-fichtner/snackbyte-base.git';
-  const ident = ['-c', 'user.email=t@t', '-c', 'user.name=t'];
-
-  // A fresh copy of the template, at `app` inside the repository `dir` (the root unless the app is
-  // nested), whose first commit holds the template's tree. Same filter as resolveAndBuild: no
-  // local .env.* file. node_modules is linked after the commit, outside the tree being matched;
-  // init only reads it (prettier, and a lockfile-only npm install).
-  function copyAsRepo(dir: string, app = dir): (...a: string[]) => string {
-    cpSync(repoRoot, app, {
-      recursive: true,
-      filter: (src) =>
-        !src.includes('/node_modules') &&
-        !src.includes('/dist') &&
-        !/\/\.git(\/|$)/.test(src) &&
-        !/\/\.env\.[^/]*$/.test(src),
-    });
-    const git = (...a: string[]) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' });
-    git('init', '-q');
-    git('add', '-A');
-    git(...ident, 'commit', '-qm', 'seed');
-    symlinkSync(join(repoRoot, 'node_modules'), join(app, 'node_modules'));
-    return git;
-  }
-
-  // "Create from template": a release of the template (a bare repository standing in for GitHub,
-  // reached through a URL rewrite), and the app's own first commit with the same tree.
-  function createFromTemplate(dir: string, tags: string[]): NodeJS.ProcessEnv {
-    const git = copyAsRepo(dir);
-    const template = `${dir}-template.git`;
-    execFileSync('git', ['clone', '-q', '--bare', dir, template]);
-    for (const t of tags) execFileSync('git', ['tag', t], { cwd: template });
-    git(...ident, 'commit', '-q', '--amend', '-m', 'Initial commit');
-    return rewriteTo(template);
-  }
-
-  function rewriteTo(target: string): NodeJS.ProcessEnv {
-    return {
+  it('starts every part together; the web dev server forwards /api to the server', async () => {
+    // The environment wins over .env, so the test picks its own ports.
+    dev = startGroup(dir, 'npm', ['run', 'dev', '--', '--port', String(vitePort), '--strictPort'], {
       ...process.env,
-      GIT_CONFIG_COUNT: '1',
-      GIT_CONFIG_KEY_0: `url.${target}.insteadOf`,
-      GIT_CONFIG_VALUE_0: TEMPLATE_URL,
-    };
-  }
+      PORT: String(apiPort),
+      API_URL: `http://localhost:${apiPort}`,
+    });
+    await waitFor(`http://localhost:${vitePort}/api/health`, 30_000);
+    const res = await fetch(`http://localhost:${vitePort}/api/health`);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    expect(((await res.json()) as { status: string }).status).toBe('ok');
+  });
+});
 
-  function init(dir: string, env: NodeJS.ProcessEnv = process.env) {
-    const run = spawnSync(
-      'node',
-      ['scripts/init.mjs', '--mode=static', '--render=dynamic', '--name=demo'],
-      { cwd: dir, env, encoding: 'utf8' },
-    );
-    expect(run.status, run.stderr).toBe(0);
-    return { stamp: JSON.parse(readFileSync(join(dir, '.template.json'), 'utf8')), run };
-  }
-
-  function inTempDir(name: string, body: (dir: string) => void): void {
-    const dir = mkdtempSync(join(tmpdir(), `snackbyte-stamp-${name}-`));
-    try {
-      body(dir);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-      rmSync(`${dir}-template.git`, { recursive: true, force: true });
-    }
-  }
-
-  it('is absent from the template’s own repo', () => {
-    // Only a repo made from the template is stamped; the template is not made from itself.
+describe('the repo before composing', () => {
+  it('holds no stamp of its own', () => {
     expect(existsSync(join(repoRoot, '.template.json'))).toBe(false);
   });
 
-  it('takes a clone’s version from the newest release tag on HEAD', { timeout: 30000 }, () => {
-    inTempDir('clone', (dir) => {
-      const git = copyAsRepo(dir);
-      for (const t of ['v1.2.0', 'v1.2.10-dev', 'v1.2.5', 'not-a-release']) git('tag', t);
-      const { stamp } = init(dir, rewriteTo(join(dir, 'unreachable.git')));
-      expect(stamp).toEqual({ template: 'snackbyte-base', version: '1.2.10' });
-    });
-  });
-
-  it(
-    'takes a template-created repo’s version from the template tag with the same tree',
-    { timeout: 30000 },
-    () => {
-      inTempDir('created', (dir) => {
-        const env = createFromTemplate(dir, ['v1.5.29', 'v1.5.30-dev', 'v1.5.30']);
-        const { stamp } = init(dir, env);
-        expect(stamp).toEqual({ template: 'snackbyte-base', version: '1.5.30' });
-        // the template's tags were read elsewhere: none of them, and no shallow history, land here
-        expect(execFileSync('git', ['tag', '-l'], { cwd: dir, encoding: 'utf8' })).toBe('');
-        expect(existsSync(join(dir, '.git/shallow'))).toBe(false);
-      });
-    },
-  );
-
-  it('records null, and says so, when HEAD no longer matches a release', { timeout: 30000 }, () => {
-    inTempDir('changed', (dir) => {
-      const env = createFromTemplate(dir, ['v1.5.30']);
-      writeFileSync(join(dir, 'README.md'), 'edited after creation\n');
-      execFileSync('git', [...ident, 'commit', '-qam', 'edit README'], { cwd: dir });
-      const { stamp, run } = init(dir, env);
-      expect(stamp).toEqual({ template: 'snackbyte-base', version: null });
-      expect(run.stderr).toMatch(/matches no snackbyte-base release/);
-    });
-  });
-
-  it(
-    'matches a nested app on its own directory, not the enclosing repo',
-    { timeout: 30000 },
-    () => {
-      inTempDir('nested', (dir) => {
-        // The enclosing repo's own release tag sits on HEAD; it says nothing about the app in web/.
-        const app = join(dir, 'web');
-        const git = copyAsRepo(dir, app);
-        git('tag', 'v2.3.0');
-        const { stamp, run } = init(app, rewriteTo(join(dir, 'unreachable.git')));
-        expect(stamp).toEqual({ template: 'snackbyte-base', version: null });
-        expect(run.stderr).toMatch(/could not fetch snackbyte-base's tags/);
-      });
-    },
-  );
-
-  it('records null, and says so, when the template cannot be reached', { timeout: 30000 }, () => {
-    inTempDir('offline', (dir) => {
-      copyAsRepo(dir);
-      const { stamp, run } = init(dir, rewriteTo(join(dir, 'unreachable.git')));
-      expect(stamp).toEqual({ template: 'snackbyte-base', version: null });
-      expect(run.stderr).toMatch(/could not fetch snackbyte-base's tags/);
-    });
+  it('keeps its own CI workflow (an app gets none)', () => {
+    const workflows = readdirSync(join(repoRoot, '.github/workflows'));
+    expect(workflows).toContain('ci-cd.yml');
+    const workflow = read(repoRoot, '.github/workflows/ci-cd.yml');
+    expect(workflow).not.toMatch(/^\s*deploy:/m);
+    expect(workflow).not.toMatch(/gcloud|run\.googleapis|workload_identity/i);
   });
 });

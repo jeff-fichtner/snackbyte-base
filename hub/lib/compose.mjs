@@ -71,7 +71,13 @@ export function compose(root, { name, parts }, version) {
     const dir = at(part.manifest.folder);
     const manifest = readManifest(dir, part.templateId);
     byRole[part.role] = { ...part, manifest };
-    for (const rel of [...(manifest.scaffolding ?? []), 'template.json', 'README.md', '.env', 'environments.json']) {
+    for (const rel of [
+      ...(manifest.scaffolding ?? []),
+      'template.json',
+      'README.md',
+      '.env',
+      'environments.json',
+    ]) {
       rmSync(resolve(dir, rel), { recursive: true, force: true });
     }
     if (manifest.appReadme) renameSync(resolve(dir, manifest.appReadme), resolve(dir, 'README.md'));

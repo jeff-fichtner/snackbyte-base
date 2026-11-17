@@ -48,7 +48,8 @@ export function plan(root, flags) {
       usageParts.push(`--${flag}=<${names.join('|')}>`);
       const value = flags[flag];
       if (value === undefined) problems.push(`--${flag} is required: ${names.join(', ')}`);
-      else if (!names.includes(value)) problems.push(`--${flag} must be one of ${names.join(', ')}`);
+      else if (!names.includes(value))
+        problems.push(`--${flag} must be one of ${names.join(', ')}`);
       else option = value;
     }
     if (option === undefined) continue;
@@ -73,7 +74,8 @@ export function plan(root, flags) {
       usageParts.push(`--${choice}=<${values.join('|')}>`);
       const value = flags[choice];
       if (value === undefined) problems.push(`--${choice} is required: ${values.join(', ')}`);
-      else if (!values.includes(value)) problems.push(`--${choice} must be one of ${values.join(', ')}`);
+      else if (!values.includes(value))
+        problems.push(`--${choice} must be one of ${values.join(', ')}`);
       else resolveArgs.push(`--${choice}=${value}`);
     }
     if (manifest.hasApi) {

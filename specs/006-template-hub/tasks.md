@@ -191,24 +191,24 @@ deploy-cloud-run, then the hub.
 
 **Independent test**: quickstart §3.
 
-- [ ] T044 [US1] Create `templates/server-dotnet/` (`Api.sln`, `global.json`,
+- [x] T044 [US1] Create `templates/server-dotnet/` (`Api.sln`, `global.json`,
   `Directory.Build.props` with the manifest lookup, `.editorconfig`, `.gitignore`,
   `environments.json`) from the validated prototype
-- [ ] T045 [P] [US1] Write `templates/server-dotnet/src/Api/{Api.csproj,Program.cs,AppEnvironment.cs,Port.cs,VersionInfo.cs,Health.cs,Properties/launchSettings.json}`
+- [x] T045 [P] [US1] Write `templates/server-dotnet/src/Api/{Api.csproj,Program.cs,AppEnvironment.cs,Port.cs,VersionInfo.cs,Health.cs,Properties/launchSettings.json}`
   per the server contract (`APP_ENV_NAME` bake and build-time check in `Api.csproj`)
-- [ ] T046 [P] [US1] Write `templates/server-dotnet/tests/Api.Tests/` (health, version, noindex,
+- [x] T046 [P] [US1] Write `templates/server-dotnet/tests/Api.Tests/` (health, version, noindex,
   port, environment identity, static files and fallback)
-- [ ] T047 [US1] Add a build-level test for the C# template: an unknown `APP_ENV_NAME` fails the build
+- [x] T047 [US1] Add a build-level test for the C# template: an unknown `APP_ENV_NAME` fails the build
   naming it; the manifest missing from both places fails naming them; a publish for `staging` bakes it
   (in `hub/tests/dotnet-build.test.ts`, since it drives `dotnet` from outside the solution)
-- [ ] T048 [US1] Write `templates/server-dotnet/{template.json,README.md,README.app.md}`; run its gate
+- [x] T048 [US1] Write `templates/server-dotnet/{template.json,README.md,README.app.md}`; run its gate
   green
-- [ ] T049 [US1] Add `dotnet` to `hub/registry.json`; extend `hub/tests/compose.test.ts` with the two
+- [x] T049 [US1] Add `dotnet` to `hub/registry.json`; extend `hub/tests/compose.test.ts` with the two
   C# combinations (root `check:all` for one; root `dev` serving `/api/health` from the C# API through
   the web dev server)
-- [ ] T050 [US1] Add `actions/setup-dotnet` (SHA-pinned, v6.1.0) to `.github/workflows/ci-cd.yml` and
+- [x] T050 [US1] Add `actions/setup-dotnet` (SHA-pinned, v6.1.0) to `.github/workflows/ci-cd.yml` and
   a nuget entry to `.github/dependabot.yml`
-- [ ] T051 [US1] Extend `SPIN-UP.md`, `README.md`, `refuse.test.ts` and the standalone check (T042)
+- [x] T051 [US1] Extend `SPIN-UP.md`, `README.md`, `refuse.test.ts` and the standalone check (T042)
   to the C# template
 
 ---
@@ -219,11 +219,11 @@ deploy-cloud-run, then the hub.
 
 **Independent test**: quickstart §5.
 
-- [ ] T052 [US3] Write `hub/files/Dockerfile.dotnet` (Node stage for web, SDK stage publishing with
+- [x] T052 [US3] Write `hub/files/Dockerfile.dotnet` (Node stage for web, SDK stage publishing with
   `APP_ENV_NAME`, ASP.NET runtime with `wwwroot`, `USER app`, pinned tags) and extend
   `hub/tests/dockerfiles.test.ts` to it
-- [ ] T053 [US3] Extend `e2e:image` to `--api=dotnet`; run all three; record the evidence in the C# PR
-- [ ] T054 [US3] Write the remaining deploy step for Jeff into the C# PR body and
+- [x] T053 [US3] Extend `e2e:image` to `--api=dotnet`; run all three; record the evidence in the C# PR
+- [x] T054 [US3] Write the remaining deploy step for Jeff into the C# PR body and
   `templates/deploy-cloud-run/DEPLOY.md`
 
 ---

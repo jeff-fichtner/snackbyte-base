@@ -20,7 +20,7 @@ import {
   waitFor,
 } from './helpers';
 
-type Api = 'node' | 'none';
+type Api = 'node' | 'dotnet' | 'none';
 type Render = 'prerender' | 'dynamic';
 interface Combo {
   api: Api;
@@ -35,7 +35,23 @@ const COMBOS: Combo[] = [
   { api: 'node', render: 'dynamic', port: 8261, checkAll: false },
   { api: 'none', render: 'prerender', port: 8262, checkAll: false },
   { api: 'none', render: 'dynamic', port: 8263, checkAll: true },
+  { api: 'dotnet', render: 'prerender', port: 8264, checkAll: true },
+  { api: 'dotnet', render: 'dynamic', port: 8265, checkAll: false },
 ];
+
+/** The template each server choice composes into server/. */
+const SERVER: Record<Api, string> = {
+  node: 'server-node',
+  dotnet: 'server-dotnet',
+  none: 'server-node',
+};
+
+/**
+ * What /api/version reports in a local start: each server's own notion of a production run. The Node
+ * server reports the dev version unless NODE_ENV or CI says otherwise; the C# server's host
+ * environment is Production outside a Development launch profile.
+ */
+const LOCAL_VERSION: Record<Api, string> = { node: '0.0.0-dev', dotnet: '0.0.0', none: '' };
 
 const read = (dir: string, rel: string) => readFileSync(join(dir, rel), 'utf8');
 const json = (dir: string, rel: string) => JSON.parse(read(dir, rel));
@@ -49,7 +65,7 @@ describe.each(COMBOS)('--api=$api --render=$render', ({ api, render, port, check
     dir = freshCopy(`hub-${api}-${render}`);
     const init = runInit(dir, [`--api=${api}`, `--render=${render}`, '--name=demo']);
     if (init.status !== 0) throw new Error(`init failed:\n${init.stdout}\n${init.stderr}`);
-    linkInstalls(dir, { web: 'web-react', server: 'server-node' });
+    linkInstalls(dir, { web: 'web-react', server: SERVER[api] });
     // Never let an inherited opt-out hide the config-loader warning the build is checked for.
     const build = npm(dir, ['run', 'build'], {
       ...process.env,
@@ -79,7 +95,7 @@ describe.each(COMBOS)('--api=$api --render=$render', ({ api, render, port, check
   });
 
   it(`is ${render}`, () => {
-    const html = read(dir, 'server/public/index.html');
+    const html = read(dir, 'web/dist/index.html');
     const root = html.match(/<div id="root">(.*?)<\/div>/s)?.[1] ?? '';
     if (render === 'prerender') expect(root).toContain('<main');
     else expect(root).not.toContain('<main');
@@ -93,7 +109,7 @@ describe.each(COMBOS)('--api=$api --render=$render', ({ api, render, port, check
     if (hasApi) {
       const version = await (await fetch(`http://localhost:${port}/api/version`)).json();
       expect(version).toEqual({
-        number: '0.0.0-dev',
+        number: LOCAL_VERSION[api],
         commit: 'dev',
         buildDate: 'dev',
         environment: 'local',
@@ -141,7 +157,8 @@ describe.each(COMBOS)('--api=$api --render=$render', ({ api, render, port, check
       }
       expect(existsSync(join(dir, part, 'README.md')), `${part}/README.md`).toBe(true);
     }
-    expect(existsSync(join(dir, 'server/src/routes'))).toBe(hasApi);
+    expect(existsSync(join(dir, 'server/src/routes'))).toBe(api === 'node');
+    expect(existsSync(join(dir, 'server/Api.sln'))).toBe(api === 'dotnet');
   });
 
   it('roots the app: version 0.1, no dependencies, a script per part', () => {
@@ -160,7 +177,7 @@ describe.each(COMBOS)('--api=$api --render=$render', ({ api, render, port, check
     expect(Object.keys(lock.packages)).toEqual(['']);
     expect(json(dir, 'web/package.json').name).toBe('demo-web');
     expect(json(dir, 'web/package-lock.json').name).toBe('demo-web');
-    expect(json(dir, 'server/package.json').name).toBe('demo-server');
+    if (api !== 'dotnet') expect(json(dir, 'server/package.json').name).toBe('demo-server');
   });
 
   it("holds the app's one .env, naming its own 1Password item", () => {
@@ -184,7 +201,8 @@ describe.each(COMBOS)('--api=$api --render=$render', ({ api, render, port, check
   });
 
   it('gets the image recipe for its server, and the Cloud Run deploy files', () => {
-    expect(read(dir, 'Dockerfile')).toBe(read(repoRoot, 'hub/files/Dockerfile.node'));
+    const recipe = api === 'dotnet' ? 'Dockerfile.dotnet' : 'Dockerfile.node';
+    expect(read(dir, 'Dockerfile')).toBe(read(repoRoot, `hub/files/${recipe}`));
     for (const file of ['cloudbuild.yaml', 'DEPLOY.md']) {
       expect(read(dir, file)).toBe(read(repoRoot, `templates/deploy-cloud-run/${file}`));
     }
@@ -202,8 +220,8 @@ describe.each(COMBOS)('--api=$api --render=$render', ({ api, render, port, check
       'web/package.json',
       'server/package.json',
       '.env',
-    ]) {
-      expect(read(dir, rel), rel).not.toMatch(/snackbyte-base|web-react|server-node/);
+    ].filter((rel) => existsSync(join(dir, rel)))) {
+      expect(read(dir, rel), rel).not.toMatch(/snackbyte-base|web-react|server-node|server-dotnet/);
     }
     for (const rel of [
       'README.md',
@@ -216,7 +234,12 @@ describe.each(COMBOS)('--api=$api --render=$render', ({ api, render, port, check
     ]) {
       expect(read(dir, rel), rel).not.toMatch(/speckit|spec[- ]kit|\.specify|spec-render/i);
     }
-    for (const rel of ['web/vite.config.ts', 'web/scripts/build.mjs', 'server/src/server.ts']) {
+    for (const rel of [
+      'web/vite.config.ts',
+      'web/scripts/build.mjs',
+      'server/src/server.ts',
+      'server/src/Api/Program.cs',
+    ].filter((rel) => existsSync(join(dir, rel)))) {
       expect(read(dir, rel), rel).not.toMatch(/SPINUP/);
     }
   });
@@ -240,17 +263,18 @@ describe.each(COMBOS)('--api=$api --render=$render', ({ api, render, port, check
   });
 });
 
-describe('the root dev command', () => {
+describe.each([
+  { api: 'node' as Api, vitePort: 8270, apiPort: 8271 },
+  { api: 'dotnet' as Api, vitePort: 8272, apiPort: 8273 },
+])('the root dev command (--api=$api)', ({ api, vitePort, apiPort }) => {
   let dir: string;
   let dev: ChildProcess;
-  const vitePort = 8270;
-  const apiPort = 8271;
 
   beforeAll(() => {
-    dir = freshCopy('hub-dev');
-    const init = runInit(dir, ['--api=node', '--render=dynamic', '--name=demo']);
+    dir = freshCopy(`hub-dev-${api}`);
+    const init = runInit(dir, [`--api=${api}`, '--render=dynamic', '--name=demo']);
     if (init.status !== 0) throw new Error(init.stderr);
-    linkInstalls(dir, { web: 'web-react', server: 'server-node' });
+    linkInstalls(dir, { web: 'web-react', server: SERVER[api] });
   });
   afterAll(() => {
     stop(dev);
@@ -264,11 +288,12 @@ describe('the root dev command', () => {
       PORT: String(apiPort),
       API_URL: `http://localhost:${apiPort}`,
     });
-    await waitFor(`http://localhost:${vitePort}/api/health`, 30_000);
+    // The C# server compiles before it listens, so it gets longer to come up.
+    await waitFor(`http://localhost:${vitePort}/api/health`, 120_000);
     const res = await fetch(`http://localhost:${vitePort}/api/health`);
     expect(res.headers.get('content-type')).toContain('application/json');
     expect(((await res.json()) as { status: string }).status).toBe('ok');
-  });
+  }, 150_000);
 });
 
 describe('the repo before composing', () => {

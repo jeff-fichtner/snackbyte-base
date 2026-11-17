@@ -1,0 +1,26 @@
+<Project>
+
+  <!--
+    Settings every project in this solution shares. The target framework lives here and nowhere
+    else, so moving to a newer .NET is this line plus the SDK pin in global.json.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <!--
+    The environments manifest. Standalone, this folder holds its own environments.json; inside an
+    app, the app's one copy sits in the parent folder. Exactly those two places are looked in, in
+    that order. Api.csproj stops the build when neither has it.
+  -->
+  <PropertyGroup>
+    <ManifestHome>$(MSBuildThisFileDirectory)</ManifestHome>
+    <EnvironmentsManifest Condition="Exists('$(ManifestHome)environments.json')">$(ManifestHome)environments.json</EnvironmentsManifest>
+    <EnvironmentsManifest Condition="'$(EnvironmentsManifest)' == '' and Exists('$(ManifestHome)../environments.json')">$([System.IO.Path]::GetFullPath('$(ManifestHome)../environments.json'))</EnvironmentsManifest>
+  </PropertyGroup>
+
+</Project>

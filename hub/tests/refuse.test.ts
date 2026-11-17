@@ -26,14 +26,14 @@ function refused(args: string[]) {
 describe('the hub resolver refuses', () => {
   it('a run with no choices, naming every missing one and its values', () => {
     const stderr = refused([]);
-    expect(stderr).toContain('--api is required: node, none');
+    expect(stderr).toContain('--api is required: node, dotnet, none');
     expect(stderr).toContain('--render is required: prerender, dynamic');
     expect(stderr).toContain('--name is required');
   });
 
   it('an unknown API choice', () => {
     expect(refused(['--api=rust', '--render=dynamic', '--name=demo'])).toContain(
-      '--api must be one of node, none',
+      '--api must be one of node, dotnet, none',
     );
   });
 

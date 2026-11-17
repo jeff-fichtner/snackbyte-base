@@ -19,7 +19,8 @@ confirm `node --version` instead (`nvm` is a shell function and won't be on the 
 node --version   # expect v24.x
 ```
 
-There is nothing to install before resolving.
+There is nothing to install before resolving. A C# server also needs the .NET 8 SDK
+(`dotnet --list-sdks` shows an `8.0.` line) once you install the composed app.
 
 > **Not putting this app at the repo root?** The hub assumes the app _is_ the repo. If you're
 > nesting it in a subdirectory of an existing repo, read [SUBDIR-LAYOUT.md](SUBDIR-LAYOUT.md)
@@ -38,6 +39,8 @@ decisions, not preferences with a default — make them deliberately.
 
 - **`node`** — a Node + Express + TypeScript server serves the front end AND an API under `/api`
   (starting with `/api/health` and `/api/version`).
+- **`dotnet`** — a C# server (.NET 8 ASP.NET Core minimal API, tested with xUnit) serves the front
+  end AND the API under `/api`, with the same endpoints.
 - **`none`** — no API. A small Node + Express server still serves the built front end; there is
   just no `/api`.
 
@@ -53,7 +56,7 @@ page `<title>` (prettify the title later in `web/index.html`) and names the app'
 Then run the resolver (all three required):
 
 ```bash
-npm run init -- --api=<node|none> --render=<prerender|dynamic> --name=<repo-slug>
+npm run init -- --api=<node|dotnet|none> --render=<prerender|dynamic> --name=<repo-slug>
 ```
 
 It checks every choice before changing anything, then: moves the chosen front end and server into
@@ -176,6 +179,14 @@ In `server/`:
 2. Remove `dev:server` from the root `package.json`.
 3. Remove the `/api` proxy from `web/vite.config.ts` and `API_URL` from the root `.env`.
 4. Remove any API tests under `server/tests/app/`.
+
+### Changing the server's language
+
+The servers answer the same contract (`/api/health`, `/api/version`, the noindex header, the `PORT`
+rule, serving the front end), so the front end and the deploy do not change. Compose a scratch app
+with the other server at the version in `.template.json`, then take its `server/`, its root
+`package.json` scripts (`setup`, `dev:server`, `build`, `start`, `check:server`) and its
+`Dockerfile`, and move your API code across.
 
 ### prerender → dynamic
 

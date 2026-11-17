@@ -10,6 +10,7 @@ const COPIES: Record<string, string[]> = {
     'environments.json',
     'templates/web-react/environments.json',
     'templates/server-node/environments.json',
+    'templates/server-dotnet/environments.json',
   ],
   '.nvmrc': ['.nvmrc', 'templates/web-react/.nvmrc', 'templates/server-node/.nvmrc'],
   'env-guard.mjs': [

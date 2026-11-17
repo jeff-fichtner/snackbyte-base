@@ -1,0 +1,71 @@
+# The app's image: the web part built to static files, served by the C# server in server/ (an
+# ASP.NET Core minimal API, which also serves the API under /api). The deploy builds it from the app
+# root. Each part builds in its own stage with its own toolchain; the runtime stage holds only the
+# published server and the web build.
+
+# The environment and version arrive as build-args (cloudbuild.yaml passes them). Each part resolves
+# the environment's facets from the app's environments.json and bakes them, so the web build and the
+# server report the same environment; no build-arg overrides a facet. With no APP_ENV_NAME the build
+# resolves the 'local' identity (cloudbuild.yaml refuses to deploy without one).
+ARG BUILD_GIT_COMMIT=unknown
+ARG BUILD_DATE=unknown
+ARG APP_ENV_NAME=
+ARG APP_VERSION=0.0.0
+
+# --- The web part -------------------------------------------------------------------------------
+FROM node:24.22.1-slim AS web
+WORKDIR /app
+
+# Install first, so a source-only change reuses this layer. NODE_ENV must NOT be production here, or
+# npm ci would skip devDependencies and the build tools would be missing.
+COPY web/package*.json web/
+RUN npm ci --prefix web
+
+COPY environments.json ./
+COPY web/ web/
+
+ARG BUILD_GIT_COMMIT
+ARG BUILD_DATE
+ARG APP_ENV_NAME
+ARG APP_VERSION
+ENV CI=true NODE_ENV=production APP_ENV_NAME=${APP_ENV_NAME} APP_VERSION=${APP_VERSION} \
+    BUILD_GIT_COMMIT=${BUILD_GIT_COMMIT} BUILD_DATE=${BUILD_DATE}
+RUN npm --prefix web run build
+
+# --- The server ---------------------------------------------------------------------------------
+FROM mcr.microsoft.com/dotnet/sdk:8.0.428 AS server
+WORKDIR /app
+
+# Restore first, so a source-only change reuses this layer.
+COPY server/*.sln server/global.json server/Directory.Build.props server/
+COPY server/src/Api/Api.csproj server/src/Api/
+COPY server/tests/Api.Tests/Api.Tests.csproj server/tests/Api.Tests/
+RUN dotnet restore server/src/Api/Api.csproj
+
+COPY environments.json ./
+COPY server/ server/
+
+# The build reads APP_ENV_NAME from its environment, checks it against environments.json and bakes it
+# into the server.
+ARG APP_ENV_NAME
+ENV APP_ENV_NAME=${APP_ENV_NAME}
+RUN dotnet publish server/src/Api -c Release --no-restore -o /out
+
+# --- The runtime --------------------------------------------------------------------------------
+FROM mcr.microsoft.com/dotnet/aspnet:8.0.34 AS runtime
+WORKDIR /app
+
+# Ship only built output — the published server and the web build it serves from wwwroot/ — never
+# source.
+COPY --from=server /out ./
+COPY --from=web /app/web/dist ./wwwroot
+
+# The server binds PORT itself (Cloud Run provides it; 8080 when run anywhere else), so the runtime
+# image's own port setting is cleared rather than left to compete with it.
+ENV ASPNETCORE_HTTP_PORTS=
+ENV PORT=8080
+EXPOSE 8080
+
+# Nothing in the app writes to its own files, so it runs as the image's non-root user.
+USER app
+ENTRYPOINT ["dotnet", "Api.dll"]

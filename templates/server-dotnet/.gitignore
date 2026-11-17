@@ -1,0 +1,23 @@
+# Build output
+bin/
+obj/
+
+# The published server, with the built web app placed in out/wwwroot for production
+out/
+
+# Test results
+TestResults/
+*.trx
+
+# Environment: this server reads no env file; keep any local one out of git
+.env*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vs/
+*.user
+*.swp
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

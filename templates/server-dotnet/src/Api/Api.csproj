@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    The environment this build is for. APP_ENV_NAME comes from the build's environment (MSBuild reads
+    environment variables as properties), the same variable the web build reads. It is baked into
+    the assembly, so the server reports the environment its image was built for. Unset, nothing is
+    baked and the server runs as the `local` identity.
+  -->
+  <PropertyGroup>
+    <AppEnvName Condition="'$(AppEnvName)' == ''">$(APP_ENV_NAME)</AppEnvName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>AppEnvName</_Parameter1>
+      <_Parameter2>$(AppEnvName)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <!-- The manifest travels with the build, so the server reads its environment's facets beside itself. -->
+  <ItemGroup Condition="'$(EnvironmentsManifest)' != ''">
+    <None Include="$(EnvironmentsManifest)" Link="environments.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- A build for an environment the manifest does not list stops here, before anything is built. -->
+  <Target Name="CheckEnvironment" BeforeTargets="BeforeBuild">
+    <Error Condition="'$(EnvironmentsManifest)' == ''" Text="environments.json not found: looked in $(ManifestHome) and its parent folder." />
+    <Error Condition="'$(AppEnvName)' != '' and !$([System.Text.RegularExpressions.Regex]::IsMatch($([System.IO.File]::ReadAllText('$(EnvironmentsManifest)')), '&quot;name&quot;\s*:\s*&quot;$([System.Text.RegularExpressions.Regex]::Escape('$(AppEnvName)'))&quot;'))" Text="APP_ENV_NAME='$(AppEnvName)' is not an environment in $(EnvironmentsManifest)." />
+  </Target>
+
+</Project>

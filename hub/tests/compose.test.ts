@@ -283,13 +283,21 @@ describe.each([
 
   it('starts every part together; the web dev server forwards /api to the server', async () => {
     // The environment wins over .env, so the test picks its own ports.
-    dev = startGroup(dir, 'npm', ['run', 'dev', '--', '--port', String(vitePort), '--strictPort'], {
-      ...process.env,
-      PORT: String(apiPort),
-      API_URL: `http://localhost:${apiPort}`,
-    });
-    // The C# server compiles before it listens, so it gets longer to come up.
-    await waitFor(`http://localhost:${vitePort}/api/health`, 120_000);
+    const log = join(dir, 'dev.log');
+    dev = startGroup(
+      dir,
+      'npm',
+      ['run', 'dev', '--', '--port', String(vitePort), '--strictPort'],
+      { ...process.env, PORT: String(apiPort), API_URL: `http://localhost:${apiPort}` },
+      log,
+    );
+    // The C# server restores and compiles before it listens, so it gets longer to come up. On a
+    // timeout, the dev processes' own output says why.
+    try {
+      await waitFor(`http://localhost:${vitePort}/api/health`, 120_000);
+    } catch (error) {
+      throw new Error(`${(error as Error).message}\n--- npm run dev ---\n${read(dir, 'dev.log')}`);
+    }
     const res = await fetch(`http://localhost:${vitePort}/api/health`);
     expect(res.headers.get('content-type')).toContain('application/json');
     expect(((await res.json()) as { status: string }).status).toBe('ok');

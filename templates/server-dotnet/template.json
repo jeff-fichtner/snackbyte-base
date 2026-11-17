@@ -4,7 +4,7 @@
   "folder": "server",
   "image": "dotnet",
   "setup": "dotnet restore {dir}",
-  "dev": "dotnet watch --project {dir}/src/Api run",
+  "dev": "dotnet watch --non-interactive --project {dir}/src/Api run",
   "check": "dotnet format {dir} --verify-no-changes && dotnet build {dir} && dotnet test {dir} --no-build",
   "build": "dotnet publish {dir}/src/Api -c Release -o {dir}/out",
   "start": "cd {dir}/out && dotnet Api.dll",

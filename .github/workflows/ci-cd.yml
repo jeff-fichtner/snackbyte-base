@@ -1,6 +1,6 @@
 # THIS REPO'S OWN CI. snackbyte-base runs it to validate and tag its own releases — that is where
-# its `v1.x` tags come from. It is NOT handed to the apps this template spins up: the spin-up
-# resolver (scripts/init.mjs) DELETES this file, and `.github/` with it. CI is installed per repo
+# its `v1.x` tags come from. It is NOT handed to the apps the hub composes: the hub resolver
+# (hub/init.mjs) DELETES this file, and `.github/` with it. CI is installed per repo
 # from CONSUMING.md in jeff-fichtner/snackbyte-release-flow-action, which owns the wiring — a copy
 # shipped from here would be a second, staler copy of it.
 #
@@ -55,7 +55,12 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            templates/*/package-lock.json
       - run: npm ci
+      # Every template is its own project: install each (the hub's own tests compose apps from them).
+      - run: npm run setup
       - run: npm run check:all
 
   # Push-side gate + derive the version + create the tag. The quality gate is mandatory and runs
@@ -97,8 +102,12 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            templates/*/package-lock.json
 
       - run: npm ci
+      - run: npm run setup
 
       # Push-side gate (mandatory): app code must be green before anything is tagged. On failure the
       # job stops here, the Action never runs, and no tag is created.

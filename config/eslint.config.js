@@ -5,7 +5,8 @@ import globals from 'globals';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', '*.tsbuildinfo'],
+    // Each template lints itself with its own config (its gate runs from check:templates).
+    ignores: ['templates/**', 'node_modules/**', 'dist/**', 'coverage/**', '*.tsbuildinfo'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -15,15 +16,6 @@ export default tseslint.config(
       sourceType: 'module',
       globals: {
         ...globals.node,
-      },
-    },
-  },
-  {
-    // Frontend code also runs in the browser.
-    files: ['src/web/**/*.{ts,tsx}'],
-    languageOptions: {
-      globals: {
-        ...globals.browser,
       },
     },
   },

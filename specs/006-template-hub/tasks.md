@@ -62,7 +62,7 @@ A hub test asserts the hub root holds only hub files afterwards (T033).
   `.specify/memory/constitution.md`
 - [x] T002 Point the active-feature block at this spec in `CLAUDE.md` (between the SPECKIT markers)
 - [x] T003 Run `/speckit-analyze` over spec, plan and tasks; fix what is unambiguous
-- [ ] T004 Run `npm run check:all` on the spec branch; open the spec PR against `dev` with
+- [x] T004 Run `npm run check:all` on the spec branch; open the spec PR against `dev` with
   `## Decisions for Jeff`; merge once green (docs only, per the week's brief)
 
 ---
@@ -75,75 +75,75 @@ deploy-cloud-run, then the hub.
 
 ### Template: web-react
 
-- [ ] T005 `git mv` the front end and the shared scripts into `templates/web-react/` per the table
+- [x] T005 `git mv` the front end and the shared scripts into `templates/web-react/` per the table
   above, flattening `src/web` → `src`
-- [ ] T006 Write `templates/web-react/package.json` (React, Vite, Vitest, ESLint, Prettier, TS,
+- [x] T006 Write `templates/web-react/package.json` (React, Vite, Vitest, ESLint, Prettier, TS,
   jsdom, tsx, dotenv) and derive its `package-lock.json` from today's lockfile by pruning, keeping
   every remaining version unchanged
-- [ ] T007 [P] Add `templates/web-react/{tsconfig.json,eslint.config.js,config/,.nvmrc,.gitignore,.env,environments.json}`
-- [ ] T008 Add `templates/web-react/scripts/lib/find-up-one.mjs` (own folder, then parent; the
+- [x] T007 [P] Add `templates/web-react/{tsconfig.json,eslint.config.js,config/,.nvmrc,.gitignore,.env,environments.json}`
+- [x] T008 Add `templates/web-react/scripts/lib/find-up-one.mjs` (own folder, then parent; the
   manifest missing from both throws naming both) and use it in
   `templates/web-react/scripts/{load-env,resolve-env}.mjs`
-- [ ] T009 Rewrite `templates/web-react/vite.config.ts`: root at the template, `SPINUP:api-only`
+- [x] T009 Rewrite `templates/web-react/vite.config.ts`: root at the template, `SPINUP:api-only`
   block with the `/api` proxy to `API_URL`, required only for the dev server
-- [ ] T010 Rewrite `templates/web-react/scripts/{dev,build}.mjs`: dev runs Vite only, passing
+- [x] T010 Rewrite `templates/web-react/scripts/{dev,build}.mjs`: dev runs Vite only, passing
   `npm run dev -- <args>` through (#8940f5); build runs Vite build and, in a `SPINUP:prerender-only`
   block, the prerender step; no server compile
-- [ ] T011 Write the web resolver `templates/web-react/scripts/init.mjs` (`--render`, `--api=yes|no`,
+- [x] T011 Write the web resolver `templates/web-react/scripts/init.mjs` (`--render`, `--api=yes|no`,
   `--name`): markers, dynamic-only deletions, page title, package name, `.env` item name and
   `API_URL` line, removal of its scaffolding; marker blocks laid out so removal leaves prettier-clean
   source with no formatter run
-- [ ] T012 [P] Adapt the moved web tests (`tests/app/{example,env-guard}`,
+- [x] T012 [P] Adapt the moved web tests (`tests/app/{example,env-guard}`,
   `tests/machinery/{chip,prerender}`, the web half of `env-accessor`)
-- [ ] T013 Write `templates/web-react/tests/machinery/init.test.ts` (render × api in scratch copies:
+- [x] T013 Write `templates/web-react/tests/machinery/init.test.ts` (render × api in scratch copies:
   build, render strategy, proxy present only with an API via the native config loader, scaffolding
   removed, prettier-clean) and `tests/machinery/lookup.test.ts` (own-then-parent for `.env` and the
   manifest; the manifest missing from both throws naming both paths; an unset `API_URL` stops the dev
   server config naming it; build and tests need no `API_URL`)
-- [ ] T014 [P] Write `templates/web-react/{template.json,README.md,README.app.md}`
-- [ ] T015 Run the web-react gate green
+- [x] T014 [P] Write `templates/web-react/{template.json,README.md,README.app.md}`
+- [x] T015 Run the web-react gate green
 
 ### Template: server-node
 
-- [ ] T016 `git mv` the server into `templates/server-node/` per the table; copy the shared scripts
+- [x] T016 `git mv` the server into `templates/server-node/` per the table; copy the shared scripts
   (`resolve-env`, `load-env`, `check-env-files`, `lib/env-guard.*`, `lib/find-up-one.mjs`) from
   web-react
-- [ ] T017 Write `templates/server-node/package.json` (Express; tsx, TS, Vitest, supertest, ESLint,
+- [x] T017 Write `templates/server-node/package.json` (Express; tsx, TS, Vitest, supertest, ESLint,
   Prettier, dotenv) and its pruned `package-lock.json`
-- [ ] T018 [P] Add `templates/server-node/{tsconfig.json,vitest.config.ts,eslint.config.js,config/,.nvmrc,.gitignore,.env,environments.json}`
-- [ ] T019 Change `templates/server-node/src/server.ts` to `createApp(webRoot)` serving `public/`
+- [x] T018 [P] Add `templates/server-node/{tsconfig.json,vitest.config.ts,eslint.config.js,config/,.nvmrc,.gitignore,.env,environments.json}`
+- [x] T019 Change `templates/server-node/src/server.ts` to `createApp(webRoot)` serving `public/`
   (from the working directory) with the SPA fallback; keep the `SPINUP:server-only` blocks; build
   output `dist/server.js`
-- [ ] T020 Rewrite `templates/server-node/scripts/{dev,build}.mjs` (dev: `tsx watch src/server.ts`;
+- [x] T020 Rewrite `templates/server-node/scripts/{dev,build}.mjs` (dev: `tsx watch src/server.ts`;
   build: bake `src/env.generated.ts`, `tsc`)
-- [ ] T021 Write the server resolver `templates/server-node/scripts/init.mjs` (`--api=yes|no`,
+- [x] T021 Write the server resolver `templates/server-node/scripts/init.mjs` (`--api=yes|no`,
   `--name`): routes and markers, drop `dev` from its manifest when `--api=no`, its scaffolding
-- [ ] T022 [P] Adapt the moved server tests (`tests/app/{server-smoke,static-smoke,config,env-guard}`
+- [x] T022 [P] Adapt the moved server tests (`tests/app/{server-smoke,static-smoke,config,env-guard}`
   with a fixture web root; `tests/machinery/environment`, the server half of `env-accessor`)
-- [ ] T023 Write `templates/server-node/tests/machinery/{init,lookup}.test.ts` (api yes/no: routes,
+- [x] T023 Write `templates/server-node/tests/machinery/{init,lookup}.test.ts` (api yes/no: routes,
   dev manifest entry, prettier-clean, build and serve; own-then-parent lookup)
-- [ ] T024 [P] Write `templates/server-node/{template.json,README.md,README.app.md}`
-- [ ] T025 Run the server-node gate green
+- [x] T024 [P] Write `templates/server-node/{template.json,README.md,README.app.md}`
+- [x] T025 Run the server-node gate green
 
 ### Template: deploy-cloud-run
 
-- [ ] T026 `git mv cloudbuild.yaml DEPLOY.md tests/machinery/cloudbuild.test.ts` into
+- [x] T026 `git mv cloudbuild.yaml DEPLOY.md tests/machinery/cloudbuild.test.ts` into
   `templates/deploy-cloud-run/`; make DEPLOY.md server-stack neutral where it describes the image;
   move the test's root-Dockerfile assertion to `hub/tests/dockerfiles.test.ts`
-- [ ] T027 [P] Write `templates/deploy-cloud-run/{package.json,package-lock.json,vitest.config.ts,template.json,README.md}`
+- [x] T027 [P] Write `templates/deploy-cloud-run/{package.json,package-lock.json,vitest.config.ts,template.json,README.md}`
   and run its gate green
 
 ### Hub
 
-- [ ] T028 Write `hub/registry.json` and `hub/lib/manifest.mjs` (read + validate manifests, `{dir}`
+- [x] T028 Write `hub/registry.json` and `hub/lib/manifest.mjs` (read + validate manifests, `{dir}`
   substitution)
-- [ ] T029 Write `hub/lib/stamp.mjs` (today's version finding, moved from `scripts/init.mjs`, run
+- [x] T029 Write `hub/lib/stamp.mjs` (today's version finding, moved from `scripts/init.mjs`, run
   before anything moves)
-- [ ] T030 Write `hub/files/scripts/{dev,copy-web,check-env-files}.mjs`, `hub/files/scripts/lib/env-guard.mjs`
-- [ ] T031 [P] `git mv` and adapt `hub/files/{Dockerfile.node,dockerignore,README.app.md}` (the
+- [x] T030 Write `hub/files/scripts/{dev,copy-web,check-env-files}.mjs`, `hub/files/scripts/lib/env-guard.mjs`
+- [x] T031 [P] `git mv` and adapt `hub/files/{Dockerfile.node,dockerignore,README.app.md}` (the
   README gives the CI install order: root `npm ci`, `setup`, check) and write `hub/files/gitignore`
-- [ ] T032 Write `hub/init.mjs` and `hub/lib/compose.mjs` per [contracts/hub-cli.md]
-- [ ] T033 Rewrite the hub repo's root tooling (`package.json` with init, setup, check:hub,
+- [x] T032 Write `hub/init.mjs` and `hub/lib/compose.mjs` per [contracts/hub-cli.md]
+- [x] T033 Rewrite the hub repo's root tooling (`package.json` with init, setup, check:hub,
   check:templates, check:all, e2e:image, spec:html; hub-only dev dependencies; pruned lockfile;
   `vitest.config.ts`, `tsconfig.json`, `eslint.config.js`, `config/`, `.gitignore`,
   `config/.prettierignore`) and write `hub/tests/copies.test.ts`: identical copies of
@@ -151,8 +151,8 @@ deploy-cloud-run, then the hub.
   server-node), `env-guard.mjs` and `check-env-files.mjs` (web-react, server-node, `hub/files`),
   `find-up-one.mjs`, `load-env.mjs`, `resolve-env.mjs` (web-react, server-node); and that the hub root
   holds only hub files
-- [ ] T034 [P] `git mv tests/machinery/actions-pinned.test.ts hub/tests/` and repoint it
-- [ ] T035 Update `.github/workflows/ci-cd.yml` (`npm run setup` before the gate) and
+- [x] T034 [P] `git mv tests/machinery/actions-pinned.test.ts hub/tests/` and repoint it
+- [x] T035 Update `.github/workflows/ci-cd.yml` (`npm run setup` before the gate) and
   `.github/dependabot.yml` (npm for each Node template); update the paths named in `CLAUDE.md`'s
   "Settled" section
 
@@ -166,22 +166,22 @@ deploy-cloud-run, then the hub.
 
 **Independent test**: `hub/tests/compose.test.ts` for the four Node combinations.
 
-- [ ] T036 [US2] Write `hub/tests/compose.test.ts` for the four Node combinations: compose in a
+- [x] T036 [US2] Write `hub/tests/compose.test.ts` for the four Node combinations: compose in a
   scratch copy, symlink installs, root `build`, root `start`, the server contract (including
   `/api/version`'s `number` per stack), render strategy, stamp, root `.env`, root scripts, no
   scaffolding, no spec-workflow references, no dangling doc links
-- [ ] T037 [US2] Run root `check:all` inside the test for one combination per API choice, and start
+- [x] T037 [US2] Run root `check:all` inside the test for one combination per API choice, and start
   the root `dev` for `--api=node` and request `/api/health` through the web dev server
-- [ ] T038 [P] [US2] Write `hub/tests/stamp.test.ts` (today's stamp cases against the hub resolver)
-- [ ] T039 [P] [US2] Write `hub/tests/templates.test.ts` (manifests validate; no template file names
+- [x] T038 [P] [US2] Write `hub/tests/stamp.test.ts` (today's stamp cases against the hub resolver)
+- [x] T039 [P] [US2] Write `hub/tests/templates.test.ts` (manifests validate; no template file names
   `templates/`, `hub/`, a sibling template, or the spec workflow; every command except `resolve`
   uses `{dir}`) and `hub/tests/refuse.test.ts` (missing or unknown flags change nothing)
-- [ ] T040 [US2] Write `hub/image-e2e.mjs` and the root `e2e:image` script for `--api=node` and
+- [x] T040 [US2] Write `hub/image-e2e.mjs` and the root `e2e:image` script for `--api=node` and
   `--api=none` (staging and production builds); run it and record the evidence in the split PR
-- [ ] T041 [US2] Rewrite `SPIN-UP.md`, `README.md`, `SUBDIR-LAYOUT.md` for the hub
-- [ ] T042 [US2] Copy each Node template and the deploy template alone into a scratch directory,
+- [x] T041 [US2] Rewrite `SPIN-UP.md`, `README.md`, `SUBDIR-LAYOUT.md` for the hub
+- [x] T042 [US2] Copy each Node template and the deploy template alone into a scratch directory,
   `git init && git add -A`, run its `setup` and `check` with `{dir}` = `.`; record the result
-- [ ] T043 [US2] Run `npm run check:all` at the hub root green; open the split PR (waits for Jeff)
+- [x] T043 [US2] Run `npm run check:all` at the hub root green; open the split PR (waits for Jeff)
 
 ---
 

@@ -1,0 +1,19 @@
+# What the image build never sees. Patterns start with **/ so they cover every part's folder, not
+# only the app root.
+**/node_modules/
+**/dist/
+**/coverage/
+**/bin/
+**/obj/
+server/out/
+server/public/
+.git/
+**/*.log
+**/.DS_Store
+.vscode/
+.idea/
+README.md
+
+# No env file reaches the image. The committed .env is local-development config: the build would
+# load it, and the service runs on the configuration Cloud Run holds for it, never a file.
+**/.env*

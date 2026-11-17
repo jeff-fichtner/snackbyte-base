@@ -1,0 +1,21 @@
+{
+  "name": "deploy-cloud-run",
+  "version": "0.1",
+  "private": true,
+  "type": "module",
+  "description": "The Cloud Run deploy for an app built from one container image: the Cloud Build config and the per-app deploy job.",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "format": "prettier --config config/.prettierrc.json --ignore-path config/.prettierignore --write \"**/*.{ts,mjs,json,md,yaml}\"",
+    "format:check": "prettier --config config/.prettierrc.json --ignore-path config/.prettierignore --check \"**/*.{ts,mjs,json,md,yaml}\"",
+    "test": "vitest run",
+    "check:all": "npm run format:check && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "prettier": "^3.8.3",
+    "vitest": "^4.1.11"
+  }
+}

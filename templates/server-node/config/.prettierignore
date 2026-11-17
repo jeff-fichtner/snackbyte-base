@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+package-lock.json
+*.tsbuildinfo
+
+# The built web app placed here for production, and the identity the build bakes (its content
+# varies per build target, so it is not part of the format gate). The `**/` prefix is needed: a
+# pattern with a slash is anchored to this file's own folder.
+public/
+**/src/env.generated.ts

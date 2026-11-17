@@ -1,0 +1,43 @@
+{
+  "name": "server-node",
+  "version": "0.1",
+  "private": true,
+  "type": "module",
+  "description": "A Node + Express + TypeScript server: serves a built web app and, optionally, an API under /api.",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "start": "node dist/server.js",
+    "lint": "eslint .",
+    "format": "prettier --config config/.prettierrc.json --ignore-path config/.prettierignore --write \"**/*.{ts,tsx,js,mjs,json,md,html}\"",
+    "format:check": "prettier --config config/.prettierrc.json --ignore-path config/.prettierignore --check \"**/*.{ts,tsx,js,mjs,json,md,html}\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:env": "node scripts/check-env-files.mjs",
+    "check:all": "npm run format:check && npm run lint && npm run typecheck && npm run check:env && npm test"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.9.1",
+    "@types/supertest": "^7.2.0",
+    "dotenv": "^17.4.2",
+    "dotenv-expand": "^13.0.0",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
+    "supertest": "^7.2.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.60.0",
+    "vitest": "^4.1.11"
+  }
+}

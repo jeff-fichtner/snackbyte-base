@@ -1,18 +1,18 @@
 # When the app isn't at the repo root
 
-This template assumes it **is** the repository — that the app lives at the repo root, so
-`npm install`, `npm run dev`, `npm run check:all`, and `npm run build` all run from the
-directory that holds `.git`, and the workflow at `.github/workflows/ci-cd.yml` is the
-repo's workflow.
+The hub assumes the app it composes **is** the repository — that the app's root (the one holding
+`web/`, `server/` and the root `package.json`) is the repo root, so `npm ci`, `npm run setup`,
+`npm run dev`, `npm run check:all`, and `npm run build` all run from the directory that holds
+`.git`, and a workflow at `.github/workflows/` is the repo's workflow.
 
 Sometimes that assumption doesn't hold. You may want the app to live in a **subdirectory**
 of an existing, larger repo — e.g. a `web/` folder alongside a separate prototype, shared
-content, or another service that already owns the repo root. The template still works in
+content, or another service that already owns the repo root. The composed app still works in
 that layout, but a fixed, knowable set of adjustments is required, because GitHub Actions
 and npm both have root-relative assumptions baked in.
 
 This file is the playbook for that case. It is **not** part of any one app — it documents a
-template-level reality so the next subdirectory spin-up doesn't have to rediscover it. If
+hub-level reality so the next subdirectory spin-up doesn't have to rediscover it. If
 your app is at the repo root (the common case), ignore this file entirely; nothing here
 applies.
 
@@ -35,19 +35,19 @@ Everything below is just resolving those three facts.
 
 ## The layout
 
-Run the template's `init` in a clean throwaway directory (so the resolver sees a normal
-root-level template and does its renaming correctly), then copy the resolved tree into
-`<app>/` of the target repo. Exclude things the host repo already owns or that don't belong
+Run the hub's `init` in a clean throwaway directory (so the resolver sees a normal root-level
+copy of the hub and composes it correctly), then copy the composed tree into `<app>/` of the
+target repo. Exclude things the host repo already owns or that don't belong
 nested:
 
-- `.git` — the host repo's, not the template's.
+- `.git` — the host repo's, not the hub's.
 - `node_modules` — reinstall under `<app>/`.
 - `.github/` — its workflow moves to the **repo root** (see below), it does not live under
   `<app>/`.
 - `.specify/`, `.claude/`, `specs/` — Spec Kit and agent context belong at the repo root,
   one set per repo. Don't nest a second copy under `<app>/`.
 
-After copying, `cd <app>` and run `npm install` there.
+After copying, `cd <app>` and run `npm ci && npm run setup` there.
 
 ## CI: the workflow lives at the repo root, pointed into `<app>/`
 
@@ -63,7 +63,7 @@ does not reach), the `cache-dependency-path` fix, and the `paths:` trigger trade
 
 ### The `deploy` job (per app, as always)
 
-The `deploy` job is per-app regardless of layout — copy it in from [DEPLOY.md](DEPLOY.md) as
+The `deploy` job is per-app regardless of layout — copy it in from the app's `DEPLOY.md` as
 usual. The only subdirectory-specific part: the step that ships the build source
 (`gcloud builds submit`) must run from `<app>/` so it uploads the `<app>/` tree, picking up
 `<app>/cloudbuild.yaml` and `<app>/Dockerfile`. A top-level `defaults.run.working-directory`
@@ -78,9 +78,9 @@ too.
   (`client-node-v0.1.0`), a namespace mutually blind to the bare `v…` one. The recipe is
   **"Two releasables in one repository"** under "Consuming from a subdirectory" in the
   Action's `CONSUMING.md`.
-- **App source, modes, render strategy** — none of the `init` choices or in-source code
-  care where the app sits. `--mode`, `--render`, `src/`, tests, the dev scripts: all
-  identical to a root-level app.
+- **App source and choices** — none of the `init` choices or in-source code care where the app
+  sits. `--api`, `--render`, `web/`, `server/`, tests, the dev scripts: all identical to a
+  root-level app.
 - **GCP wiring** — project, WIF, service account, Cloud Run, load balancer, DNS, certs are
   all per-app/per-fleet and unaffected by the subdirectory layout. Follow `DEPLOY.md`.
 
@@ -88,7 +88,7 @@ too.
 
 - [ ] App tree copied into `<app>/`; `.git`, `.github/`, `.specify/`, `.claude/`, `specs/`,
       `node_modules` excluded.
-- [ ] `npm install` run from `<app>/`.
+- [ ] `npm ci && npm run setup` run from `<app>/`.
 - [ ] Release-flow workflow created at the **repo root** and made subdirectory-aware, per
       "Consuming from a subdirectory" in the Action's `CONSUMING.md`.
 - [ ] `deploy` job copied from `DEPLOY.md`; its `gcloud builds submit` runs from `<app>/`.

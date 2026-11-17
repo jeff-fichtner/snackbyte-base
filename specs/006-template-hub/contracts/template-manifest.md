@@ -52,8 +52,11 @@ A command never names another template. A command that must run from inside a fo
 
 (server-node's resolver deletes `dev` from its manifest when run with `--api=no`.)
 
-server-dotnet's `start` runs from the published folder because ASP.NET Core takes its content root
-(where `wwwroot` is looked for) from the working directory.
+server-dotnet's commands all start in its folder: `dotnet` finds `global.json` (which pins the SDK)
+from the working directory up, never from the project, so a command run from an app's root would use
+whatever SDK the machine has newest. `start` runs from the published folder because ASP.NET Core
+takes its content root (where `wwwroot` is looked for) from the working directory. A composed app's
+root runs each part's command as its own `npm run` script, so a `cd` never carries into the next.
 
 ```json
 {
@@ -61,7 +64,15 @@ server-dotnet's `start` runs from the published folder because ASP.NET Core take
   "role": "server",
   "folder": "server",
   "image": "dotnet",
-  "setup": "dotnet restore {dir}",
+  "setup": "cd {dir} && dotnet restore",
+  "dev": "cd {dir} && dotnet watch --non-interactive --project src/Api run",
+  "check": "cd {dir} && dotnet format --verify-no-changes && dotnet build && dotnet test --no-build",
+  "build": "cd {dir} && dotnet publish src/Api -c Release -o out",
+  "start": "cd {dir}/out && dotnet Api.dll",
+  "webRoot": "{dir}/out/wwwroot",
+  "env": { "PORT": "8080" },
+  "appReadme": "README.app.md"
+}",
   "dev": "dotnet watch --project {dir}/src/Api run",
   "check": "dotnet format {dir} --verify-no-changes && dotnet build {dir} && dotnet test {dir} --no-build",
   "build": "dotnet publish {dir}/src/Api -c Release -o {dir}/out",

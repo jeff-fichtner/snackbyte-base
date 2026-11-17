@@ -42,29 +42,30 @@ describe('the C# server build', () => {
     remove(app);
   });
 
+  // Run from the server's own folder, as the app's root scripts run it, so its global.json picks the SDK.
   const dotnet = (args: string[], env: NodeJS.ProcessEnv = {}) =>
     spawnSync('dotnet', args, {
-      cwd: app,
+      cwd: server,
       encoding: 'utf8',
       env: { ...process.env, ...env },
       maxBuffer: 64 * 1024 * 1024,
     });
 
   it('refuses an environment the manifest does not list, naming it', () => {
-    const build = dotnet(['build', 'server/src/Api'], { APP_ENV_NAME: 'qa' });
+    const build = dotnet(['build', 'src/Api'], { APP_ENV_NAME: 'qa' });
     expect(build.status).not.toBe(0);
     expect(build.stdout).toContain("APP_ENV_NAME='qa' is not an environment in");
   });
 
   it('stops naming both places when neither has the manifest', () => {
     rmSync(join(app, 'environments.json'));
-    const build = dotnet(['build', 'server/src/Api']);
+    const build = dotnet(['build', 'src/Api']);
     expect(build.status).not.toBe(0);
     expect(build.stdout).toContain('environments.json not found: looked in');
   });
 
   it('bakes the environment it is built for, read from the app root', async () => {
-    const publish = dotnet(['publish', 'server/src/Api', '-c', 'Release', '-o', 'server/out'], {
+    const publish = dotnet(['publish', 'src/Api', '-c', 'Release', '-o', 'out'], {
       APP_ENV_NAME: 'staging',
     });
     expect(publish.status, publish.stdout).toBe(0);

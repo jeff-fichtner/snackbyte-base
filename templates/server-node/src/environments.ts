@@ -1,14 +1,15 @@
 /**
  * The environments manifest reader.
  *
- * `environments.json` at the app root is the single source of truth for the release
- * flow. This module gives Node code (build tooling, the server) a typed view of it.
+ * `environments.json` is the single source of truth for the release flow. This module gives
+ * Node code a typed view of it.
  * The CI-side release flow (the snackbyte-release-flow-action) reads the same file to
  * resolve the environment and derive the version tag, so every consumer agrees.
  *
- * The file is read from the working directory (like the dist/ lookup in server.ts) rather
- * than imported, so the same path works whether this runs from source or compiled, and so
- * the server build (rootDir: src) need not reach a JSON file outside src/.
+ * The file is read, not imported, so the same lookup works whether this runs from source or
+ * compiled, and the server build (rootDir: src) need not reach a JSON file outside src/. It is
+ * looked for in the working directory, then the folder above: standalone this project holds its own
+ * copy; as the server part of a larger app it reads the app's one copy at the app root.
  *
  * Tag format parts (the one source for the derivation's render AND its read-back parser,
  * which must be generated from these so they cannot drift): a tag is
@@ -18,7 +19,7 @@
  * a fundamentally different scheme is a fork of the release-flow Action's derivation
  * (snackbyte-release-flow-action), not config.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /** One environment the app deploys to. Facets are independent single-purpose switches. */
@@ -57,10 +58,17 @@ interface ManifestFile {
 
 let cache: Environment[] | undefined;
 
-/** Reads and caches the environments from `environments.json` at the app root. */
+/** Reads and caches the environments from `environments.json`. */
 export function getEnvironments(): Environment[] {
   if (cache) return cache;
-  const file = resolve(process.cwd(), 'environments.json');
+  const candidates = [
+    resolve(process.cwd(), 'environments.json'),
+    resolve(process.cwd(), '..', 'environments.json'),
+  ];
+  const file = candidates.find((candidate) => existsSync(candidate));
+  if (!file) {
+    throw new Error(`environments.json not found: looked in ${candidates.join(' and ')}`);
+  }
   const parsed = JSON.parse(readFileSync(file, 'utf8')) as ManifestFile;
   cache = parsed.environments;
   return cache;

@@ -1,30 +1,37 @@
-// @vitest-environment node
-import { describe, it, expect, beforeAll } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import request from 'supertest';
 import { createApp } from '../../src/server.js';
 
-// Smoke test for a server app: the built frontend is served and the API responds.
-// Use this as a pattern for testing your own routes.
-const distIndex = fileURLToPath(new URL('../../dist/index.html', import.meta.url));
+// Smoke test for a server with an API: it serves the built web app and its API responds. A small
+// stand-in web build is enough to prove the serving. Use this as a pattern for your own routes.
+let webRoot: string;
 
 beforeAll(() => {
-  if (!existsSync(distIndex)) {
-    execFileSync('node', ['scripts/build.mjs'], { stdio: 'ignore' });
-  }
+  webRoot = mkdtempSync(join(tmpdir(), 'server-smoke-'));
+  writeFileSync(join(webRoot, 'index.html'), '<!doctype html><div id="root"></div>');
+});
+afterAll(() => {
+  rmSync(webRoot, { recursive: true, force: true });
 });
 
 describe('app serves', () => {
-  it('serves the built frontend', async () => {
-    const res = await request(createApp()).get('/');
+  it('serves the built web app', async () => {
+    const res = await request(createApp(webRoot)).get('/');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('<div id="root"');
+  });
+
+  it('serves the web app for a client-side route', async () => {
+    const res = await request(createApp(webRoot)).get('/some/client/route');
     expect(res.status).toBe(200);
     expect(res.text).toContain('<div id="root"');
   });
 
   it('responds on an API route (replace with your own)', async () => {
-    const res = await request(createApp()).get('/api/health');
+    const res = await request(createApp(webRoot)).get('/api/health');
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('application/json');
   });

@@ -19,8 +19,8 @@ export default tseslint.config(
     },
   },
   {
-    // Frontend code also runs in the browser.
-    files: ['src/web/**/*.{ts,tsx}'],
+    // The app's code runs in the browser.
+    files: ['src/**/*.{ts,tsx}'],
     languageOptions: {
       globals: {
         ...globals.browser,

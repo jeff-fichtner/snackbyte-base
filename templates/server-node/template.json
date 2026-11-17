@@ -1,0 +1,17 @@
+{
+  "id": "server-node",
+  "role": "server",
+  "folder": "server",
+  "resolve": "node scripts/init.mjs",
+  "hasApi": true,
+  "image": "node",
+  "setup": "npm ci --prefix {dir}",
+  "dev": "npm --prefix {dir} run dev",
+  "check": "npm --prefix {dir} run check:all",
+  "build": "npm --prefix {dir} run build",
+  "start": "npm --prefix {dir} start",
+  "webRoot": "{dir}/public",
+  "env": { "PORT": "8080" },
+  "appReadme": "README.app.md",
+  "scaffolding": ["scripts/init.mjs", "tests/machinery"]
+}

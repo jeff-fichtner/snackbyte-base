@@ -1,0 +1,8 @@
+{
+  "id": "deploy-cloud-run",
+  "role": "deploy",
+  "folder": ".",
+  "setup": "npm ci --prefix {dir}",
+  "check": "npm --prefix {dir} run check:all",
+  "ships": ["cloudbuild.yaml", "DEPLOY.md"]
+}

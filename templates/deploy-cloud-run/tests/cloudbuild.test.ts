@@ -31,9 +31,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
-const cloudbuild = readFileSync(join(repoRoot, 'cloudbuild.yaml'), 'utf8');
-const deployDoc = readFileSync(join(repoRoot, 'DEPLOY.md'), 'utf8');
+const templateRoot = fileURLToPath(new URL('..', import.meta.url));
+const cloudbuild = readFileSync(join(templateRoot, 'cloudbuild.yaml'), 'utf8');
+const deployDoc = readFileSync(join(templateRoot, 'DEPLOY.md'), 'utf8');
 
 const REQUIRED = [
   'TAG_NAME',
@@ -276,9 +276,7 @@ describe('the environment comes from the manifest', () => {
   // with environments.json — and a defaulted one silently would. The deploy names only the
   // environment; the build resolves its facets.
   it('forwards no facet override into the image', () => {
-    const dockerfile = readFileSync(join(repoRoot, 'Dockerfile'), 'utf8');
     expect(cloudbuild).not.toMatch(/IS_PUBLIC_FACE/);
-    expect(dockerfile).not.toMatch(/IS_PUBLIC_FACE/);
   });
 });
 
@@ -296,6 +294,6 @@ describe('DEPLOY.md', () => {
 
 describe('one deploy path', () => {
   it('ships no manual deploy script', () => {
-    expect(existsSync(join(repoRoot, 'scripts/deploy.sh'))).toBe(false);
+    expect(existsSync(join(templateRoot, 'scripts/deploy.sh'))).toBe(false);
   });
 });

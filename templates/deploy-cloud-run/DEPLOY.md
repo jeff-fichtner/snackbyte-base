@@ -28,7 +28,10 @@ The **branch selects the environment**, and the environments are declared in
 runs the quality gate and calls the **`snackbyte-release-flow-action`**, which tags the commit
 if the branch is an environment and does nothing if it isn't. A chained `deploy`
 job (per-app — see below) authenticates to GCP via **Workload Identity Federation** (keyless),
-runs a Cloud Build (`cloudbuild.yaml`) that builds the `Dockerfile` and deploys to Cloud Run.
+runs a Cloud Build (`cloudbuild.yaml`) that builds the app's root `Dockerfile` and deploys to
+Cloud Run. The image holds the whole app (the built web front end and the server that serves it),
+whatever the server is written in: every app's `Dockerfile` takes the same build arguments and
+listens on `PORT`, so nothing here depends on the stack.
 No manual version bump, no commit pushed back to the branch, no long-lived secret. A `vX.Y.Z`
 tag means "passed checks and deployed to the public-face (production) environment";
 `vX.Y.Z-dev` means "…to staging." **Adding an environment is a one-row edit to
@@ -126,7 +129,7 @@ those values, and the build arguments this repo's `cloudbuild.yaml` expects.
 
 ## The `deploy` job + Cloud Build (per app)
 
-The template ships `cloudbuild.yaml`; the `validate` + `version-and-tag` jobs come from
+`cloudbuild.yaml` ships with the app; the `validate` + `version-and-tag` jobs come from
 `CONSUMING.md`. The **`deploy` job is per-app** — it names your project/SA/WIF and selects the target from the branch. Paste the
 block below into `ci-cd.yml` (after `version-and-tag`) and fill the `<…>` placeholders — it is the
 one hand-assembly step, so don't change these five load-bearing lines (the **attach contract**):
@@ -216,12 +219,14 @@ reject before the first step runs, with its own message); none has a
 default, because each differs per deploy, per environment or per app, and a guessed value would
 deploy the wrong thing without an error. It then stamps a UTC build date, builds the `Dockerfile`
 forwarding `APP_VERSION` / `APP_ENV_NAME` / `BUILD_GIT_COMMIT` / `BUILD_DATE` as build-args (the build resolves the environment's facets from `environments.json` by
-`APP_ENV_NAME` and bakes the identity into the frontend bundle AND the compiled server), tags the
+`APP_ENV_NAME` and bakes the identity into the web build AND the server), tags the
 image `<service>:<TAG>-<sha>`, pushes to Artifact Registry and records the **digest** the registry
 assigned, and `gcloud run deploy`s that digest with
 `--ingress=internal-and-cloud-load-balancing` (locks the service to the LB on every deploy),
 `--service-account=${_RUN_SA}` (the runtime identity, named on every revision), and
-runtime env (`NODE_ENV=production`, `APP_VERSION`, commit/date). The environment identity is
+runtime env (`NODE_ENV=production`, which a Node server reads and a C# server ignores, since its
+host environment is already Production in the image; `APP_VERSION`, commit/date). The environment
+identity is
 **baked at build time**, not a runtime label, and no build-arg overrides a facet: the chip, the
 noindex header and `/api/version` all follow `environments.json`. It does **not** grant the
 `allUsers` invoker — that's the one-time manual step (`GCP-SETUP.md` §4).
@@ -257,7 +262,7 @@ in an app's workflow, the app's own Dependabot moves its pins from there.
 
 ### If the app uses Cloud SQL
 
-The template uses no database connector, so `cloudbuild.yaml` names none. An app that reaches a
+The app uses no database connector to start with, so `cloudbuild.yaml` names none. An app that reaches a
 Cloud SQL instance through Cloud Run's built-in connector adds it as one more required value, set
 (not added) on every deploy so each revision declares exactly the instances it can reach rather
 than inheriting the last one's:
@@ -288,7 +293,7 @@ local submit; it's populated only by submitting from a **connected repo** with `
 
 Staging is **a second deploy of the same app, off the `dev` branch, to a second Cloud Run service
 on the same load balancer** — production on `<app>.snackbyte.io`, staging on
-`<app>.snackbyte.dev`. The branch + the derived `-dev` tag already drive it (no template change);
+`<app>.snackbyte.dev`. The branch + the derived `-dev` tag already drive it (no change to the app);
 this is the per-app GCP wiring. One global LB serves **both TLDs** — the cert-map (`GCP-SETUP.md` §5) holds
 hostnames across both, host-rules route each. No second LB, no second IP, **~$0 added**.
 
@@ -346,7 +351,7 @@ server and frontend.
   `jeff-fichtner/snackbyte-release-flow-action`.
 - **The committed `.env` stays out of the image.** It is local-development config, and its
   secrets are 1Password references that only `op run` resolves. `.dockerignore` excludes every
-  `.env*`, so the build stage's `scripts/load-env.mjs` finds no file. Drop that line and a build
+  `.env*`, so the web build's `scripts/load-env.mjs` finds no file. Drop that line and a build
   whose `.env` holds a reference stops at the env guard. The running service reads only the
   environment its deploy sets.
 - `gcloud` auth expiry, the `google-github-actions` Node deprecation, and other

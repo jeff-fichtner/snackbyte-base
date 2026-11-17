@@ -168,8 +168,22 @@ describe.each(COMBOS)('--api=$api --render=$render', ({ api, render, port, check
     expect(pkg.dependencies).toBeUndefined();
     expect(pkg.devDependencies).toBeUndefined();
     expect(Object.keys(pkg.scripts)).toEqual(
-      expect.arrayContaining(['setup', 'dev', 'build', 'start', 'check:env', 'check:all']),
+      expect.arrayContaining([
+        'setup',
+        'setup:web',
+        'setup:server',
+        'dev',
+        'build',
+        'build:web',
+        'build:server',
+        'start',
+        'check:env',
+        'check:all',
+      ]),
     );
+    // A part's command never shares a shell with another part's, so a `cd` cannot leak.
+    expect(pkg.scripts.setup).toBe('npm run setup:web && npm run setup:server');
+    expect(pkg.scripts.build).toMatch(/^npm run build:web && npm run build:server && node scripts/);
     expect('dev:web' in pkg.scripts).toBe(true);
     expect('dev:server' in pkg.scripts).toBe(hasApi);
     const lock = json(dir, 'package-lock.json');

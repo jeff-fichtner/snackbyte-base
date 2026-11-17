@@ -34,22 +34,23 @@ RUN npm --prefix web run build
 
 # --- The server ---------------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/sdk:8.0.428 AS server
-WORKDIR /app
+# dotnet runs from the server's own folder, so its global.json picks the SDK.
+WORKDIR /app/server
 
 # Restore first, so a source-only change reuses this layer.
-COPY server/*.sln server/global.json server/Directory.Build.props server/
-COPY server/src/Api/Api.csproj server/src/Api/
-COPY server/tests/Api.Tests/Api.Tests.csproj server/tests/Api.Tests/
-RUN dotnet restore server/src/Api/Api.csproj
+COPY server/*.sln server/global.json server/Directory.Build.props ./
+COPY server/src/Api/Api.csproj src/Api/
+COPY server/tests/Api.Tests/Api.Tests.csproj tests/Api.Tests/
+RUN dotnet restore src/Api/Api.csproj
 
-COPY environments.json ./
-COPY server/ server/
+COPY environments.json /app/
+COPY server/ ./
 
-# The build reads APP_ENV_NAME from its environment, checks it against environments.json and bakes it
-# into the server.
+# The build reads APP_ENV_NAME from its environment, checks it against the app's environments.json
+# (the folder above) and bakes it into the server.
 ARG APP_ENV_NAME
 ENV APP_ENV_NAME=${APP_ENV_NAME}
-RUN dotnet publish server/src/Api -c Release --no-restore -o /out
+RUN dotnet publish src/Api -c Release --no-restore -o /out
 
 # --- The runtime --------------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:8.0.34 AS runtime

@@ -30,6 +30,17 @@ describe.each(ids)('templates/%s', (id) => {
     expect(manifestProblems(manifest, id)).toEqual([]);
   });
 
+  it('runs every .NET command from its own folder, where its global.json picks the SDK', () => {
+    // dotnet looks for global.json from the working directory up, never from the project, so a
+    // command run from an app's root would take whatever SDK the machine has newest.
+    for (const key of ['setup', 'dev', 'check', 'build', 'start']) {
+      const command = manifest[key];
+      if (typeof command === 'string' && /\bdotnet\b/.test(command)) {
+        expect(command, `${id} ${key}`).toMatch(/^cd \{dir\}(\/\S+)? && /);
+      }
+    }
+  });
+
   it('names no sibling template, no hub file and no spec-workflow artifact', () => {
     const siblings = ids.filter((other) => other !== id);
     for (const rel of sourceFiles(dir)) {

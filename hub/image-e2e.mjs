@@ -7,9 +7,10 @@
  * For each server choice: compose an app (prerendered, so the version chip is visible in the HTML)
  * in a scratch copy of this repo, build its image twice with the build arguments the Cloud Run build
  * passes (APP_ENV_NAME=staging, then production), run each with PORT set, and check what a deploy
- * relies on: the page; the chip on staging only; /api/version reporting the version and environment
- * (or, with no API, /api/ falling through to the page); X-Robots-Tag: noindex on staging only; a
- * non-root user. Containers, images and scratch copies are removed afterwards, pass or fail.
+ * relies on: the page; the chip on staging only; /api/version reporting the version and environment,
+ * and an unknown /api path answering 404 (or, with no API, /api/ falling through to the page);
+ * X-Robots-Tag: noindex on staging only; a non-root user. Containers, images and scratch copies are
+ * removed afterwards, pass or fail.
  *
  * It builds for this machine's platform: the recipes are the same on every platform, and Cloud Build
  * builds the deployed image on linux/amd64 itself.
@@ -104,6 +105,12 @@ async function checkImage(image, { hasApi, envName, port }) {
       hasApi ? '/api/health answers JSON' : '/api/health falls through to the page',
     );
     if (hasApi) {
+      const unknown = await fetch(`http://localhost:${port}/api/not-a-route`);
+      expect(
+        unknown.status === 404 &&
+          (unknown.headers.get('content-type') ?? '').includes('application/json'),
+        `an unknown /api path answers 404 JSON (got ${unknown.status})`,
+      );
       const version = await (await fetch(`http://localhost:${port}/api/version`)).json();
       expect(
         version.number === VERSION &&

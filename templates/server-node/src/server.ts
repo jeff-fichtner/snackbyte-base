@@ -29,6 +29,12 @@ export function createApp(webRoot: string = productionWebRoot): Express {
   // SPINUP:api-only:start
 
   registerRoutes(app);
+
+  // An API path no route answers is a 404, not the web page, so an API client gets an error it can
+  // act on rather than HTML.
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'Not found' });
+  });
   // SPINUP:api-only:end
 
   app.use(express.static(webRoot));

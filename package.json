@@ -1,6 +1,6 @@
 {
   "name": "snackbyte-base",
-  "version": "1.5",
+  "version": "2.0",
   "private": true,
   "type": "module",
   "description": "The hub that composes a snackbyte app from standalone templates: a web front end, a server, a deploy target.",

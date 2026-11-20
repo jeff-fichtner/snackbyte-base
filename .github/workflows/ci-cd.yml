@@ -111,4 +111,4 @@ jobs:
       # configures a git identity itself when the runner has none, so no separate git-config is needed.
       - name: Resolve environment and derive version tag
         id: release
-        uses: jeff-fichtner/snackbyte-release-flow-action@c954bf30e67c3419d8694904cf9c4dbc61addf77 # v1.2.0
+        uses: jeff-fichtner/snackbyte-release-flow-action@9bcdf02015ec45633492e063e6e45152d135b92b # v1.2.2

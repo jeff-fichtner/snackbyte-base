@@ -539,7 +539,9 @@ chosen, what was passed over, and what switching would take. The PR carries the 
     Switching: rework the Node templates' scripts to run from a hoisted install.
 18. **Unknown `/api/...` paths.** Chosen: the web page, as today's Node server does, in both servers.
     Passed over: a 404 for unknown API paths (better for API clients, but a behavior change the split
-    should not smuggle in). Switching: one route per server, plus their tests.
+    should not smuggle in). Switching: one route per server, plus their tests. Ruled 2026-11-18
+    (#029272, ruling 2): unknown API paths answer 404 in both servers, as a follow-up after the
+    split. An app with no API keeps serving the page on every path.
 19. **snackbyte-base's CI runs the C# gate.** Chosen: yes, with the template's .NET SDK (read from
     its `global.json`) installed by a SHA-pinned action. Passed over: running only the TypeScript gates in CI. Switching: one workflow
     step.

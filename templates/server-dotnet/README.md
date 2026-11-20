@@ -13,7 +13,8 @@ cannot tell which server it has:
   says so.
 - Listens on `PORT`: 8080 when unset; anything that is not a port stops startup naming it.
 - Serves the built web app from `wwwroot` beside the published server, with `index.html` for any
-  path that is not a file or a route.
+  path that is not a file or a route. An unknown path under `/api` answers 404
+  (`{ "error": "Not found" }`), not the page.
 - The environment is baked at build: `APP_ENV_NAME` names an entry in `environments.json` (this
   folder's, or the app root's one folder up); a name the manifest does not list fails the build.
 

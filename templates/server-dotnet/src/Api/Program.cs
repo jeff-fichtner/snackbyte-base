@@ -28,8 +28,12 @@ app.MapGet("/api/health", Health.Get);
 app.MapGet("/api/version", (AppEnvironment environment, IHostEnvironment host) =>
     VersionInfo.Read(environment, host, Environment.GetEnvironmentVariable));
 
-// The built web app, placed in wwwroot beside the published server. Any path that is not a file or
-// a route gets index.html, so client-side routing works.
+// An API path no endpoint answers is a 404, not the web page, so an API client gets an error it can
+// act on rather than HTML.
+app.MapFallback("/api/{**path}", () => Results.NotFound(new { error = "Not found" }));
+
+// The built web app, placed in wwwroot beside the published server. Any other path that is not a
+// file or a route gets index.html, so client-side routing works.
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");
 

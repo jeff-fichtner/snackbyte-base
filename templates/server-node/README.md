@@ -12,8 +12,9 @@ template, so it can move into a repository of its own unchanged.
 
 `node scripts/init.mjs --api=<yes|no> --name=<app-name>`
 
-- `--api`: `yes` keeps `src/routes/` (`/api/health`, `/api/version`) and the dev process; `no`
-  removes them, so the server only serves the built web app.
+- `--api`: `yes` keeps `src/routes/` (`/api/health`, `/api/version`), the 404 for an unknown path
+  under `/api` (`{ "error": "Not found" }`, not the page) and the dev process; `no` removes them, so
+  the server only serves the built web app, on every path.
 - `--name`: the package name and the app's 1Password item in `.env`.
 
 The hub passes these. Run alone, after the resolver: remove the files `template.json` lists under

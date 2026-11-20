@@ -30,6 +30,22 @@ describe('app serves', () => {
     expect(res.text).toContain('<div id="root"');
   });
 
+  it.each([
+    ['GET', '/api/not-a-route'],
+    ['GET', '/api'],
+    ['GET', '/api/a/b'],
+    ['POST', '/api/not-a-route'],
+  ] as const)(
+    'answers 404 JSON, not the web app, for an unknown API path (%s %s)',
+    async (method, path) => {
+      const app = request(createApp(webRoot));
+      const res = method === 'GET' ? await app.get(path) : await app.post(path);
+      expect(res.status).toBe(404);
+      expect(res.headers['content-type']).toContain('application/json');
+      expect(res.body).toEqual({ error: 'Not found' });
+    },
+  );
+
   it('responds on an API route (replace with your own)', async () => {
     const res = await request(createApp(webRoot)).get('/api/health');
     expect(res.status).toBe(200);

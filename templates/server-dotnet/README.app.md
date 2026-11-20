@@ -1,12 +1,12 @@
 # APP_NAME server
 
-The server: C# on .NET 8, an ASP.NET Core minimal API (`src/Api`) tested with xUnit
+The server: C# on .NET 11, an ASP.NET Core minimal API (`src/Api`) tested with xUnit
 (`tests/Api.Tests`). In production it serves the built web app from `wwwroot` beside the published
 server, and the API under `/api`.
 
 ## Commands
 
-Needs the .NET 8 SDK (see `global.json`). From this folder:
+Needs the .NET 11 SDK (see `global.json`, and "The .NET release" below). From this folder:
 
 ```bash
 dotnet watch --project src/Api run   # the server, restarting on change
@@ -35,3 +35,14 @@ you, alongside the web part.
   `op run --env-file=<file> -- dotnet run`.
 - **Version.** `/api/version` reports `APP_VERSION`, `BUILD_GIT_COMMIT` and `BUILD_DATE`, which the
   deploy sets; outside a production host the number is `0.0.0-dev`.
+
+## The .NET release
+
+The server targets one .NET release, set in one place: the SDK `version` in `global.json`
+(`11.0.100` is .NET 11). Its major and minor are the release; the target framework and the test
+host's version follow from it.
+
+To run on another release, an older one a client requires for example, change that version, e.g. to
+`8.0.100` for .NET 8, and install that SDK. The app's `Dockerfile` names the release for its images
+in `DOTNET_RELEASE` (`11.0`): set it to the same major and minor. An image built with the two out of
+step stops at restore, naming the SDK `global.json` asks for.

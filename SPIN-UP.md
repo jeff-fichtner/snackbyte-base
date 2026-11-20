@@ -19,8 +19,10 @@ confirm `node --version` instead (`nvm` is a shell function and won't be on the 
 node --version   # expect v24.x
 ```
 
-There is nothing to install before resolving. A C# server also needs the .NET 8 SDK
-(`dotnet --list-sdks` shows an `8.0.` line) once you install the composed app.
+There is nothing to install before resolving. A C# server also needs the .NET 11 SDK
+(`dotnet --list-sdks` shows an `11.0.` line) once you install the composed app. An app that must run
+on an older .NET (a client's, say) changes one setting after composing: see the server's README,
+"The .NET release".
 
 > **Not putting this app at the repo root?** The hub assumes the app _is_ the repo. If you're
 > nesting it in a subdirectory of an existing repo, read [SUBDIR-LAYOUT.md](SUBDIR-LAYOUT.md)
@@ -39,7 +41,7 @@ decisions, not preferences with a default — make them deliberately.
 
 - **`node`** — a Node + Express + TypeScript server serves the front end AND an API under `/api`
   (starting with `/api/health` and `/api/version`).
-- **`dotnet`** — a C# server (.NET 8 ASP.NET Core minimal API, tested with xUnit) serves the front
+- **`dotnet`** — a C# server (.NET 11 ASP.NET Core minimal API, tested with xUnit) serves the front
   end AND the API under `/api`, with the same endpoints.
 - **`none`** — no API. A small Node + Express server still serves the built front end; there is
   just no `/api`.

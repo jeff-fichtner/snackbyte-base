@@ -1,6 +1,6 @@
 # server-dotnet
 
-A server template: C# on .NET 8, an ASP.NET Core minimal API tested with xUnit. It serves a built
+A server template: C# on .NET 11, an ASP.NET Core minimal API tested with xUnit. It serves a built
 web app and an API under `/api`. It is one of the templates the snackbyte-base hub composes an app
 from; in an app it becomes the `server/` folder, serving the `web/` part's build.
 
@@ -24,7 +24,7 @@ and this README and rename `README.app.md` to `README.md`.
 
 ## Working on the template
 
-Needs the .NET 8 SDK (`global.json` takes any 8.0 SDK).
+Needs the .NET 11 SDK (`global.json` takes any 11.0 SDK).
 
 ```bash
 dotnet restore
@@ -33,5 +33,15 @@ dotnet build                        # warnings are errors
 dotnet test
 ```
 
-The target framework is set once, in `Directory.Build.props`; moving to a newer .NET is that line,
-the SDK pin in `global.json`, the test packages, and the two image tags in the app's `Dockerfile`.
+## The .NET release
+
+The server targets one .NET release, set in one place: the SDK `version` in `global.json`
+(`11.0.100` is .NET 11). Its major and minor are the release; the target framework and the test
+host's version follow from it.
+
+To run on another release, an older one a client requires for example, change that version, e.g. to
+`8.0.100` for .NET 8, and install that SDK. The app's `Dockerfile` names the release for its images
+in `DOTNET_RELEASE` (`11.0`): set it to the same major and minor. An image built with the two out of
+step stops at restore, naming the SDK `global.json` asks for.
+
+The template moves to each new .NET release when it ships.

@@ -7,6 +7,13 @@
 # the environment's facets from the app's environments.json and bakes them, so the web build and the
 # server report the same environment; no build-arg overrides a facet. With no APP_ENV_NAME the build
 # resolves the 'local' identity (cloudbuild.yaml refuses to deploy without one).
+#
+# DOTNET_RELEASE is the .NET release both .NET images come from. It must match the major.minor of the
+# SDK version in server/global.json, the server's one .NET setting (server/README.md, "The .NET
+# release"): an SDK image of another release refuses that global.json, so a mismatch stops the
+# build at restore rather than shipping a server on the wrong runtime. The tags float within the
+# release, so each build takes its newest patch.
+ARG DOTNET_RELEASE=11.0
 ARG BUILD_GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
 ARG APP_ENV_NAME=
@@ -33,7 +40,7 @@ ENV CI=true NODE_ENV=production APP_ENV_NAME=${APP_ENV_NAME} APP_VERSION=${APP_V
 RUN npm --prefix web run build
 
 # --- The server ---------------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:8.0.428 AS server
+FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_RELEASE} AS server
 # dotnet runs from the server's own folder, so its global.json picks the SDK.
 WORKDIR /app/server
 
@@ -53,7 +60,7 @@ ENV APP_ENV_NAME=${APP_ENV_NAME}
 RUN dotnet publish src/Api -c Release --no-restore -o /out
 
 # --- The runtime --------------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:8.0.34 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET_RELEASE} AS runtime
 WORKDIR /app
 
 # Ship only built output — the published server and the web build it serves from wwwroot/ — never

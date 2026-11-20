@@ -9,7 +9,7 @@
 **Input**: Request #925778 (top priority) and Jeff's direction on it (2026-11-14/15): snackbyte-base
 becomes the hub (the orchestrator, a working title) that composes an app from separate templates.
 Now: split today's Vite + React + TypeScript front end and Node/Express back end out into their own
-templates, and add a C# back end (.NET 8 ASP.NET Core minimal API with xUnit). Done when a React + C#
+templates, and add a C# back end (an ASP.NET Core minimal API on the newest .NET, with xUnit). Done when a React + C#
 app composed through the hub runs with both check gates green, and deploying it to Cloud Run is the
 only step left.
 
@@ -95,8 +95,8 @@ also listed under `## Decisions`.
   server: the single-page fallback (the web page). Both servers keep that behavior in this feature so
   the split changes nothing an app can observe; returning 404 for unknown API paths is a separate
   change for both servers together.
-- Q: Does snackbyte-base's CI run the C# template's gate? → A: Yes. CI installs the .NET 8 SDK
-  through a SHA-pinned setup action and runs every template's gate, so a red C# template cannot merge.
+- Q: Does snackbyte-base's CI run the C# template's gate? → A: Yes. CI installs the template's .NET
+  SDK through a SHA-pinned setup action and runs every template's gate, so a red C# template cannot merge.
 
 ### Session 2026-11-16 (second pass)
 
@@ -306,8 +306,8 @@ runs as written; the resolver refuses to run without each required choice and na
   runs from inside the template's folder.
 - **FR-005**: snackbyte-base's own check gate MUST run the hub's checks and tests and every template's
   own gate, and fail when any of them fails. A single command MUST install every template's
-  dependencies. snackbyte-base's CI MUST install the .NET 8 SDK (through a SHA-pinned action, like
-  every action it runs) and run that same gate.
+  dependencies. snackbyte-base's CI MUST install the C# template's .NET SDK, read from its `global.json`
+  (through a SHA-pinned action, like every action it runs), and run that same gate.
 
 **Composition**
 
@@ -366,7 +366,8 @@ runs as written; the resolver refuses to run without each required choice and na
 - **FR-017**: The Node server template MUST keep today's server: `/api/health` and `/api/version` when
   it has an API, no `/api` when it does not, the noindex rule from the baked identity, `PORT` handling
   with today's fail-loud rule, and serving the web build with a single-page fallback.
-- **FR-018**: The C# server template MUST be a .NET 8 ASP.NET Core minimal API with an xUnit test
+- **FR-018**: The C# server template MUST be an ASP.NET Core minimal API on the newest .NET release
+  (.NET 11 today), with the release set in one place, `global.json`'s SDK version, with an xUnit test
   project, matching the Node server's contract: `/api/health` and `/api/version` with the same JSON
   shapes; `X-Robots-Tag: noindex` exactly when the baked environment's manifest entry says so; the
   environment identity baked at build from `APP_ENV_NAME` and the same manifest, refusing at build an
@@ -440,9 +441,10 @@ runs as written; the resolver refuses to run without each required choice and na
 
 ## Assumptions
 
-- **.NET 8, as asked.** The request names .NET 8. Its support ended on 2026-11-10; the target framework
-  is set in one place so moving to .NET 10 (the current long-term release) is a small change. This is
-  raised for Jeff as a decision.
+- **The newest .NET.** The request named .NET 8, from the reference project. Jeff's ruling
+  (2026-11-18, #029272 as amended by #49d26b): the template targets the newest .NET release, .NET 11
+  today, and moves to each new release when it ships. An app that needs an older release for a client
+  changes `global.json`'s SDK version (and its image recipe's matching release).
 - **xUnit v2 with the ASP.NET Core test host**, the same test approach as the reference slice.
 - **The web part is always present.** An API-only app (no web part) is out of scope this week; each
   server template already runs alone as a standalone project, and the hub can add `--web=none` later.
@@ -503,13 +505,16 @@ chosen, what was passed over, and what switching would take. The PR carries the 
    the template folders `web-react`, `server-node`, `server-dotnet`, `deploy-cloud-run`; proposed repo
    names if they move out: `snackbyte-web-react`, `snackbyte-server-node`, `snackbyte-server-dotnet`,
    `snackbyte-deploy-cloud-run`. Blocks: nothing this week; it blocks creating the repos.
-9. **.NET 8 or .NET 10.** Chosen: .NET 8, as the request and the brief name. Passed over: .NET 10,
+9. **.NET 8 or .NET 10.** Ruled 2026-11-18 (#029272, amended by #49d26b): neither; the newest
+   release, .NET 11 today, with the release as one setting. The original entry follows. Chosen: .NET
+   8, as the request and the brief name. Passed over: .NET 10,
    the current long-term release. Why it matters: .NET 8's support ended on 2026-11-10, so it gets no
    more security fixes; the client asked for ".NET 6+", which .NET 10 satisfies. Recommendation:
    switch to .NET 10 before the first real app. Switching: change the target framework in one file,
    the SDK pin and the two image tags, update the test packages, and install the .NET 10 SDK on each
    machine (only .NET 8 is installed here).
-10. **Snackbyte-base's version — parked.** Not bumped (agents do not touch the version). Suggest
+10. **Snackbyte-base's version — parked.** Ruled 2026-11-18 (#029272): 2.0 when the hub lands. Not
+    bumped (agents do not touch the version). Suggest
     `2.0` when this lands: every spin-up command and the app's layout change.
 11. **The constitution.** Chosen: amend it to 3.0.0 in this spec (Principle I becomes a hub of
     templates; the stack gains C#/.NET for the C# server; the quality-gate principle applies per
@@ -535,8 +540,8 @@ chosen, what was passed over, and what switching would take. The PR carries the 
 18. **Unknown `/api/...` paths.** Chosen: the web page, as today's Node server does, in both servers.
     Passed over: a 404 for unknown API paths (better for API clients, but a behavior change the split
     should not smuggle in). Switching: one route per server, plus their tests.
-19. **snackbyte-base's CI runs the C# gate.** Chosen: yes, with the .NET 8 SDK installed by a
-    SHA-pinned action. Passed over: running only the TypeScript gates in CI. Switching: one workflow
+19. **snackbyte-base's CI runs the C# gate.** Chosen: yes, with the template's .NET SDK (read from
+    its `global.json`) installed by a SHA-pinned action. Passed over: running only the TypeScript gates in CI. Switching: one workflow
     step.
 20. **C# project names.** Chosen: `Api` and `Api.Tests` in every app. Passed over: `<AppName>.Api`
     (the .NET habit), which means rewriting folders, project files and namespaces at spin-up.

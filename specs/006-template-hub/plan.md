@@ -8,7 +8,7 @@
 
 Restructure snackbyte-base from one merged template into a hub that composes an app from standalone
 templates. Today's root moves into four folders under `templates/` — `web-react` (Vite + React + TS),
-`server-node` (Express + TS), `server-dotnet` (new: .NET 8 minimal API + xUnit) and
+`server-node` (Express + TS), `server-dotnet` (new: .NET 11 minimal API + xUnit) and
 `deploy-cloud-run` (today's `cloudbuild.yaml` and the deploy half of `DEPLOY.md`) — each with its
 own manifest (`template.json`), dependencies, gate and README. The root becomes the hub: `hub/init.mjs`
 reads `hub/registry.json` and the chosen templates' manifests, moves the chosen templates into
@@ -21,7 +21,7 @@ Docker check.
 ## Technical Context
 
 **Language/Version**: TypeScript 6 on Node 24 (web-react, server-node, hub scripts, deploy-cloud-run's
-tests); C# 12 on .NET 8 (server-dotnet). Node stays on 24 here; the move to Node 26 (#575d6a) is a
+tests); C# on .NET 11 (server-dotnet). Node stays on 24 here; the move to Node 26 (#575d6a) is a
 separate change after this one.
 
 **Primary Dependencies**: web-react: React 19, Vite 8, `@vitejs/plugin-react`, dotenv(+expand).
@@ -67,9 +67,9 @@ Checked against constitution 2.1.0, then against the amendment this feature make
 | IV. Two-Tier Propagation | skeleton by backport, visual identity by package | unchanged | Pass |
 | V. Uniform Deploy Path (Cloud Run Default) | one container path for every app | one image per app, any server stack; Cloud Run deploy template | Pass (wording amended: the deploy path lives in a deploy template) |
 | VI. Prerender By Default | prerender default, dynamic available | unchanged, owned by web-react | Pass |
-| VII. Pinned, Linted, Type-Safe, Tested | Node 24, TypeScript throughout, ESLint/Prettier/Vitest | each template pins its runtime and ships its gate; C# template: .NET 8 SDK pin, `dotnet format`, warnings as errors, xUnit | **Violates 2.1.0 ("TypeScript throughout") → amended** |
+| VII. Pinned, Linted, Type-Safe, Tested | Node 24, TypeScript throughout, ESLint/Prettier/Vitest | each template pins its runtime and ships its gate; C# template: .NET SDK pin (global.json), `dotnet format`, warnings as errors, xUnit | **Violates 2.1.0 ("TypeScript throughout") → amended** |
 | VIII. Speckit Stays in Speckit Spaces | no spec references in shipped files | unchanged; hub test keeps scanning | Pass |
-| Technology Stack | TS, Vite, React, Express, Vitest, Node 24, GCP | adds C#/.NET 8, ASP.NET Core minimal API, xUnit for the C# server | **Amended** |
+| Technology Stack | TS, Vite, React, Express, Vitest, Node 24, GCP | adds C#/.NET 11, ASP.NET Core minimal API, xUnit for the C# server | **Amended** |
 
 Gate result: pass with the 3.0.0 amendment, which is part of this feature's spec PR (Complexity
 Tracking records why).
@@ -143,7 +143,7 @@ templates/
 │   ├── scripts/    init.mjs dev.mjs build.mjs resolve-env.mjs load-env.mjs
 │   │               check-env-files.mjs lib/env-guard.mjs lib/find-up-one.mjs
 │   └── tests/      app/  machinery/
-├── server-dotnet/                # standalone .NET 8 solution
+├── server-dotnet/                # standalone .NET 11 solution
 │   ├── template.json  README.md  README.app.md  Api.sln  global.json  Directory.Build.props
 │   ├── .editorconfig  .gitignore  environments.json
 │   ├── src/Api/    Api.csproj Program.cs AppEnvironment.cs Port.cs VersionInfo.cs Health.cs

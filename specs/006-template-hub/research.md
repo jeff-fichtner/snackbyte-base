@@ -134,15 +134,17 @@ than an assembly attribute).
 
 ## R9 — C# toolchain and gate
 
-**Decision**: `global.json` pins SDK `8.0.100` with `rollForward: latestFeature` (any 8.0 SDK);
-`Directory.Build.props` sets `net8.0`, nullable, implicit usings, `TreatWarningsAsErrors`; the gate
+**Decision** (as ruled 2026-11-18): `global.json` pins SDK `11.0.100` with `rollForward:
+latestFeature` (any 11.0 SDK), and is the one .NET setting: `Directory.Build.props` derives the target
+framework (`net11.0`) and the test host's version from it, and sets nullable, implicit usings, `TreatWarningsAsErrors`; the gate
 is `dotnet format <dir> --verify-no-changes`, `dotnet build <dir>` (warnings fail it), `dotnet test
-<dir> --no-build`. Packages: `Microsoft.AspNetCore.Mvc.Testing` 8.0.x, `Microsoft.NET.Test.Sdk`,
-`xunit` 2.9.x, `xunit.runner.visualstudio`, pinned to exact versions.
+<dir> --no-build`. Packages: `Microsoft.AspNetCore.Mvc.Testing` at the newest patch of the release,
+`Microsoft.NET.Test.Sdk`, `xunit` 2.9.x and `xunit.runner.visualstudio` pinned to exact versions.
 
-**Rationale**: The SDK's own formatter and analyzers; no extra tools to install. The target
-framework lives in one file so a move to `net10.0` is one line plus the image tags and package
-versions (spec Decision 9: .NET 8's support ended 2026-11-10).
+**Rationale**: The SDK's own formatter and analyzers; no extra tools to install. The release
+lives in one setting so a client app can move to an older release (e.g. .NET 8) by changing it, and
+the template moves to each new release the same way; the image recipe's `DOTNET_RELEASE` names the
+same release, and a mismatch stops the image build at restore.
 
 ## R10 — Container recipes are the hub's, per server stack
 

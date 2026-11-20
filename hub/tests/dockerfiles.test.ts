@@ -32,10 +32,19 @@ describe.each(recipes)('hub/files/%s', (recipe) => {
     expect(text).toMatch(/COPY environments\.json/);
   });
 
-  it('pins every base image to an exact version', () => {
+  it('pins every base image: an exact version, or for .NET the release the server targets', () => {
+    // The .NET images follow DOTNET_RELEASE, the release in the server's global.json (a major and
+    // minor, e.g. 11.0); their tags take that release's newest patch. Every other image is exact.
     const froms = [...text.matchAll(/^FROM (\S+)/gm)].map((m) => m[1]);
     expect(froms.length).toBeGreaterThan(1);
-    for (const image of froms) expect(image).toMatch(/:\d+\.\d+\.\d+/);
+    for (const image of froms) {
+      if (image.startsWith('mcr.microsoft.com/dotnet/')) {
+        expect(image).toMatch(/:\$\{DOTNET_RELEASE\}$/);
+        expect(text).toMatch(/^ARG DOTNET_RELEASE=\d+\.\d+$/m);
+      } else {
+        expect(image).toMatch(/:\d+\.\d+\.\d+/);
+      }
+    }
   });
 
   it('runs as a non-root user and listens on PORT', () => {

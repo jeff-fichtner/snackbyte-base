@@ -21,7 +21,7 @@
         "dotnet": {
           "template": "server-dotnet",
           "hasApi": true,
-          "summary": "the server: C# on .NET 8, an ASP.NET Core minimal API tested with xUnit; serves the web build and the API under /api"
+          "summary": "the server: C# on .NET 11, an ASP.NET Core minimal API tested with xUnit; serves the web build and the API under /api"
         },
         "none": {
           "template": "server-node",

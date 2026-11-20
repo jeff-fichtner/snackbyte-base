@@ -58,10 +58,10 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             templates/*/package-lock.json
-      # The C# server template builds with the .NET 8 SDK (its global.json takes any 8.0 SDK).
+      # The C# server template's SDK comes from its global.json, the template's one .NET setting.
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
-          dotnet-version: '8.0.x'
+          global-json-file: templates/server-dotnet/global.json
       - run: npm ci
       # Every template is its own project: install each (the hub's own tests compose apps from them).
       - run: npm run setup
@@ -112,7 +112,7 @@ jobs:
 
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
-          dotnet-version: '8.0.x'
+          global-json-file: templates/server-dotnet/global.json
 
       - run: npm ci
       - run: npm run setup

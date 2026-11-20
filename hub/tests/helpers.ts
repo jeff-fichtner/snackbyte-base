@@ -1,6 +1,14 @@
 // Shared by the hub's tests: scratch copies of this repo, composing them, and running what results.
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  openSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -47,9 +55,19 @@ export function npm(dir: string, args: string[], env: NodeJS.ProcessEnv = proces
   return spawnSync('npm', args, { cwd: dir, encoding: 'utf8', env, maxBuffer: 64 * 1024 * 1024 });
 }
 
-/** Starts a long-running command in its own process group, so `stop` ends everything it started. */
-export function startGroup(dir: string, command: string, args: string[], env: NodeJS.ProcessEnv) {
-  return spawn(command, args, { cwd: dir, env, stdio: 'ignore', detached: true });
+/**
+ * Starts a long-running command in its own process group, so `stop` ends everything it started. Its
+ * output goes to `log` when given (read it back to explain a failure), otherwise nowhere.
+ */
+export function startGroup(
+  dir: string,
+  command: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  log?: string,
+) {
+  const out = log ? openSync(log, 'w') : 'ignore';
+  return spawn(command, args, { cwd: dir, env, stdio: ['ignore', out, out], detached: true });
 }
 
 /** Ends a process group started by `startGroup`. */

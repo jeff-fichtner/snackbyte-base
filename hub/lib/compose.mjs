@@ -95,17 +95,19 @@ export function compose(root, { name, parts }, version) {
 
   // 4. The app root: its scripts, its one .env, the image recipe for its server, its README.
   const hubPackage = JSON.parse(readFileSync(at('package.json'), 'utf8'));
+  // Each part's command is its own script, run with `npm run`, so it gets a fresh shell at the app
+  // root: a part whose command starts with `cd <part> &&` cannot move the next command elsewhere.
   const scripts = {
-    setup: [web, server].map((p) => cmd(p, 'setup')).join(' && '),
+    setup: 'npm run setup:web && npm run setup:server',
+    'setup:web': cmd(web, 'setup'),
+    'setup:server': cmd(server, 'setup'),
     dev: 'node scripts/dev.mjs',
     ...Object.fromEntries(
       [web, server].filter((p) => p.manifest.dev).map((p) => [`dev:${p.role}`, cmd(p, 'dev')]),
     ),
-    build: [
-      cmd(web, 'build'),
-      cmd(server, 'build'),
-      `node scripts/copy-web.mjs ${cmd(web, 'output')} ${cmd(server, 'webRoot')}`,
-    ].join(' && '),
+    build: `npm run build:web && npm run build:server && node scripts/copy-web.mjs ${cmd(web, 'output')} ${cmd(server, 'webRoot')}`,
+    'build:web': cmd(web, 'build'),
+    'build:server': cmd(server, 'build'),
     start: cmd(server, 'start'),
     'check:env': 'node scripts/check-env-files.mjs',
     'check:web': cmd(web, 'check'),

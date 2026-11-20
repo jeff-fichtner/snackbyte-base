@@ -6,7 +6,7 @@ Runnable checks that prove the feature, in the order the work lands. Contracts:
 
 ## Prerequisites
 
-Node 24 (`.nvmrc`), the .NET 8 SDK (`dotnet --list-sdks` shows an `8.0.` line), and Docker for the
+Node 24 (`.nvmrc`), the .NET 11 SDK (`dotnet --list-sdks` shows an `11.0.` line), and Docker for the
 opt-in image check only.
 
 ## 1. snackbyte-base's own gate
@@ -52,10 +52,31 @@ for staging only; the container user is not root.
 
 ## 6. The one step left: deploy (US3, SC-005)
 
-Deploying is the Cloud Run deploy template's existing path, unchanged: the per-app deploy job in
-`DEPLOY.md`, which runs `gcloud builds submit --config=cloudbuild.yaml` with the app's service,
-region, environment and runtime service account. The C# PR states it as a paste-ready command for
-Jeff with every value that can be known filled in.
+Deploying is the Cloud Run deploy template's existing path, unchanged: `cloudbuild.yaml` builds the
+app's root `Dockerfile` with the environment and version as build arguments, pushes the image and
+deploys it by digest. The image it builds is the one `npm run e2e:image` checks locally.
+
+For a composed React + C# app, once it is in its own repo and its per-app GCP pieces exist
+(`GCP-SETUP.md` in project-setup: the Cloud Run runtime service account for the environment, and the
+deployer allowed to act as it), the step is one Cloud Build submit from the app's root. The project is
+`snackbyte-apps`; the other values are the app's and only Jeff holds them:
+
+- `SERVICE` — the Cloud Run service name (the app's name, e.g. `demo`, or `demo-staging`).
+- `REGION` — the region the service runs in (e.g. `us-central1`).
+- `ENV_NAME` — `staging` or `production` (an entry in `environments.json`).
+- `RUN_SA` — the runtime service account email for that environment
+  (`<app>-stg-runtime@snackbyte-apps.iam.gserviceaccount.com` or `<app>-prod-runtime@…`).
+- `DEPLOY_SA` — the deployer service account email.
+- `TAG` — the version tag being deployed (e.g. `v0.1.0-dev`).
+
+```bash
+cd "${APP_DIR:?set APP_DIR to the composed app's root}" && ~/.claude/bin/run demo-deploy gcloud builds submit --config=cloudbuild.yaml --substitutions="TAG_NAME=${TAG:?set TAG},SHORT_SHA=$(git rev-parse --short HEAD),_SERVICE=${SERVICE:?set SERVICE},_REGION=${REGION:?set REGION},_APP_ENV_NAME=${ENV_NAME:?set ENV_NAME},_RUN_SA=${RUN_SA:?set RUN_SA}" --service-account="projects/snackbyte-apps/serviceAccounts/${DEPLOY_SA:?set DEPLOY_SA}" --default-buckets-behavior=REGIONAL_USER_OWNED_BUCKET --project=snackbyte-apps --region="${REGION}" .
+```
+
+After it: `curl -sI https://<host>/` shows the page (with `X-Robots-Tag: noindex` on staging), and
+`https://<host>/api/version` reports the tag and the environment. A first deploy also needs the
+one-time `allUsers` invoker grant and the load balancer host rule (`GCP-SETUP.md` §4–§5), or the host
+answers 403 or not at all.
 
 ## 7. Refusals (US5)
 

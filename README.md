@@ -7,6 +7,7 @@ standalone project of one part, and composes your app from the ones you choose:
 | ------------------ | ------ | --------------------------------------------------------------------------------- |
 | `web-react`        | web    | Vite + React + TypeScript front end, built to static files (prerender or dynamic) |
 | `server-node`      | server | Node + Express + TypeScript: serves the front end, and an API under `/api`        |
+| `server-dotnet`    | server | C# on .NET 11, ASP.NET Core minimal API + xUnit: serves the front end and the API |
 | `deploy-cloud-run` | deploy | Cloud Build config and the per-app deploy job for Google Cloud Run                |
 
 A composed app has a `web/` part, a `server/` part, and a root that runs them together: one

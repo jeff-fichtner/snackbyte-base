@@ -1,6 +1,17 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 3.0.0 → 3.0.1 (2026-11-19)
+Bump rationale: PATCH — the Technology Stack's pinned .NET release. The C# server template targets
+  the newest .NET release (.NET 11 today) and moves to each new one, with the release as one setting
+  (Jeff's ruling 2026-11-18, #029272 as amended by #49d26b). No principle changes.
+Modified sections: Technology Stack (C# server template line)
+Propagated to: specs/006-template-hub/ (spec, plan, research, quickstart), templates/server-dotnet,
+  the hub's image recipe and registry, README.md, SPIN-UP.md, CI.
+Follow-up TODOs: none.
+
+Previous report (2.1.0 → 3.0.0) follows.
+
 Version change: 2.1.0 → 3.0.0 (2026-11-16)
 Bump rationale: MAJOR — Principle I redefined. snackbyte-base is no longer one mode-neutral
   template; it is a hub that composes an app from standalone templates (Jeff's direction on request
@@ -232,7 +243,8 @@ The templates' stacks are fixed (deviation requires a constitution amendment):
   (typescript-eslint) + Prettier, Node 24 LTS.
 - **Node server template**: TypeScript, Express, Vitest, ESLint + Prettier, Node 24 LTS.
   Also serves an app with no API (its API removed at spin-up).
-- **C# server template**: C# on .NET 8, ASP.NET Core minimal API, xUnit, `dotnet format`.
+- **C# server template**: C# on the newest .NET release (.NET 11 today), ASP.NET Core minimal API,
+  xUnit, `dotnet format`.
 - **The hub and composed apps' root scripts**: Node (`.mjs`, built-ins only).
 - **Host**: Google Cloud Platform — Cloud Run (the default deploy template), Artifact
   Registry for images.
@@ -277,4 +289,4 @@ conflicts, the constitution wins.
   justification. The stack in Technology Stack is fixed — changing it is an amendment,
   not a per-app decision.
 
-**Version**: 3.0.0 | **Ratified**: 2026-05-31 | **Last Amended**: 2026-11-16
+**Version**: 3.0.1 | **Ratified**: 2026-05-31 | **Last Amended**: 2026-11-19
